@@ -33,21 +33,18 @@ class HomeController extends Controller
     {
         $branch_code = auth()->user()->BC;
         
-        $query = TPawnSum::all()
-                ->where('BC', $branch_code);
-
-        $query2 = TRedeemSum::all()
-                ->where('BC', $branch_code);
+        $pawnQuery = TPawnSum::where('BC', $branch_code);
+        $redeemQuery = TRedeemSum::where('BC', $branch_code);
         
-        $TotalPawn = $query->count();
-        $TotalRedeem = $query2->count();
-        $PawningTotal = $query->sum('Amount');
+        $TotalPawn = $pawnQuery->count();
+        $TotalRedeem = $redeemQuery->count();
+        $PawningTotal = $pawnQuery->sum('Amount') ?? 0;
         $Pawningpayemt = number_format($PawningTotal, 2);
 
-        $RedeemTotal = $query2->sum('Payable_Pawn_Amount');
+        $RedeemTotal = $redeemQuery->sum('Payable_Pawn_Amount') ?? 0;
         $Redeempayment = number_format($RedeemTotal, 2);
 
-        $InterestTotal = $query->sum('Interest');
+        $InterestTotal = $pawnQuery->sum('Interest') ?? 0;
         $Interest = number_format($InterestTotal, 2);
 
         //Showing Pawning Customer Details in the Home page
@@ -60,7 +57,7 @@ class HomeController extends Controller
         ->where('BC',$branch_code)
         ->paginate(6);
 
-        $companyData = DB::table('customers')->select('NIC')->get();
+        $companyData = collect();
 
 
 
