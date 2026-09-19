@@ -28,18 +28,9 @@ class RedeemLateLettersController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request, ?ReceiptFinancialCalculator $calculator = null, ?ReceiptTypeResolver $resolver = null)
     {
-        $calculator      = $calculator ?? app(ReceiptFinancialCalculator::class);
-        $resolver        = $resolver ?? app(ReceiptTypeResolver::class);
-        $branch_code     = auth()->user()->BC;
-        $oldPawns = $this->eligibleReceipts($request, $branch_code, $calculator);
-
-        $companyData = Company::latest()->paginate(1);
-        $receiptType = $resolver->getActiveTypes();
-
-        return view('redeem_late_letter')
-            ->with('receiptType', $receiptType)
-            ->with('companyData', $companyData)
-            ->with('recipts', $oldPawns);
+        $calculator  = $calculator ?? app(ReceiptFinancialCalculator::class);
+        $resolver    = $resolver ?? app(ReceiptTypeResolver::class);
+        return $this->buildView($request, $calculator, $resolver);
     }
 
 
@@ -92,19 +83,49 @@ if ($fromDate && $toDate) {
     // ══════════════════════════════════════════════════════════════
     public function LateRedeem(Request $request, ?ReceiptFinancialCalculator $calculator = null, ?ReceiptTypeResolver $resolver = null)
     {
-        $calculator      = $calculator ?? app(ReceiptFinancialCalculator::class);
-        $resolver        = $resolver ?? app(ReceiptTypeResolver::class);
-        $branch_code     = auth()->user()->BC;
-        $oldPawns = $this->eligibleReceipts($request, $branch_code, $calculator);
+        $calculator  = $calculator ?? app(ReceiptFinancialCalculator::class);
+        $resolver    = $resolver ?? app(ReceiptTypeResolver::class);
+        return $this->buildView($request, $calculator, $resolver);
+    }
+
+    /**
+     * Shared view builder for index + LateRedeem — handles per-tab pagination.
+     */
+    private function buildView(Request $request, ReceiptFinancialCalculator $calculator, ReceiptTypeResolver $resolver)
+    {
+        $branch_code = auth()->user()->BC;
+        $activeTab   = (int) $request->input('tab', 1);
+
+        // Load only the active tab's paginated data
+        $tab1 = $activeTab === 1 ? $this->eligibleReceipts($request, $branch_code, $calculator, 1) : null;
+        $tab2 = $activeTab === 2 ? $this->eligibleReceipts($request, $branch_code, $calculator, 2) : null;
+        $tab3 = $activeTab === 3 ? $this->eligibleReceipts($request, $branch_code, $calculator, 3) : null;
+
+        // Total counts per tab (cheap COUNT queries, no data hydration)
+        $schedule = new \App\Services\ReceiptPenaltySchedule();
+        $today    = today()->toDateString();
+        $baseCount = TPawnSum::where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0);
+        if ($request->filled('receipt_type')) { $baseCount->where('Receipt_Type', $request->receipt_type); }
+        if ($request->filled('receipt_number')) { $baseCount->where('Receipt_Number', $request->receipt_number); }
+        $count_1st = (clone $baseCount)
+            ->whereRaw($schedule->letterDueSql(1).' <= ?', [$today])
+            ->where(fn ($f) => $f->whereNull('is_letter_1')->orWhere('is_letter_1', 0))->count();
+        $count_2nd = (clone $baseCount)->where('is_letter_1', 1)
+            ->where(fn ($f) => $f->whereNull('is_letter_2')->orWhere('is_letter_2', 0))
+            ->whereRaw($schedule->letterDueSql(2).' <= ?', [$today])->count();
+        $count_3rd = (clone $baseCount)->where('is_letter_2', 1)
+            ->where(fn ($f) => $f->whereNull('is_letter_3')->orWhere('is_letter_3', 0))
+            ->whereRaw($schedule->letterDueSql(3).' <= ?', [$today])->count();
 
         $companyData = Company::latest()->paginate(1);
         $receiptType = $resolver->getActiveTypes();
 
-        return view('redeem_late_letter', [
-            'receiptType' => $receiptType,
-            'companyData' => $companyData,
-            'recipts'     => $oldPawns,
-        ]);
+        return view('redeem_late_letter', compact(
+            'receiptType', 'companyData',
+            'tab1', 'tab2', 'tab3',
+            'count_1st', 'count_2nd', 'count_3rd',
+            'activeTab'
+        ));
     }
 
 
@@ -263,48 +284,76 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     return view('gold_loan_notice_bulk_print', compact('letters', 'company', 'letter_no'));
 }
 
-    private function eligibleReceipts(Request $request, string $branchCode, ReceiptFinancialCalculator $calculator)
+    private function eligibleReceipts(Request $request, string $branchCode, ReceiptFinancialCalculator $calculator, int $tabLetter = 1)
     {
+        $perPage = 25;
         $today = today();
         $schedule = new \App\Services\ReceiptPenaltySchedule();
         $dueSql = [1 => $schedule->letterDueSql(1), 2 => $schedule->letterDueSql(2), 3 => $schedule->letterDueSql(3)];
-        $query = TPawnSum::where('BC', $branchCode)
+
+        $baseQuery = TPawnSum::where('BC', $branchCode)
             ->where('IsRedeemed', 0)
-            ->where('isForfeit', 0)
-            ->where(function ($query) use ($today, $dueSql) {
-                $query->where(function ($first) use ($today, $dueSql) {
-                    $first->whereRaw($dueSql[1].' <= ?', [$today->toDateString()])
-                        ->where(fn ($flag) => $flag->whereNull('is_letter_1')->orWhere('is_letter_1', 0));
-                })->orWhere(function ($second) use ($today, $dueSql) {
-                    $second->where('is_letter_1', 1)
-                        ->where(fn ($flag) => $flag->whereNull('is_letter_2')->orWhere('is_letter_2', 0))
-                        ->whereRaw($dueSql[2].' <= ?', [$today->toDateString()]);
-                })->orWhere(function ($third) use ($today, $dueSql) {
-                    $third->where('is_letter_2', 1)
-                        ->where(fn ($flag) => $flag->whereNull('is_letter_3')->orWhere('is_letter_3', 0))
-                        ->whereRaw($dueSql[3].' <= ?', [$today->toDateString()]);
-                });
-            });
+            ->where('isForfeit', 0);
 
         if ($request->filled('receipt_type')) {
-            $query->where('Receipt_Type', $request->receipt_type);
+            $baseQuery->where('Receipt_Type', $request->receipt_type);
         }
         if ($request->filled('receipt_number')) {
-            $query->where('Receipt_Number', $request->receipt_number);
+            $baseQuery->where('Receipt_Number', $request->receipt_number);
         }
 
-        return $query->orderBy('Final_date')->get()->each(function (TPawnSum $receipt) use ($calculator, $schedule) {
-            $this->applyCurrentCustomerContact($receipt);
+        // Tab-specific filter
+        if ($tabLetter === 1) {
+            $baseQuery->whereRaw($dueSql[1].' <= ?', [$today->toDateString()])
+                ->where(fn ($f) => $f->whereNull('is_letter_1')->orWhere('is_letter_1', 0));
+        } elseif ($tabLetter === 2) {
+            $baseQuery->where('is_letter_1', 1)
+                ->where(fn ($f) => $f->whereNull('is_letter_2')->orWhere('is_letter_2', 0))
+                ->whereRaw($dueSql[2].' <= ?', [$today->toDateString()]);
+        } elseif ($tabLetter === 3) {
+            $baseQuery->where('is_letter_2', 1)
+                ->where(fn ($f) => $f->whereNull('is_letter_3')->orWhere('is_letter_3', 0))
+                ->whereRaw($dueSql[3].' <= ?', [$today->toDateString()]);
+        }
+
+        $paginated = $baseQuery->orderBy('Final_date')->paginate($perPage)->withQueryString();
+
+        $receipts = $paginated->getCollection();
+
+        // Batch load customers to prevent N+1 queries
+        $nics = $receipts->pluck('Customer_NIC')->filter()->unique();
+        $customers = Customer::where('BC', $branchCode)->whereIn('NIC', $nics)->get()->keyBy('NIC');
+
+        // Batch load t_pawn_trans postage charges to prevent N+1 queries
+        $receiptNumbers = $receipts->pluck('Receipt_Number')->filter()->unique();
+        $transPostages = array_fill_keys($receiptNumbers->map(fn ($n) => (string) $n)->all(), 0.0);
+        $foundPostages = DB::table('t_pawn_trans')
+            ->whereIn('code', $receiptNumbers)
+            ->where('BC', $branchCode)
+            ->whereNotNull('Postage_charge')
+            ->where('Postage_charge', '>', 0)
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('code');
+        foreach ($foundPostages as $code => $rows) {
+            $transPostages[(string) $code] = (float) $rows->first()->Postage_charge;
+        }
+        $calculator->setPreloadedPostageCharges($transPostages);
+
+        $receipts->each(function (TPawnSum $receipt) use ($calculator, $schedule, $customers, $tabLetter) {
+            $this->applyCurrentCustomerContact($receipt, $customers->get($receipt->Customer_NIC));
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));
-            $nextLetter = !$receipt->is_letter_1 ? 1 : (!$receipt->is_letter_2 ? 2 : 3);
-            $receipt->setAttribute('next_letter_no', $nextLetter);
-            $receipt->setAttribute('next_letter_due_date', $schedule->letterDueDate($receipt, $nextLetter)->toDateString());
+            $receipt->setAttribute('next_letter_no', $tabLetter);
+            $receipt->setAttribute('next_letter_due_date', $schedule->letterDueDate($receipt, $tabLetter)->toDateString());
         });
+
+        $paginated->setCollection($receipts);
+        return $paginated;
     }
 
-    private function applyCurrentCustomerContact(TPawnSum $receipt): void
+    private function applyCurrentCustomerContact(TPawnSum $receipt, ?Customer $customer = null): void
     {
-        $customer = Customer::where('NIC', $receipt->Customer_NIC)->where('BC', $receipt->BC)->first();
+        $customer = $customer ?? Customer::where('NIC', $receipt->Customer_NIC)->where('BC', $receipt->BC)->first();
         if (!$customer) {
             return;
         }

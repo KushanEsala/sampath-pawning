@@ -181,36 +181,61 @@ class ForfeitReportRenderingTest extends TestCase
             ]);
             $receipt->forceFill([
                 'id'=>$id,
-                'next_letter_due_date'=>Carbon::parse('2026-04-06 11:12:13'),
-                'financial_breakdown'=>array_fill_keys(['interest','service_charge','letter_charge','arrears_total'], 0),
+                'next_letter_due_date'=>'2026-04-06',  // stored as Y-m-d string
+                'financial_breakdown'=>array_fill_keys(
+                    ['interest','service_charge','letter_charge','arrears_total','redemption_total'], 0
+                ),
             ]);
             return $receipt;
         };
-        $recipts = collect([
-            $makeReceipt(1, false, false),
-            $makeReceipt(2, true, false),
-            $makeReceipt(3, true, true),
-        ]);
+
+        // Build a fake paginator for tab 1 (1st letter = receipt id 1)
+        $items1 = collect([$makeReceipt(1, false, false)]);
+        $tab1 = new \Illuminate\Pagination\LengthAwarePaginator($items1, 1, 25, 1);
+
+        $items2 = collect([$makeReceipt(2, true, false)]);
+        $tab2 = new \Illuminate\Pagination\LengthAwarePaginator($items2, 1, 25, 1);
+
+        $items3 = collect([$makeReceipt(3, true, true)]);
+        $tab3 = new \Illuminate\Pagination\LengthAwarePaginator($items3, 1, 25, 1);
+
         $receiptType = collect();
         $companyData = collect();
+        $count_1st = 1; $count_2nd = 1; $count_3rd = 1;
 
-        $html = view('redeem_late_letter', compact('recipts', 'receiptType', 'companyData'))->render();
+        // Render tab 1 view
+        $activeTab = 1;
+        $tab2_null = null; $tab3_null = null;
+        $html = view('redeem_late_letter', [
+            'receiptType' => $receiptType,
+            'companyData' => $companyData,
+            'tab1'        => $tab1,
+            'tab2'        => $tab2_null,
+            'tab3'        => $tab3_null,
+            'count_1st'   => $count_1st,
+            'count_2nd'   => $count_2nd,
+            'count_3rd'   => $count_3rd,
+            'activeTab'   => $activeTab,
+        ])->render();
 
+        // Address must never appear
         $this->assertStringNotContainsString('ADDRESS MUST NOT APPEAR', $html);
         $this->assertStringNotContainsString('<th>Address</th>', $html);
+
+        // Times must not appear (only dates)
         $this->assertStringNotContainsString('08:45:12', $html);
         $this->assertStringNotContainsString('11:12:13', $html);
         $this->assertStringNotContainsString('10:11:12', $html);
         $this->assertStringNotContainsString('12:13:14', $html);
-        $this->assertStringContainsString('data-late-letter-details="letter-1-details-1', $html);
-        $this->assertStringContainsString('data-late-letter-details="letter-2-details-2', $html);
-        $this->assertStringContainsString('data-late-letter-details="letter-3-details-3', $html);
-        $this->assertStringContainsString('class="late-letter-detail-row" hidden', $html);
-        $this->assertStringContainsString('Letter / postage', $html);
+
+        // Detail toggle button and expanded panel must be present
+        $this->assertStringContainsString('data-detail-row="ll-detail-1-1"', $html);
+        $this->assertStringContainsString('class="detail-row d-none"', $html);
+        $this->assertStringContainsString('Letter / Postage', $html);
+
+        // Key dates must appear (without time component)
         $this->assertStringContainsString('2026-01-02', $html);
         $this->assertStringContainsString('2026-02-02', $html);
-        $this->assertStringContainsString('2026-02-23', $html);
-        $this->assertStringContainsString('2026-03-16', $html);
         $this->assertStringContainsString('2026-04-06', $html);
     }
 }

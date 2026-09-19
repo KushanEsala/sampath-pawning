@@ -65,12 +65,21 @@ class ReceiptTypeResolver
     }
 
     /**
+     * In-memory cache for resolved Recei_Add configurations by name and date.
+     */
+    private array $dateCache = [];
+
+    /**
      * Resolve a Recei_Add configuration instance for a receipt name as of a specific date.
      * Useful for new pawn creation and repawning loans.
      */
     public function resolveByDate(string $receiptName, Carbon|string|null $date = null): ?Recei_Add
     {
         $parsedDate = $date ? Carbon::parse($date)->toDateString() : now()->toDateString();
+        $cacheKey = "{$receiptName}|{$parsedDate}";
+        if (isset($this->dateCache[$cacheKey])) {
+            return $this->dateCache[$cacheKey];
+        }
 
         // 1. Try to find record where effective_from <= date and (effective_to is null or effective_to >= date)
         $match = Recei_Add::where('receiptname', $receiptName)
@@ -80,7 +89,7 @@ class ReceiptTypeResolver
             ->first();
 
         if ($match) {
-            return $match;
+            return $this->dateCache[$cacheKey] = $match;
         }
 
         // 2. If no date match found (e.g. date is before the earliest effective_from),
@@ -91,11 +100,11 @@ class ReceiptTypeResolver
             ->first();
 
         if ($earliest) {
-            return $earliest;
+            return $this->dateCache[$cacheKey] = $earliest;
         }
 
         // 3. Fallback to any record matching receiptname
-        return Recei_Add::where('receiptname', $receiptName)->first();
+        return $this->dateCache[$cacheKey] = Recei_Add::where('receiptname', $receiptName)->first();
     }
 
     /**
