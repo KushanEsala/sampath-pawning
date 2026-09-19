@@ -508,7 +508,7 @@ Route::get('customerUpdatestatus', [CustomerUpdatestatusController::class, 'cust
 
 // Customer Status Management Routes
 Route::get('/customer-update-status', [CustomerUpdatestatusController::class, 'customerUpdatestatus'])
-    ->name('customerUpdatestatus');
+    ->name('customer-update-status.view');
 
 Route::put('/customer-update-status/{id}', [CustomerUpdatestatusController::class, 'updateStatus'])
     ->name('customerUpdatestatus.update');
