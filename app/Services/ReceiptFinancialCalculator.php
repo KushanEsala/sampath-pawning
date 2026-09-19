@@ -46,9 +46,13 @@ class ReceiptFinancialCalculator
         $carriedInterest = (float) ($receipt->BalanceInterest ?? 0);
         $interest = max(0, $grossInterest - $paidInterest + $carriedInterest);
         $serviceCharge = (float) $this->configuredValue($receipt, $config, 'service_charge', 0);
-        $letterCharges = (float) ($receipt->letter_pay_one ?? 0)
-            + (float) ($receipt->letter_pay_two ?? 0)
-            + (float) ($receipt->letter_pay_three ?? 0);
+        $letterCharges = 0.0;
+        foreach ([1, 2, 3] as $letterNo) {
+            $payField = ['letter_pay_one', 'letter_pay_two', 'letter_pay_three'][$letterNo - 1];
+            if (!empty($receipt->{"letter_{$letterNo}_date"}) || (bool) $receipt->{"is_letter_{$letterNo}"} || (float) ($receipt->{$payField} ?? 0) > 0) {
+                $letterCharges += $this->resolveLetterCharge($receipt, $letterNo);
+            }
+        }
         $arrearsTotal = $interest + $serviceCharge + $letterCharges;
 
         return [
@@ -66,9 +70,43 @@ class ReceiptFinancialCalculator
         ];
     }
 
+    public function resolveLetterCharge(TPawnSum $receipt, int $letterNo): float
+    {
+        $field = ['letter_pay_one', 'letter_pay_two', 'letter_pay_three'][$letterNo - 1] ?? null;
+        if ($field && (float) ($receipt->{$field} ?? 0) > 0) {
+            return round((float) $receipt->{$field}, 2);
+        }
+
+        // Check if t_pawn_trans has recorded Postage_charge
+        $transPostage = (float) \Illuminate\Support\Facades\DB::table('t_pawn_trans')
+            ->where('code', $receipt->Receipt_Number)
+            ->where('BC', $receipt->BC)
+            ->whereNotNull('Postage_charge')
+            ->where('Postage_charge', '>', 0)
+            ->orderByDesc('id')
+            ->value('Postage_charge');
+
+        $letterCount = 0;
+        foreach ([1, 2, 3] as $num) {
+            if (!empty($receipt->{"letter_{$num}_date"}) || (bool) $receipt->{"is_letter_{$num}"}) {
+                $letterCount++;
+            }
+        }
+
+        if ($transPostage > 0 && $letterCount > 0) {
+            return round($transPostage / $letterCount, 2);
+        }
+
+        if ((float) ($receipt->Postage_charge ?? 0) > 0) {
+            return round((float) $receipt->Postage_charge, 2);
+        }
+
+        return $this->postageCharge($receipt);
+    }
+
     public function postageCharge(TPawnSum $receipt): float
     {
-        if ($receipt->Postage_charge !== null) {
+        if ($receipt->Postage_charge !== null && (float) $receipt->Postage_charge > 0) {
             return round((float) $receipt->Postage_charge, 2);
         }
 

@@ -101,22 +101,37 @@ class ReceiptHistoryService
             }
         }
 
+        $letterEvents = collect();
         if (Schema::hasTable('arrears_letter_events')) {
-            foreach (ArrearsLetterEvent::where('pawn_sum_id', $receipt->id)->get() as $letter) {
+            $letterEvents = ArrearsLetterEvent::where('pawn_sum_id', $receipt->id)->get();
+        }
+
+        if ($letterEvents->isNotEmpty()) {
+            foreach ($letterEvents as $letter) {
+                $charge = (float) $letter->postage_charge;
+                $dateStr = $letter->issued_at instanceof \Carbon\Carbon ? $letter->issued_at->toDateString() : substr((string) $letter->issued_at, 0, 10);
                 $chargeRows->push((object) array_merge($base, [
-                    'dDate' => $letter->issued_at, 'trans_type' => 'LETTER '.$letter->letter_no.' CHARGE',
-                    'trans_amount' => (float) $letter->postage_charge,
-                    'Postage_charge' => (float) $letter->postage_charge,
+                    'dDate' => $dateStr,
+                    'trans_type' => 'LETTER '.$letter->letter_no.' CHARGE',
+                    'trans_amount' => $charge,
+                    'Postage_charge' => $charge,
+                    'letter_sent' => $this->ordinal($letter->letter_no).' Letter',
+                    'letter_charge' => $charge,
                 ]));
             }
         } else {
             foreach ([1, 2, 3] as $letterNo) {
                 $date = $receipt->{"letter_{$letterNo}_date"};
-                $amount = (float) $receipt->{['letter_pay_one', 'letter_pay_two', 'letter_pay_three'][$letterNo - 1]};
                 if ($date) {
+                    $charge = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+                    $dateStr = $date instanceof \Carbon\Carbon ? $date->toDateString() : substr((string) $date, 0, 10);
                     $chargeRows->push((object) array_merge($base, [
-                        'dDate' => $date, 'trans_type' => 'LETTER '.$letterNo.' CHARGE',
-                        'trans_amount' => $amount, 'Postage_charge' => $amount,
+                        'dDate' => $dateStr,
+                        'trans_type' => 'LETTER '.$letterNo.' CHARGE',
+                        'trans_amount' => $charge,
+                        'Postage_charge' => $charge,
+                        'letter_sent' => $this->ordinal($letterNo).' Letter',
+                        'letter_charge' => $charge,
                     ]));
                 }
             }
@@ -140,10 +155,25 @@ class ReceiptHistoryService
         Collection $lifecycle
     ): Collection {
         $events = collect();
+
+        $extraNames = collect();
+        if ($letters->isEmpty()) {
+            foreach ([1, 2, 3] as $letterNo) {
+                $date = $receipt->{"letter_{$letterNo}_date"};
+                if ($date) {
+                    $op = $this->resolveLetterOperator($receipt, $letterNo, $date, $feedbacks);
+                    if ($op) {
+                        $extraNames->push($op);
+                    }
+                }
+            }
+        }
+
         $names = $transactions->concat($payments)->concat($redeems)->concat($repawns)->concat($feedbacks)->concat($forfeits)
             ->map(fn ($row) => $row->OC ?? null)
             ->concat($letters->pluck('issued_by'))->concat($promises->pluck('created_by'))
             ->concat($promises->pluck('updated_by'))->concat($lifecycle->pluck('created_by'))
+            ->concat($extraNames)
             ->filter()->unique()->values();
         // Resolve only recorded operators; never attribute old events to the viewer.
         $this->operatorProfiles = $names->isEmpty() ? [] : User::whereIn('username', $names)
@@ -178,6 +208,7 @@ class ReceiptHistoryService
         if ($letters->isNotEmpty()) {
             foreach ($letters as $letter) {
                 $events->push($this->event($letter->issued_at, "LETTER {$letter->letter_no} CHARGE", (float) $letter->postage_charge, [
+                    'Letter' => $this->ordinal($letter->letter_no).' Letter',
                     'Due date' => optional($letter->due_date)->toDateString(),
                     'Issued by' => $letter->issued_by,
                 ], $letter->id, $letter->issued_by, $receipt->BC));
@@ -185,9 +216,21 @@ class ReceiptHistoryService
         } else {
             foreach ([1, 2, 3] as $letterNo) {
                 $date = $receipt->{"letter_{$letterNo}_date"};
-                $amount = (float) $receipt->{['letter_pay_one', 'letter_pay_two', 'letter_pay_three'][$letterNo - 1]};
                 if ($date) {
-                    $events->push($this->event($date, "LETTER {$letterNo} CHARGE", $amount));
+                    $amount = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+                    $dateStr = $date instanceof \Carbon\Carbon ? $date->toDateString() : substr((string) $date, 0, 10);
+                    $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
+                    $events->push($this->event(
+                        $dateStr,
+                        "LETTER {$letterNo} CHARGE",
+                        $amount,
+                        [
+                            'Letter' => $this->ordinal($letterNo).' Letter',
+                        ],
+                        0,
+                        $op,
+                        $receipt->BC
+                    ));
                 }
             }
         }
@@ -217,6 +260,53 @@ class ReceiptHistoryService
         return $events->sortByDesc(fn ($event) => sprintf('%s-%010d', $event['sort_date'], $event['sequence']))->values();
     }
 
+    private function resolveLetterOperator(TPawnSum $receipt, int $letterNo, mixed $date, Collection $feedbacks): ?string
+    {
+        $dateStr = $date instanceof \Carbon\Carbon ? $date->toDateString() : substr((string) $date, 0, 10);
+        $dateTime = strtotime($dateStr ?: '1970-01-01');
+
+        // First try exact or near-date match (within 7 days) where feedback text mentions letter or post
+        $match = $feedbacks->first(function ($f) use ($dateStr, $dateTime) {
+            $fDate = substr((string) ($f->Current_date ?? $f->created_at ?? ''), 0, 10);
+            $fText = strtoupper((string) ($f->feedback ?? ''));
+            $isLetterFeedback = str_contains($fText, 'LETTER') || str_contains($fText, 'POST');
+            if (!$isLetterFeedback) {
+                return false;
+            }
+            if ($fDate === $dateStr) {
+                return true;
+            }
+            $fTime = strtotime($fDate ?: '1970-01-01');
+            return abs($fTime - $dateTime) <= 86400 * 7;
+        });
+
+        if ($match && !empty($match->OC)) {
+            return $match->OC;
+        }
+
+        // Fallback: any letter/post feedback in chronological order for letter 1, 2, 3
+        $letterFeedbacks = $feedbacks->filter(function ($f) {
+            $fText = strtoupper((string) ($f->feedback ?? ''));
+            return str_contains($fText, 'LETTER') || str_contains($fText, 'POST');
+        })->sortBy('Current_date')->values();
+
+        if ($letterFeedbacks->has($letterNo - 1) && !empty($letterFeedbacks[$letterNo - 1]->OC)) {
+            return $letterFeedbacks[$letterNo - 1]->OC;
+        }
+
+        return $receipt->OC ?: null;
+    }
+
+    private function ordinal(int $num): string
+    {
+        return match ($num) {
+            1 => '1st',
+            2 => '2nd',
+            3 => '3rd',
+            default => $num.'th',
+        };
+    }
+
     private function operatorLabel(?string $username, ?string $branch): string
     {
         if (!$username) return 'Not recorded';
@@ -226,7 +316,16 @@ class ReceiptHistoryService
 
     private function event(mixed $date, string $type, ?float $amount, array $details = [], int $sequence = 0, ?string $operator = null, ?string $branch = null): array
     {
-        $dateString = $date ? (string) $date : '';
+        $dateString = '';
+        if ($date instanceof \Carbon\Carbon) {
+            $dateString = $date->format('Y-m-d');
+        } elseif (!empty($date)) {
+            try {
+                $dateString = \Carbon\Carbon::parse($date)->format('Y-m-d');
+            } catch (\Throwable) {
+                $dateString = (string) $date;
+            }
+        }
         $details['Operator'] = $this->operatorLabel($operator, $branch);
 
         return [

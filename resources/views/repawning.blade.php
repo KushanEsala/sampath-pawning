@@ -474,26 +474,24 @@
                                 customerPaid = record.payable_total ? Number(record.payable_total).toFixed(2) : '-';
                                 paidCapital = Number(record.Paided_Captional || 0).toFixed(2);
                                 paidInterest = Number(record.Paided_Interest || 0).toFixed(2);
+                            } else if (type.includes('LETTER')) {
+                                let amt = Number(record.trans_amount || record.Postage_charge || record.letter_charge || 0);
+                                amountBadge = `<span class="badge bg-warning text-dark">Postal: Rs. ${amt.toFixed(2)}</span>`;
                             } else if (type.includes('CHARGE')) {
                                 let amt = Number(record.trans_amount || record.Postage_charge || 0);
-                                amountBadge = `<span class="badge bg-warning text-dark">${amt.toFixed(2)}</span>`;
+                                amountBadge = `<span class="badge bg-warning text-dark">Service: Rs. ${amt.toFixed(2)}</span>`;
                             } else {
                                 let amt = Number(record.trans_amount || 0);
                                 amountBadge = `<span>${amt.toFixed(2)}</span>`;
                             }
 
-                            // Display letters only if letters have actually been sent
-                            let letters = [];
-                            if (record.letter_1_date) {
-                                letters.push(`1st: ${record.letter_1_date}`);
+                            // Display letters only on letter charge rows (parallel timeframe where letter was actually sent)
+                            let lettersDisplay = '-';
+                            if (type.includes('LETTER') || record.letter_sent) {
+                                let letterName = record.letter_sent || record.trans_type || 'Letter Sent';
+                                let postalAmt = Number(record.trans_amount || record.Postage_charge || record.letter_charge || 0);
+                                lettersDisplay = `<span class="badge bg-primary text-white">${letterName}</span><br><small class="text-muted">Postal: Rs. ${postalAmt.toFixed(2)}</small>`;
                             }
-                            if (record.letter_2_date) {
-                                letters.push(`2nd: ${record.letter_2_date}`);
-                            }
-                            if (record.letter_3_date) {
-                                letters.push(`3rd: ${record.letter_3_date}`);
-                            }
-                            let lettersDisplay = letters.length > 0 ? letters.join('<br>') : '-';
                             let remainingDisplay = record.remaining_display || '-';
 
                             tableRows += `

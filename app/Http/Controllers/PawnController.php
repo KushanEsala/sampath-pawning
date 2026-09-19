@@ -825,11 +825,34 @@ public function get(Request $request)
 
     public function getCustomerDetails(Request $request, ReceiptHistoryService $historyService)
     {
-        $receiptNo   = $request->search_receipt_no;
+        $searchValue = trim((string) ($request->search_receipt_no ?? ''));
         $branch_code = auth()->user()->BC;
-        if ($request->boolean('payment_workflow') && !\App\Services\ReceiptPaymentEligibility::query('Pawn', $branch_code)->where('Receipt_Number', $receiptNo)->exists()) {
-            return response()->json(['status'=>'not_found', 'data'=>[]]);
+
+        if (empty($searchValue)) {
+            return response()->json(['status' => 'not_found', 'data' => []]);
         }
+
+        if ($request->boolean('payment_workflow') && !\App\Services\ReceiptPaymentEligibility::query('Pawn', $branch_code)->where(function ($q) use ($searchValue) {
+            $q->where('Receipt_Number', $searchValue)
+              ->orWhere('Ticket_Number', $searchValue)
+              ->orWhere('Invoice_Number', $searchValue);
+        })->exists()) {
+            return response()->json(['status' => 'not_found', 'data' => []]);
+        }
+
+        $receipt = TPawnSum::where('BC', $branch_code)
+            ->where(function ($q) use ($searchValue) {
+                $q->where('Receipt_Number', $searchValue)
+                  ->orWhere('Ticket_Number', $searchValue)
+                  ->orWhere('Invoice_Number', $searchValue);
+            })
+            ->first();
+
+        if (!$receipt) {
+            return response()->json(['status' => 'not_found', 'data' => []]);
+        }
+
+        $receiptNo = $receipt->Receipt_Number;
 
         $data = DB::table('t_pawn_trans as trans')
             ->join('t_pawn_sums as sum', 'trans.code', '=', 'sum.Receipt_Number')
@@ -841,11 +864,7 @@ public function get(Request $request)
             ->orderByDesc('trans.id')
             ->get();
 
-        $receipt = TPawnSum::where('Receipt_Number', $receiptNo)->where('BC', $branch_code)->first();
-        if ($receipt) {
-            $data = $historyService->appendChargeRows($data, $receipt);
-        }
-
+        $data = $historyService->appendChargeRows($data, $receipt);
         $data = $historyService->enrichWithRemainingAmounts($data);
 
         if ($data->isEmpty()) {
