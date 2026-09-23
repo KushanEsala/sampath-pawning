@@ -29,4 +29,21 @@ class ReceiptPaymentEligibility
         }
         return $receipt;
     }
+
+    public static function lockForRedemption(string $type, mixed $number, string $branch): Model
+    {
+        $receipt = self::lock($type, $number, $branch);
+        self::assertRedemptionAllowed($receipt);
+
+        return $receipt;
+    }
+
+    public static function assertRedemptionAllowed(Model $receipt): void
+    {
+        if ((bool) ($receipt->is_blocked ?? false)) {
+            throw ValidationException::withMessages([
+                'receipt_number' => 'This receipt is blocked. An administrator must unblock it before redemption.',
+            ]);
+        }
+    }
 }

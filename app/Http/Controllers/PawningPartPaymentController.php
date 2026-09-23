@@ -22,6 +22,7 @@ use App\Models\MPawnfeedback;
 use Illuminate\Support\Facades\DB;
 use App\Services\ReceiptFinancialCalculator;
 use App\Services\ReceiptLifecycleService;
+use App\Services\PartPaymentCalculator;
 use Illuminate\Validation\ValidationException;
 use App\Services\ReceiptHistoryService;
 use App\Services\ReceiptTypeResolver;
@@ -83,8 +84,8 @@ class PawningPartPaymentController extends Controller
             $cus_data = Customer::where('NIC', $cus_nic)
                         ->get();
 
-            $receipt_typ = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
+            $calculationReceipt = $resolver->receiptForCalculation($data->first());
+            $receipt_data = collect([$resolver->resolveForCurrentCycle($data->first())]);
 
             $maxRedeemNo = TPawnPayment::where('BC',$branch_code)
             ->orderBy('Redeem_Number', 'desc')
@@ -104,8 +105,8 @@ class PawningPartPaymentController extends Controller
                 ->with('MPawnfeedback', $MPawnfeedback)
             ->with('receiptTypeData', $receipt_data)
             ->with('pawnType', $pawn_type)
-            ->with('receiptData', $data)
-            ->with('financial', $calculator->calculate($data->first()));
+            ->with('receiptData', collect([$calculationReceipt]))
+            ->with('financial', $calculator->calculate($calculationReceipt));
         }else{
             return response()->json([
                 'status'=>'not_found'
@@ -137,16 +138,70 @@ class PawningPartPaymentController extends Controller
      try {
         $branch_code = auth()->user()->BC;
         $activeReceipt = \App\Services\ReceiptPaymentEligibility::lock('Pawn', $request->receipt_number, $branch_code);
+        $request->validate([
+            'redeem_date' => 'required|date',
+            'interest_Paid' => 'required|numeric|min:0.01',
+            'redeem_discount' => 'nullable|numeric|min:0',
+            'validyed_type' => 'required|integer|min:1|max:12',
+        ]);
         $hasArrearsLetters = (bool) ($activeReceipt->is_letter_1 || $activeReceipt->is_letter_2 || $activeReceipt->is_letter_3);
-        $financial = $calculator->calculate($activeReceipt);
+        $calculationReceipt = $resolver->receiptForCalculation($activeReceipt);
+        $financial = $calculator->calculate($calculationReceipt, $request->redeem_date);
         // Capture the period before part payment advances the interest start date.
         $interestDays = $financial['days'];
+        $currentType = $resolver->resolveForCurrentCycle($activeReceipt);
+        $currentPrincipal = (float) ($activeReceipt->Pawn_Amount ?: $activeReceipt->Amount ?: 0);
+        $discount = (float) ($request->redeem_discount ?? 0);
+        $stampFee = (float) ($currentType->stampduty ?? 0);
+        $interestDue = (float) $financial['interest'];
+        $serviceCharge = (float) $financial['service_charge'];
+        $letterCharge = (float) $financial['letter_charge'];
+        $allocation = app(PartPaymentCalculator::class)->calculate(
+            $currentPrincipal,
+            $interestDue,
+            $serviceCharge,
+            $letterCharge,
+            $stampFee,
+            (float) $request->interest_Paid,
+            $discount
+        );
+        $chargesDue = $allocation['charges_due'];
+        $paymentReceived = $allocation['payment_received'];
+        $redemptionTotal = $allocation['redemption_total'];
+        $paidCharges = $allocation['paid_charges'];
+        $paidInterest = $allocation['paid_interest'];
+        $principalPaid = $allocation['principal_paid'];
+        $newPrincipal = $allocation['new_principal'];
+        $unpaidCharges = $allocation['unpaid_charges'];
+
+        if ($paymentReceived + 0.01 >= $redemptionTotal) {
+            throw ValidationException::withMessages([
+                'interest_Paid' => 'Use Redeem Receipt when the full redemption amount is paid.',
+            ]);
+        }
+
+        if ($newPrincipal > 0 && $newPrincipal < 1000) {
+            throw ValidationException::withMessages([
+                'interest_Paid' => 'A minimum remaining capital balance of Rs. 1,000.00 is required.',
+            ]);
+        }
+
         $request->merge([
-            'document_charges' => $financial['service_charge'],
-            'Postage_Charges' => $financial['letter_charge'],
+            'document_charges' => $serviceCharge,
+            'Postage_Charges' => $letterCharge,
+            'stamp_fee' => $stampFee,
+            'paid_interest' => $paidInterest,
+            'advance_payment' => $principalPaid,
+            'Payable_Pawn_Amount' => $newPrincipal,
+            'BalanceInterest' => $unpaidCharges,
+            'payable_total' => $paymentReceived,
+            'redeem_total' => $redemptionTotal,
+            'current_pawn_amount' => $currentPrincipal,
+            'original_pawn_amount' => $currentPrincipal,
+            'PayTotalAmount' => $paidCharges,
         ]);
         $requiredArrears = $hasArrearsLetters ? $financial['arrears_total'] : 0;
-        $receivedAmount = (float) ($request->payable_total ?? 0);
+        $receivedAmount = $paymentReceived;
         if ($hasArrearsLetters && $receivedAmount + 0.01 < $requiredArrears) {
             throw ValidationException::withMessages([
                 'payable_total' => 'Full arrears payment of Rs. '.number_format($requiredArrears, 2).' is required to reactivate this receipt.',
@@ -155,28 +210,28 @@ class PawningPartPaymentController extends Controller
 
         $NewRedeem = new TPawnPayment;
             $NewRedeem->Receipt_Number = $request->receipt_number;
-            $NewRedeem->Invoice_Number = $request->invoice_number;
-            $NewRedeem->Ticket_Number = $request->ticket_number;
-            $NewRedeem->Customer_Name = $request->Customer_Name;
-            $NewRedeem->Customer_NIC = $request->Customer_NIC;
+            $NewRedeem->Invoice_Number = $activeReceipt->Invoice_Number;
+            $NewRedeem->Ticket_Number = $activeReceipt->Ticket_Number;
+            $NewRedeem->Customer_Name = $activeReceipt->Customer_Name;
+            $NewRedeem->Customer_NIC = $activeReceipt->Customer_NIC;
             $NewRedeem->Pawn_Receipt_Type = $request->pawn_receipt_type;
             $NewRedeem->Redeem_Date = $request->redeem_date;
             $NewRedeem->Redeem_Number = $request->redeem_no;
-            $NewRedeem->Total_Weight = $request->sum_total_weight;
-            $NewRedeem->Pawn_Weight = $request->sum_pawn_weight;
-            $NewRedeem->Original_Pawn_Amount = $request->original_pawn_amount;
-            $NewRedeem->Payable_Pawn_Amount = $request->Payable_Pawn_Amount;
-            $NewRedeem->Paid_Interest = $request->paid_interest;
-            $NewRedeem->Payable_Interest = $request->PayTotalAmount;
-            $NewRedeem->Stamp_Fee = $request->stamp_fee;
-            $NewRedeem->Document_Charges = $request->document_charges;
-            $NewRedeem->Postage_Charges = $request->Postage_Charges;
-            $NewRedeem->paid_cap_amount = $request->redeem_total;
+            $NewRedeem->Total_Weight = $activeReceipt->Total_Weight;
+            $NewRedeem->Pawn_Weight = $activeReceipt->Pawn_Weight;
+            $NewRedeem->Original_Pawn_Amount = $currentPrincipal;
+            $NewRedeem->Payable_Pawn_Amount = $newPrincipal;
+            $NewRedeem->Paid_Interest = $paidInterest;
+            $NewRedeem->Payable_Interest = $paidCharges;
+            $NewRedeem->Stamp_Fee = $stampFee;
+            $NewRedeem->Document_Charges = $serviceCharge;
+            $NewRedeem->Postage_Charges = $letterCharge;
+            $NewRedeem->paid_cap_amount = $redemptionTotal;
             $NewRedeem->Advance_Balance = $request->advance_balance;
-            $NewRedeem->Advance_Payment = $request->advance_payment;
-            $NewRedeem->Discount = $request->redeem_discount;
-            $NewRedeem->Payable_Total = $request->payable_total;
-            $NewRedeem->current_pawn_amount = $request->current_pawn_amount;
+            $NewRedeem->Advance_Payment = $principalPaid;
+            $NewRedeem->Discount = $discount;
+            $NewRedeem->Payable_Total = $paymentReceived;
+            $NewRedeem->current_pawn_amount = $currentPrincipal;
             $NewRedeem->OC = auth()->user()->username;
             $NewRedeem->BC = auth()->user()->BC;
             $NewRedeem->save();
@@ -188,45 +243,17 @@ class PawningPartPaymentController extends Controller
         $companyData = Company::latest()->paginate(1);
         $branchData = branchDel::where('bccode', $branch_code)->paginate(1);
 
-        $receipt_advanceAmount = $request->advance_payment;
-        $receipt_Interest = $request->paid_interest;
-        $Balance = $request->BalanceInterest;
+        $receipt_advanceAmount = $principalPaid;
+        $validyed_type = (int) $request->validyed_type;
         $pawndate = Carbon::parse($request->redeem_date)->addDay();
-
-        $advancePayments = TPawnSum::where('Receipt_Number', $request->receipt_number)
-            ->where('BC', $branch_code)
-            ->get();
-
-        $amounts = $advancePayments->pluck('Pawn_Amount');
-        $totalAmount = $amounts->sum();
-
-        $amountsinterest = $advancePayments->pluck('interest_Paid');
-        $totalAmountinterest = $amountsinterest->sum();
-
-        $BalanceInterest = $advancePayments->pluck('BalanceInterest');
-        $totalBalanceInterest = $BalanceInterest->sum();
-
-        if ($Balance > 0) {
-            $totalAdvancePayment = $totalAmount + $Balance ;
-        } else {
-            $totalAdvancePayment = $totalAmount + $Balance ;
-        }
-        $totalInterest = $receipt_Interest + $totalAmountinterest;
-        $Interest = $Balance + $totalBalanceInterest;
-
-        $validyed_type = $request->validyed_type;
-        $final_date_raw = $request->redeem_date;
-        $carbon_date = Carbon::parse($final_date_raw);
-        $final_date = $carbon_date->addMonths($validyed_type);
-        $final_date_string = $final_date->toDateString();
-
-        // Ensure interest balance is not negative
-        $interest_Balance = $Balance < 0 ? 0 : $Balance;
+        $isSilver = strtoupper((string) ($activeReceipt->receiptname ?: $activeReceipt->Receipt_Type)) === 'SILVER';
+        $final_date_string = Carbon::parse($request->redeem_date)->addMonths(max(1, $validyed_type))->toDateString();
+        $interest_Balance = $unpaidCharges;
 
         // Create a new Part Payment transaction
         $TPawnTrans = new TPawnTrans;
-        $TPawnTrans->Customer_NIC = $request->Customer_NIC;
-        $TPawnTrans->Customer_Name = $request->Customer_Name;
+        $TPawnTrans->Customer_NIC = $activeReceipt->Customer_NIC;
+        $TPawnTrans->Customer_Name = $activeReceipt->Customer_Name;
         $TPawnTrans->code = $request->receipt_number;
         $TPawnTrans->trans_no = $request->redeem_no;
         $TPawnTrans->trans_type = "PART_PAYMENT";
@@ -234,10 +261,10 @@ class PawningPartPaymentController extends Controller
         $TPawnTrans->dDate = $request->redeem_date;
         $TPawnTrans->Cr_amount = 0;
         $TPawnTrans->Dr_amount = $request->payable_total;
-        $TPawnTrans->Paided_Interest = $request->paid_interest;
-        $TPawnTrans->Pawn_Amount = $request->original_pawn_amount;
+        $TPawnTrans->Paided_Interest = $paidInterest;
+        $TPawnTrans->Pawn_Amount = $currentPrincipal;
         $TPawnTrans->payable_total = $request->payable_total;
-        $TPawnTrans->Paided_Captional = $request->advance_payment;
+        $TPawnTrans->Paided_Captional = $principalPaid;
         $TPawnTrans->Extend_Date = $final_date_string;
         $TPawnTrans->interest_Balance = $interest_Balance;
         $TPawnTrans->OC = auth()->user()->username;
@@ -259,22 +286,21 @@ class PawningPartPaymentController extends Controller
         $interestIncomeAccountId = 3;    // Interest Income account
         $feeIncomeAccountId = 4;         // Fee Income account
 
-        $totalPayment = $request->payable_total;
-        $principalPaid = $request->advance_payment ?? 0;
-        $interestPaid = $request->paid_interest ?? 0;
-        $totalFees = ($request->stamp_fee ?? 0) + ($request->document_charges ?? 0);
+        $totalPayment = $paymentReceived;
+        $interestPaid = $paidInterest;
+        $totalFees = $stampFee + $serviceCharge + $letterCharge;
 
         // 1. Debit: Cash Account (Total payment received from customer)
         DB::table('t_account_trans')->insert([
             'trans_date' => $request->redeem_date,
-            'voucher_no' => 'PP-' . $request->invoice_number,
+                'voucher_no' => 'PP-' . $activeReceipt->Invoice_Number,
             'account_id' => $cashAccountId,
             'related_id' => $request->redeem_no,
             'related_type' => 'PART_PAYMENT',
-              'Invoice_no' => $request->invoice_number,
+              'Invoice_no' => $activeReceipt->Invoice_Number,
             'dr' => $totalPayment,
             'cr' => 0,
-            'description' => 'Part payment received from ' . $request->Customer_Name . ' - Receipt #' .$request->invoice_number,
+            'description' => 'Part payment received for receipt #' . $activeReceipt->Receipt_Number,
             'branch_code' => $branch_code,
             'created_by' => auth()->user()->username,
             'created_at' => now(),
@@ -286,54 +312,55 @@ class PawningPartPaymentController extends Controller
            END ACCOUNTING ENTRIES
         ==========================*/
 
-        // Fetch rate slabs effective as of the payment date
         $paymentDate = $request->redeem_date ?? now()->toDateString();
-        $rates = Recei_Add::active()->effectiveOn($paymentDate)->orderByDesc('pawn_amount')->get();
-
-        // Initialize default values
-        $receiptname = null;
-        $interest = null;
-        $Pawn_Amount_partpayment = $request->original_pawn_amount;
-        $payable_total_partpayment = $request->payable_total;
-        $totalRepawnPayment = $Pawn_Amount_partpayment - $payable_total_partpayment;
-
         $isSilver = strtoupper((string) ($activeReceipt->receiptname ?: $activeReceipt->Receipt_Type)) === 'SILVER';
+        $rateRow = $resolver->resolveForRepawnAmount($newPrincipal, $paymentDate, $isSilver)
+            ?? $currentType;
+        $receiptname = $isSilver ? 'SILVER' : ($rateRow->receiptname ?? $activeReceipt->Receipt_Type);
+        $interestRate = $isSilver
+            ? (float) ($rateRow->rate1 ?? $activeReceipt->rate1 ?? 0)
+            : (float) ($rateRow->rate3 ?? $activeReceipt->rate3 ?? 0);
 
-        if ($isSilver) {
-            $silverRate = $resolver->resolveByDate('SILVER', $paymentDate);
-            $receiptname = 'SILVER';
-            $interest = $silverRate->rate1 ?? $activeReceipt->rate1 ?? 0;
-        } else {
-            foreach ($rates as $rate) {
-                if ($totalRepawnPayment >= 100000 && $rate->pawn_amount >= 100000) {
-                    $receiptname = $rate->receiptname;
-                    $interest = $rate->rate3;
-                    break;
-                } elseif ($totalRepawnPayment >= 50000 && $totalRepawnPayment <= 99999 && $rate->pawn_amount >= 50000 && $rate->pawn_amount <= 99999) {
-                    $receiptname = $rate->receiptname;
-                    $interest = $rate->rate3;
-                    break;
-                } elseif ($totalRepawnPayment < 50000 && $rate->pawn_amount < 50000) {
-                    $receiptname = $rate->receiptname;
-                    $interest = $rate->rate3;
-                    break;
-                }
-            }
+        $updateData = [
+            'Pawn_Amount' => $newPrincipal,
+            'RePawning_amount' => $newPrincipal,
+            'Advance_Payment' => $receipt_advanceAmount,
+            // The old interest period ends at this payment. Only genuinely
+            // unpaid charges carry into the next period.
+            'interest_Paid' => 0,
+            'BalanceInterest' => $unpaidCharges,
+            'Pawn_Date' => $pawndate,
+            'Valid_Period' => $validyed_type,
+            'Final_date' => $final_date_string,
+            'RePawning_date' => $pawndate,
+            'Receipt_Type' => $receiptname,
+            'receiptname' => $receiptname,
+            'Interest_Rate' => $interestRate,
+        ];
+
+        if ($rateRow) {
+            $updateData = array_merge($updateData, [
+                'rate1' => $rateRow->rate1,
+                'rate2' => $rateRow->rate2,
+                'rate3' => $rateRow->rate3,
+                'period1' => $rateRow->period1,
+                'period2' => $rateRow->period2,
+                'period3' => $rateRow->period3,
+                'validPeriod' => $rateRow->validPeriod,
+                'service_charge' => $rateRow->service_charge,
+                'Postage_charge' => $rateRow->Postage_charge,
+                's_charge_less' => $rateRow->s_charge_less,
+                's_charge_greater' => $rateRow->s_charge_greater,
+                'letter_1_days' => $rateRow->letter_1_days ?? 21,
+                'letter_2_days' => $rateRow->letter_2_days ?? 21,
+                'letter_3_days' => $rateRow->letter_3_days ?? 21,
+                'forfeit_reminder_days' => $rateRow->forfeit_reminder_days ?? 21,
+            ]);
         }
 
         TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', $branch_code)
-            ->update([
-                'Pawn_Amount' => $totalAdvancePayment,
-                'RePawning_amount' => $totalAdvancePayment,
-                'Advance_Payment' => $receipt_advanceAmount,
-                'interest_Paid' => $totalInterest,
-                'BalanceInterest' => $Interest,
-                'Pawn_Date' => $pawndate,
-                'Valid_Period' => $validyed_type,
-                'Final_date' => $final_date_string,
-                'RePawning_date' => $pawndate,
-            ]);
+            ->update($updateData);
 
         if ($hasArrearsLetters) {
             $lifecycle->reactivate(
@@ -424,20 +451,7 @@ class PawningPartPaymentController extends Controller
             return response()->json(['status' => 'not_found', 'data' => []]);
         }
 
-        $receiptNo = $receipt->Receipt_Number;
-
-        $data = DB::table('t_pawn_trans as trans')
-            ->join('t_pawn_sums as sum', 'trans.code', '=', 'sum.Receipt_Number')
-            ->where('trans.code', $receiptNo)
-            ->where('trans.BC', $branch_code)
-            ->where('sum.BC', $branch_code)
-            ->select('sum.*', 'trans.*', 'sum.Pawn_Amount as sum_pawn_amount', 'trans.Pawn_Amount as trans_pawn_amount', 'sum.Amount as sum_original_amount')
-            ->orderByDesc('trans.dDate')
-            ->orderByDesc('trans.id')
-            ->get();
-
-        $data = $historyService->appendChargeRows($data, $receipt);
-        $data = $historyService->enrichWithRemainingAmounts($data);
+        $data = $historyService->paymentLedger($receipt);
 
         return response()->json([
             'status' => 'success',

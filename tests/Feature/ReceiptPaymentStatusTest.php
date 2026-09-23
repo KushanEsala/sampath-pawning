@@ -38,7 +38,10 @@ class ReceiptPaymentStatusTest extends TestCase
     public function test_every_payment_lookup_filters_both_closed_statuses(string $operation, string $field, string $table): void
     {
         $connection = $this->connection();
-        $connection->shouldReceive('select')->once()->andReturnUsing(function ($sql, $bindings) use ($field, $table) {
+        $connection->shouldReceive('select')->andReturnUsing(function ($sql, $bindings) use ($field, $table) {
+            if (str_contains($sql, 'information_schema')) {
+                return [];
+            }
             $this->assertStringContainsString('from `'.$table.'`', $sql);
             $this->assertStringContainsString('`'.$field.'` = ?', $sql);
             $this->assertStringContainsString('`IsRedeemed` = ?', $sql);

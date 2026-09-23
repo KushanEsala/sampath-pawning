@@ -1,5 +1,18 @@
 # Arrears, Forfeit Reminder, Receipt Search and Payment Improvements
 
+## Revision — 2026-09-23
+
+- Receipt Search and the Part Payment, Redeem and Repawning history tabs now use
+  one ledger calculation and display: Date, Description, DR, CR and signed
+  running Balance, with recorded operator details and printable totals.
+- Historical capital/rate resolution, part-payment allocation and repawning
+  calculations were corrected without rewriting stored financial history.
+- Inconsistent legacy snapshots are disclosed as labelled historical balance
+  adjustments; recorded customer payments are not altered to force a match.
+- This revision is code-only and requires no new SQL. The complete manual schema
+  execution register and old-database checks are in `database/manual/README.md`.
+- The chronological project update record is `IMPLEMENTATION_CHANGELOG.md`.
+
 ## Revision — 2026-09-05 (supersedes timing and automatic-forfeit-list movement below)
 
 - All four receipt-type intervals default to 21 days: expiry to first letter, scheduled first to second, scheduled second to third, and actual third-letter issue to Forfeit Reminder. First interval may be 0 for expiry-day issuing.

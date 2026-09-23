@@ -8,20 +8,15 @@ use App\Services\CustomerContactSyncService;
 
 class CustomerController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $branch_code = auth()->user()->BC;
-        $data = Customer::all();
-;
-        
-        $maxCustomerCode = Customer::orderBy('Code', 'desc')
-                ->value('Code');
-                
-        $maxCustomerCodes = str_pad($maxCustomerCode, 4, '0', STR_PAD_LEFT);
-        
-        return view("customers")
-        ->with("maxCustomer", $maxCustomerCodes)
-        ->with("customers" , $data);
+        $customers = $this->customerPage($request);
+        return view('customers', compact('customers'));
+    }
+
+    public function nextCode()
+    {
+        return response()->json(['code' => ((int) Customer::max('Code')) + 1]);
     }
 
 
@@ -71,7 +66,9 @@ class CustomerController extends Controller
 
     // delete customer ajax
     public function delete(Request $request){
-        Customer::find($request->customer_id)->delete();
+        $validated = $request->validate(['customer_id' => 'required|integer']);
+        Customer::where('id', $validated['customer_id'])
+            ->where('BC', auth()->user()->BC)->firstOrFail()->delete();
         return response()->json([
             'status'=>'success',
         ]);
@@ -132,65 +129,53 @@ class CustomerController extends Controller
 
     // ............ customer pagination using ajax.................
     public function pagination(Request $request){
-        $branch_code = auth()->user()->BC;
-        
-        $data = Customer::where('BC',$branch_code)
-                ->latest()
-                ->paginate(7);
-        
-        return view('customer_pagination')->with("customers",$data)->render();
+        return view('customer_pagination', ['customers' => $this->customerPage($request)])->render();
     }
 
     // ............search using ajax.................
     public function search(Request $request){
-        $branch_code = auth()->user()->BC;
-        
-        $data = Customer::where('BC', $branch_code)
-        ->where(function($query) use ($request) {
-            $query->where('Code', 'like', '%' . $request->search_string . '%')
-                ->orWhere('First_name', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Middle_name', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Last_name', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Address_1', 'like', '%' . $request->search_string . '%')
-                ->orWhere('City_1', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Address_2', 'like', '%' . $request->search_string . '%')
-                ->orWhere('City_2', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Contact_1', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Contact_2', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Email', 'like', '%' . $request->search_string . '%')
-                ->orWhere('NIC', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Driving_license', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Passport', 'like', '%' . $request->search_string . '%')
-                ->orWhere('Other_identifications', 'like', '%' . $request->search_string . '%');
-        })
-        ->orderBy('Code', 'desc')
-        ->paginate(7);
-        
-        // $data = Customer::where('Code', 'like', '%'.$request->search_string.'%')
-        // ->orWhere('First_name','like','%'.$request->search_string.'%')
-        // ->orWhere('Middle_name','like','%'.$request->search_string.'%')
-        // ->orWhere('Last_name','like','%'.$request->search_string.'%')
-        // ->orWhere('Address_1','like','%'.$request->search_string.'%')
-        // ->orWhere('City_1','like','%'.$request->search_string.'%')
-        // ->orWhere('Address_2','like','%'.$request->search_string.'%')
-        // ->orWhere('City_2','like','%'.$request->search_string.'%')
-        // ->orWhere('Contact_1','like','%'.$request->search_string.'%')
-        // ->orWhere('Contact_2','like','%'.$request->search_string.'%')
-        // ->orWhere('Email','like','%'.$request->search_string.'%')
-        // ->orWhere('NIC','like','%'.$request->search_string.'%')
-        // ->orWhere('Driving_license','like','%'.$request->search_string.'%')
-        // ->orWhere('Passport','like','%'.$request->search_string.'%')
-        // ->orWhere('Other_identifications','like','%'.$request->search_string.'%')
-        // ->orderBy('Code','desc')
-        // ->paginate(5);
-
-        if($data->count() >= 1){
-            return view('customer_pagination')->with("customers",$data)->render();
+        $request->merge(['q' => $request->input('search_string', $request->input('q'))]);
+        $customers = $this->customerPage($request);
+        if ($customers->count() > 0) {
+            return view('customer_pagination', compact('customers'))->render();
         }else{
             return response()->json([
                 'status'=>'not_found'
             ]);
         }
+    }
+
+    private function customerPage(Request $request)
+    {
+        $request->validate([
+            'q' => 'nullable|string|max:80',
+            'status' => 'nullable|in:all,active,blacklisted',
+            'per_page' => 'nullable|in:10,25,50',
+        ]);
+        $search = trim((string) $request->input('q', ''));
+        $query = Customer::query()->where('BC', auth()->user()->BC);
+
+        if ($request->input('status') === 'active') $query->where('Status', 1);
+        if ($request->input('status') === 'blacklisted') $query->where('Status', 0);
+
+        if ($search !== '') {
+            $prefix = $search.'%';
+            $contains = '%'.$search.'%';
+            $query->where(function ($q) use ($prefix, $contains) {
+                $q->where('Code', 'like', $prefix)
+                    ->orWhere('NIC', 'like', $prefix)
+                    ->orWhere('Contact_1', 'like', $prefix)
+                    ->orWhere('Contact_2', 'like', $prefix)
+                    ->orWhere('First_name', 'like', $contains)
+                    ->orWhere('Middle_name', 'like', $contains)
+                    ->orWhere('Last_name', 'like', $contains)
+                    ->orWhere('Name', 'like', $contains);
+            });
+        }
+
+        return $query->orderByDesc('id')
+            ->simplePaginate((int) $request->input('per_page', 25))
+            ->withQueryString();
     }
 
     public function getByID(Request $request)

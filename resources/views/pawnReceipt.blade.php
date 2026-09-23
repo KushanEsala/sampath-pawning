@@ -1910,6 +1910,7 @@ $(document).ready(function () {
         let lesser = null;
 
         for (let i = 1; i < options.length; i++) { // Skip "Please Select"
+            if (options[i].value.toUpperCase() === 'SILVER') continue; // Silver is selected by article category, not the gold amount band.
             let rate = parseFloat(options[i].getAttribute('data-rate'));
 
             if (rate >= amount) {

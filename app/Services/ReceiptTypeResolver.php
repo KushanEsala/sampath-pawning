@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Recei_Add;
 use App\Models\TPawnSum;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -62,6 +63,85 @@ class ReceiptTypeResolver
         $fallback = new Recei_Add();
         $fallback->receiptname = $receiptName;
         return $fallback;
+    }
+
+    /** Keep the rate snapshot saved for this receipt's current pawn/repawn cycle. */
+    public function resolveForCurrentCycle(TPawnSum|Model|array $receipt): Recei_Add
+    {
+        return $this->resolveForReceipt($receipt);
+    }
+
+    /**
+     * Return an unsaved receipt copy with its current-cycle saved configuration.
+     * The stored receipt row is never modified here.
+     */
+    public function receiptForCalculation(TPawnSum $receipt): TPawnSum
+    {
+        $configuration = $this->resolveForCurrentCycle($receipt);
+        $copy = clone $receipt;
+
+        foreach ([
+            'rate1', 'period1', 'rate2', 'period2', 'rate3', 'period3',
+            'validPeriod', 'service_charge', 'Postage_charge',
+            's_charge_less', 's_charge_greater', 'documentCharges', 'stampduty',
+            'letter_1_days', 'letter_2_days', 'letter_3_days',
+            'forfeit_reminder_days',
+        ] as $field) {
+            if ($configuration->{$field} !== null) {
+                $copy->setAttribute($field, $configuration->{$field});
+            }
+        }
+
+        // Negative carried interest is invalid and was produced by the legacy
+        // part-payment formula. Also clear cumulative paid-interest values when
+        // the latest transaction started the receipt's current cycle.
+        $copy->setAttribute('BalanceInterest', max(0, (float) ($copy->BalanceInterest ?? 0)));
+        $this->normaliseCycleBalances($copy);
+
+        return $copy;
+    }
+
+    private function normaliseCycleBalances(TPawnSum $receipt): void
+    {
+        if (empty($receipt->Receipt_Number) || empty($receipt->BC)) {
+            return;
+        }
+
+        $cycleStart = $receipt->RePawning_date ?: $receipt->Pawn_Date;
+        if (!$cycleStart) {
+            return;
+        }
+
+        $latest = DB::table('t_pawn_trans')
+            ->where('code', $receipt->Receipt_Number)
+            ->where('BC', $receipt->BC)
+            ->whereIn('trans_type', ['PART_PAYMENT', 'REPAWNING'])
+            ->whereDate('dDate', '<=', Carbon::parse($cycleStart)->toDateString())
+            ->orderByDesc('dDate')
+            ->orderByDesc('id')
+            ->first(['trans_type', 'dDate', 'interest_Balance']);
+
+        if (!$latest) {
+            return;
+        }
+
+        $transactionDate = Carbon::parse($latest->dDate)->startOfDay();
+        $startDate = Carbon::parse($cycleStart)->startOfDay();
+        $startsCurrentCycle = $transactionDate->equalTo($startDate)
+            || (strtoupper((string) $latest->trans_type) === 'PART_PAYMENT'
+                && $transactionDate->copy()->addDay()->equalTo($startDate));
+
+        if (!$startsCurrentCycle) {
+            return;
+        }
+
+        $receipt->setAttribute('interest_Paid', 0);
+        $receipt->setAttribute(
+            'BalanceInterest',
+            strtoupper((string) $latest->trans_type) === 'PART_PAYMENT'
+                ? max(0, (float) ($latest->interest_Balance ?? 0))
+                : 0
+        );
     }
 
     /**
@@ -132,8 +212,41 @@ class ReceiptTypeResolver
     {
         return Recei_Add::active()
             ->orderBy('receiptname')
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
             ->get()
             ->unique('receiptname')
             ->values();
+    }
+
+    /**
+     * Resolve the receipt type that applies to a newly repawned principal.
+     * These are the same amount bands used when the receipt snapshot is
+     * refreshed after repawning.
+     */
+    public function resolveForRepawnAmount(float $amount, Carbon|string|null $date = null, bool $silver = false): ?Recei_Add
+    {
+        if ($silver) {
+            return $this->resolveByDate('SILVER', $date);
+        }
+
+        $parsedDate = $date ? Carbon::parse($date)->toDateString() : now()->toDateString();
+
+        return Recei_Add::query()
+            ->where('validPeriod', '>', 0)
+            ->whereRaw('UPPER(receiptname) <> ?', ['SILVER'])
+            ->effectiveOn($parsedDate)
+            ->where(function ($query) use ($amount) {
+                if ($amount >= 100000) {
+                    $query->where('pawn_amount', '>=', 100000);
+                } elseif ($amount >= 50000) {
+                    $query->whereBetween('pawn_amount', [50000, 99999]);
+                } else {
+                    $query->where('pawn_amount', '<', 50000);
+                }
+            })
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->first();
     }
 }

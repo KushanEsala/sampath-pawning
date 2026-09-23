@@ -177,15 +177,21 @@ class PawnController extends Controller
             // ============================================
             $receipt = $resolver->resolveByDate($Receipt_Type, $Receipt_Date);
 
+            $isSilverReceipt = strtoupper((string) $Receipt_Type) === 'SILVER';
+            if ($isSilverReceipt && !$receipt) {
+                throw new \RuntimeException('The SILVER receipt type must be configured before issuing a Silver pawn.');
+            }
             if ($receipt) {
-                $to_date = Carbon::parse($Receipt_Date)->addDays($receipt->validPeriod)->toDateString();
+                $to_date = Carbon::parse($Receipt_Date)->addDays(
+                    $isSilverReceipt ? \App\Services\SilverInterest::validDays($receipt) : (int) $receipt->validPeriod
+                )->toDateString();
             } else {
                 $to_date = null;
             }
 
             $receiptDate = Carbon::parse($request->receipt_date);
-            $validPeriod = $request->Valid_Period;
-            $finalDate   = $receiptDate->copy()->addMonths($validPeriod);
+            $validPeriod = (int) $request->Valid_Period;
+            $finalDate = $receiptDate->copy()->addMonths(max(1, $validPeriod));
 
             // ============================================
             // STEP 2: Build TPawnSum
@@ -209,7 +215,7 @@ class PawnController extends Controller
             $PawnSum->Total_Weight     = $request->sum_total_weight;
             $PawnSum->Pawn_Weight      = $request->sum_pawn_weight;
             $PawnSum->Amount           = $request->amount;
-            $PawnSum->Interest_Rate    = $request->InterestRate;
+            $PawnSum->Interest_Rate    = $isSilverReceipt ? (float) $receipt->rate1 : $request->InterestRate;
             $PawnSum->Valid_Period     = $validPeriod;
             $PawnSum->Final_date       = $finalDate;
             $PawnSum->Pawn_Amount      = $request->amount;
@@ -729,7 +735,7 @@ public function get(Request $request)
         $pawning_amount= $request->pawning_amount;
         $amount        = $request->amount;
 
-        $activeRates = $resolver->getActiveTypes();
+        $activeRates = $resolver->getActiveTypes()->reject(fn ($type) => strtoupper((string) $type->receiptname) === 'SILVER');
         $rate1 = $activeRates->where('pawn_amount', '>=', 100000)->value('rate3');
         $rate2 = $activeRates->whereBetween('pawn_amount', [50000, 99999])->value('rate3');
         $rate3 = $activeRates->where('pawn_amount', '<', 50000)->value('rate3');
@@ -762,7 +768,7 @@ public function get(Request $request)
             return response()->json(['error' => 'Invalid amount'], 400);
         }
 
-        $activeRates = $resolver->getActiveTypes();
+        $activeRates = $resolver->getActiveTypes()->reject(fn ($type) => strtoupper((string) $type->receiptname) === 'SILVER');
         $rate1 = $activeRates->where('pawn_amount', '>=', 100000)->value('rate3');
         $rate2 = $activeRates->whereBetween('pawn_amount', [50000, 99999])->value('rate3');
         $rate3 = $activeRates->where('pawn_amount', '<', 50000)->value('rate3');
@@ -852,20 +858,7 @@ public function get(Request $request)
             return response()->json(['status' => 'not_found', 'data' => []]);
         }
 
-        $receiptNo = $receipt->Receipt_Number;
-
-        $data = DB::table('t_pawn_trans as trans')
-            ->join('t_pawn_sums as sum', 'trans.code', '=', 'sum.Receipt_Number')
-            ->where('trans.code', $receiptNo)
-            ->where('trans.BC', $branch_code)
-            ->where('sum.BC', $branch_code)
-            ->select('sum.*', 'trans.*', 'sum.Pawn_Amount as sum_pawn_amount', 'trans.Pawn_Amount as trans_pawn_amount', 'sum.Amount as sum_original_amount')
-            ->orderByDesc('trans.dDate')
-            ->orderByDesc('trans.id')
-            ->get();
-
-        $data = $historyService->appendChargeRows($data, $receipt);
-        $data = $historyService->enrichWithRemainingAmounts($data);
+        $data = $historyService->paymentLedger($receipt);
 
         if ($data->isEmpty()) {
             return response()->json([

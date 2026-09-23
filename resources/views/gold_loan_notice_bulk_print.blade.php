@@ -233,8 +233,7 @@
             $periodLabel = '';
 
             if ($receiptName === 'SILVER') {
-                // Flat monthly rate
-                $calcInterest     = (($amount / 100) * $rate1) * $months;
+                $calcInterest = \App\Services\SilverInterest::amount($amount, $rate1, $daysDiff, (int) ($period3 ?: 30));
                 $appliedRate = $rate1;
                 $periodLabel = 'Silver Flat Rate';
 

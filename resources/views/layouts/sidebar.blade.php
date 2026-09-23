@@ -213,11 +213,11 @@
                 <!--    </ul>-->
                 <!--</li>-->
                 
-                              <li class="{{ Request::is('pawning*') ? 'active' : '' }}">
+                              <li class="{{ Request::is('pawning*') || Request::routeIs('blocked.receipts.*') ? 'active' : '' }}">
                     <a href="#"><i class="fa fa-th-list"></i> <span>Pawning</span>
                         <span class="menu-arrow"></span></a>
 
-                    <ul style=" {{ Request::is('pawning*') ? 'display:block;' : '' }}">
+                    <ul style=" {{ Request::is('pawning*') || Request::routeIs('blocked.receipts.*') ? 'display:block;' : '' }}">
 
                         <li class="{{ Request::is('pawning') ? 'active' : '' }}">
                             <a href="{{route("pawning")}}">
@@ -250,6 +250,13 @@
                             <i class="fa fa-angle-right"></i>
                             Receipt Search</a>
                         </li>
+
+                        @if(auth()->user()->isAdmin())
+                        <li class="{{ Request::routeIs('blocked.receipts.*') ? 'active' : '' }}"><a href="{{ route('blocked.receipts.index') }}">
+                            <i class="fa fa-angle-right"></i>
+                            Block Receipts</a>
+                        </li>
+                        @endif
 
                         <li class="{{ Request::is('pawning_opening') ? 'active' : '' }}">
                             <a href="{{route("pawning_opening")}}">

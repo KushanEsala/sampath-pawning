@@ -162,6 +162,62 @@ class ReceiptTypeEffectiveDateTest extends TestCase
         Recei_Add::where('receiptname', 'TEST_TYPE')->delete();
     }
 
+    public function test_live_calculation_copy_keeps_issue_time_snapshot_after_master_changes(): void
+    {
+        Recei_Add::where('receiptname', 'TEST_CALC_TYPE')->delete();
+
+        Recei_Add::create([
+            'receiptname' => 'TEST_CALC_TYPE',
+            'effective_from' => '2026-01-01',
+            'effective_to' => null,
+            'is_active' => 1,
+            'rate1' => 1.0,
+            'period1' => 10,
+            'rate2' => 2.0,
+            'period2' => 15,
+            'rate3' => 2.5,
+            'period3' => 30,
+            'validPeriod' => 90,
+            'service_charge' => 60,
+            'documentCharges' => 0,
+            'stampduty' => 0,
+            'pawn_amount' => 49999,
+            'Postage_charge' => 125,
+            's_charge_less' => 30,
+            's_charge_greater' => 1,
+            'letter_1_days' => 21,
+            'letter_2_days' => 21,
+            'letter_3_days' => 21,
+            'forfeit_reminder_days' => 21,
+        ]);
+
+        $receipt = new TPawnSum();
+        $receipt->forceFill([
+            'Receipt_Type' => 'TEST_CALC_TYPE',
+            'receiptname' => 'TEST_CALC_TYPE',
+            'Pawn_Date' => '2026-01-01',
+            'RePawning_date' => '2026-02-01',
+            'Pawn_Amount' => 10000,
+            'rate1' => 1.8,
+            'period1' => 10,
+            'rate2' => 2.0,
+            'period2' => 15,
+            'rate3' => 1.0,
+            'period3' => 30,
+            'validPeriod' => 90,
+            'service_charge' => 10,
+        ]);
+
+        $this->assertEquals(1.0, (float) $this->resolver->resolveForReceipt($receipt)->rate3);
+
+        $calculationReceipt = $this->resolver->receiptForCalculation($receipt);
+        $this->assertEquals(1.0, (float) $calculationReceipt->rate3);
+        $this->assertEquals(10.0, (float) $calculationReceipt->service_charge);
+        $this->assertEquals(1.0, (float) $receipt->rate3);
+
+        Recei_Add::where('receiptname', 'TEST_CALC_TYPE')->delete();
+    }
+
     public function test_receipt_controller_update_creates_version_and_archives_previous(): void
     {
         Recei_Add::where('receiptname', 'VER_TEST')->delete();

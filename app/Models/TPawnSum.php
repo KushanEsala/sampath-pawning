@@ -15,6 +15,7 @@ class TPawnSum extends Model
 
     protected $fillable = [
         'letter_1_days', 'letter_2_days', 'letter_3_days', 'forfeit_reminder_days', 'forfeit_queued_at',
+        'is_blocked', 'blocked_at', 'blocked_by', 'block_reason',
         // Customer Info
         'Customer_NIC',
         'Customer_Name',
@@ -88,6 +89,8 @@ class TPawnSum extends Model
 
     protected $casts = [
         'forfeit_queued_at' => 'datetime',
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
         'letter_1_days' => 'integer', 'letter_2_days' => 'integer',
         'letter_3_days' => 'integer', 'forfeit_reminder_days' => 'integer',
         'Receipt_Date'    => 'date',

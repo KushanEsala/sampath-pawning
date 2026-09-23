@@ -415,23 +415,13 @@
                    <div class="card mb-0">
                        <div class="card-body">
                            <div class="table-responsive">
-                               <table class="table table-bordered table-hover align-middle mb-0">
+                               <table class="table table-bordered table-hover align-middle mb-0 receipt-ledger-table">
                                    <thead>
-                                        <tr style="background-color: rgb(12, 119, 241); color: aliceblue;">
-                                            <th style="text-align: center;">Date</th>
-                                            <th style="text-align: center;">Payment Type</th>
-                                            <th style="text-align: center;">Payment Amount</th>
-                                            <th style="text-align: center;">Customer Paid</th>
-                                            <th style="text-align: center;">Paid Capital</th>
-                                            <th style="text-align: center;">Paid Interest</th>
-                                            <th style="text-align: center;">Repawn Amount</th>
-                                            <th style="text-align: center;">Letters Sent</th>
-                                            <th style="text-align: center;">Remaining Amount</th>
-                                            <th style="text-align: center;">Extend Date</th>
-                                        </tr>
+                                        <tr><th class="ledger-date">Date</th><th class="ledger-description">Description</th><th class="ledger-money">DR</th><th class="ledger-money">CR</th><th class="ledger-money">Balance</th></tr>
                                     </thead>
                                    <tbody id="CustomerDetails">
                                    </tbody>
+                                   <tfoot><tr><th colspan="2" class="text-end">Ledger totals / Current balance</th><th id="historyTotalDr" class="ledger-money ledger-dr">0.00</th><th id="historyTotalCr" class="ledger-money ledger-cr">0.00</th><th id="historyCurrentBalance" class="ledger-money ledger-balance">0.00</th></tr></tfoot>
                                </table>
                            </div>
                            <div class="text-center mt-3">
@@ -445,6 +435,7 @@
    </div>
    </div>
 </div>
+@include('partials.receiptLedgerAssets')
   </div>
 
 {{-- form default date set for today --}}
@@ -473,7 +464,7 @@
             $('#paymentHistoryReceiptInfo').text('');
             return;
         }
-        $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">Loading...</td></tr>');
+        $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
         $('#paymentHistoryReceiptInfo').text('Receipt / Ticket #' + receiptNo);
 
         $.ajax({
@@ -547,13 +538,17 @@
                         `;
                     });
 
+                    tableRows = window.ReceiptHistoryLedger.renderRows(data);
+                    window.ReceiptHistoryLedger.updateTotals(data);
                     $('#CustomerDetails').html(tableRows);
                 } else {
-                    $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">No payment history found</td></tr>');
+                    window.ReceiptHistoryLedger.updateTotals([]);
+                    $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">No payment history found</td></tr>');
                 }
             },
             error: function () {
-                $('#CustomerDetails').html('<tr><td colspan="10" class="text-center text-danger">Error fetching payment history</td></tr>');
+                window.ReceiptHistoryLedger.updateTotals([]);
+                $('#CustomerDetails').html('<tr><td colspan="5" class="text-center text-danger">Error fetching payment history</td></tr>');
             }
         });
     }

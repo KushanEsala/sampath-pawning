@@ -94,7 +94,10 @@ class Recei_Add extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('validPeriod', '>', 0)
+        return $query->where(function ($q) {
+                $q->where('validPeriod', '>', 0)
+                    ->orWhereRaw('UPPER(receiptname) = ?', ['SILVER']);
+            })
             ->where(function ($q) {
                 $q->where('is_active', 1)
                     ->orWhereNull('is_active');

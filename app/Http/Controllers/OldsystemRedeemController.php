@@ -18,6 +18,7 @@ use App\Models\TCustomerAccount;
 use App\Models\TPawnTrans;
 use App\Models\MPawnfeedback;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 
 class OldsystemRedeemController extends Controller
@@ -48,12 +49,13 @@ class OldsystemRedeemController extends Controller
         $receiptNo = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
 
-        $dataTPawnSum = TPawnSum::where('old_Receipt_Number', $receiptNo)
+        $query = TPawnSum::where('old_Receipt_Number', $receiptNo)
                         ->where('BC', $branch_code)
                         ->where('IsRedeemed', 0)
                         ->where('isForfeit', 0)
-                        ->where('Bill_System_bill_type', 'OLD_SYSTEM')
-                        ->get();
+                        ->where('Bill_System_bill_type', 'OLD_SYSTEM');
+        if (Schema::hasColumn('t_pawn_sums', 'is_blocked')) $query->where('is_blocked', 0);
+        $dataTPawnSum = $query->get();
 
         $data = $dataTPawnSum;
 
@@ -132,11 +134,12 @@ class OldsystemRedeemController extends Controller
         $receiptNo = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
 
-        $dataTPawnSum = TPawnSum::where('Ticket_Number', $receiptNo)
+        $query = TPawnSum::where('Ticket_Number', $receiptNo)
                         ->where('BC', $branch_code)
                         ->where('IsRedeemed', 0)
-                        ->where('isForfeit', 0)
-                        ->get();
+                        ->where('isForfeit', 0);
+        if (Schema::hasColumn('t_pawn_sums', 'is_blocked')) $query->where('is_blocked', 0);
+        $dataTPawnSum = $query->get();
 
         $data = $dataTPawnSum;
 
@@ -177,7 +180,7 @@ class OldsystemRedeemController extends Controller
         DB::beginTransaction();
 
         try {
-            $activeReceipt = \App\Services\ReceiptPaymentEligibility::lock($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
+            $activeReceipt = \App\Services\ReceiptPaymentEligibility::lockForRedemption($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
             $NewRedeem = new TRedeemSum;
             $NewRedeem->Receipt_Number      = $request->receipt_number;
             $NewRedeem->Invoice_Number      = $request->invoice_number;
@@ -215,6 +218,7 @@ class OldsystemRedeemController extends Controller
             $TPawnTrans->dDate         = $request->redeem_date;
             $TPawnTrans->Cr_amount     = 0;
             $TPawnTrans->Dr_amount     = $request->payable_total;
+            $TPawnTrans->Paided_Interest = $request->paid_interest;
             $TPawnTrans->OC            = auth()->user()->username;
             $TPawnTrans->BC            = auth()->user()->BC;
             $TPawnTrans->save();

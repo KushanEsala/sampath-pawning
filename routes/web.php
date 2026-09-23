@@ -150,6 +150,7 @@ Route::post('/addCustomer', [App\Http\Controllers\CustomerController::class, 'ad
 Route::get('/master_edit_customers/{id}', [App\Http\Controllers\CustomerController::class, 'indexEdit'])->name('master_edit_customers');
 //Show Customers view
 Route::get('/master_customers', [App\Http\Controllers\CustomerController::class, 'index'])->name('master_customers');
+Route::get('/customer-next-code', [App\Http\Controllers\CustomerController::class, 'nextCode'])->middleware('auth')->name('customer.next-code');
 //Get Customer by Code
 Route::post('/getCustomer', [App\Http\Controllers\CustomerController::class, 'getByID'])->name('getCustomer');
 //Update Customer by Code
@@ -178,6 +179,9 @@ Route::get('/search_customer_ajax', [App\Http\Controllers\CustomerController::cl
 Route::post('/action', [App\Http\Controllers\CustomerController::class, 'action'])->name('action');
 //Show receipts View
 Route::get('/master_receipt', [App\Http\Controllers\ReceiptController ::class, 'index'])->name('master_receipt');
+Route::get('/receipt-type-history', [App\Http\Controllers\ReceiptController::class, 'history'])->middleware('auth')->name('receipt_type_history');
+Route::get('/blocked-receipts', [App\Http\Controllers\BlockedReceiptController::class, 'index'])->middleware('auth')->name('blocked.receipts.index');
+Route::post('/blocked-receipts', [App\Http\Controllers\BlockedReceiptController::class, 'update'])->middleware('auth')->name('blocked.receipts.update');
 //Add receipts Route
 Route::post('/add_receipt', [App\Http\Controllers\ReceiptController::class, 'add_receipt'])->name('add_receipt');
 //delete receipts
@@ -378,6 +382,8 @@ Route::get('/Stockreport', [App\Http\Controllers\StockreportController::class,'s
 
 
 Route::get('/search_repawning_receipt_ajax', [App\Http\Controllers\RepawningController::class, 'search'])->name('search_repawning_receipt_ajax');
+Route::get('/search_repawning_ticket_ajax', [App\Http\Controllers\RepawningController::class, 'searchTicket'])->name('search_repawning_ticket_ajax');
+Route::get('/search_repawning_invoice_ajax', [App\Http\Controllers\RepawningController::class, 'searchInvoice'])->name('search_repawning_invoice_ajax');
 
 Route::get('/StockCheckreport', [App\Http\Controllers\StockDetailsCheckController::class, 'StockCheck'])->name('StockCheckreport');
 

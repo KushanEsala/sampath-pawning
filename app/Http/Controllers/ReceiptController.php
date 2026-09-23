@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Recei_Add;
 use App\Services\ReceiptPenaltySchedule;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 use Carbon\Carbon;
@@ -13,13 +14,17 @@ use Carbon\Carbon;
 class ReceiptController extends Controller
 {
     public function index(Request $request){
-        $showAll = $request->boolean('history');
-        $query = Recei_Add::query();
-        if (!$showAll) {
-            $query->active();
-        }
-        $receipt = $query->orderBy('receiptname')->orderByDesc('effective_from')->paginate(15);
-        return view('receipt', compact('receipt', 'showAll'))->with("Recei_Add", $receipt);
+        $receipt = Recei_Add::active()->orderBy('receiptname')->orderByDesc('effective_from')->get();
+        return view('receipt', compact('receipt'))->with('Recei_Add', $receipt);
+    }
+
+    public function history(Request $request)
+    {
+        $request->validate(['name' => 'nullable|string|max:80']);
+        $versions = Recei_Add::query()->when($request->filled('name'), fn ($query) => $query->where('receiptname', $request->name))
+            ->orderBy('receiptname')->orderByDesc('effective_from')->orderByDesc('id')->get();
+
+        return view('receipt_type_history', ['versions' => $versions, 'typeName' => $request->name ?: 'All types']);
     }
 
     public function index_forfeit_receipt(){
@@ -31,7 +36,7 @@ class ReceiptController extends Controller
         $intervals = $this->validatedIntervals($request);
         $request->validate([
             'receiptname' => 'required|max:80',
-            'effective_from' => 'nullable|date',
+            'effective_from' => 'nullable|date|before_or_equal:today',
             'rate1' => 'required|numeric',
             'rate2' => 'required|numeric',
             'rate3' => 'nullable|numeric',
@@ -44,6 +49,7 @@ class ReceiptController extends Controller
             'Postage_charge' => 'required|numeric',
             'service_charge' => 'required|numeric',
         ], [
+            'effective_from.before_or_equal' => 'Future scheduling is not supported. Make this change on its effective date.',
             'receiptname.required' => 'Receipt type name is required',
             'rate1.required' => 'Rate 1 is required',
             'rate1.numeric' => 'Rate 1 must be a number',
@@ -70,37 +76,38 @@ class ReceiptController extends Controller
 
         $effectiveFrom = $request->effective_from ? Carbon::parse($request->effective_from)->toDateString() : now()->toDateString();
 
-        // Close any existing active record with same receiptname
-        if (Schema::hasColumn('recei__adds', 'effective_from')) {
-            $closingDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
-            Recei_Add::where('receiptname', $request->receiptname)
-                ->where('is_active', 1)
-                ->update([
-                    'effective_to' => $closingDate,
-                    'is_active' => 0,
-                ]);
+        if (!Schema::hasColumn('recei__adds', 'effective_from')) {
+            throw ValidationException::withMessages(['effective_from' => 'Apply manual SQL 007 before adding receipt types so previous values can be retained.']);
         }
 
-        $receipt = new Recei_Add;
-        $receipt->receiptname = $request->receiptname;
-        $receipt->rate1 = $request->rate1;
-        $receipt->period1 = $request->period1;
-        $receipt->rate2 = $request->rate2;
-        $receipt->period2 = $request->period2;
-        $receipt->rate3 = $request->rate3;
-        $receipt->period3 = $request->period3;
-        $receipt->validPeriod = $request->valid;
-        $receipt->Postage_charge = $request->Postage_charge;
-        $receipt->s_charge_less = $request->s_char_less;
-        $receipt->s_charge_greater = $request->s_char_grea;
-        $receipt->service_charge = $request->service_charge;
-        if (Schema::hasColumn('recei__adds', 'effective_from')) {
+        DB::transaction(function () use ($request, $effectiveFrom, $intervals) {
+            $active = Recei_Add::where('receiptname', $request->receiptname)
+                ->where('is_active', 1)->whereNull('effective_to')->lockForUpdate()->get();
+            foreach ($active as $previous) {
+                $closingDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
+                $oldStart = $previous->effective_from?->toDateString();
+                if ($oldStart && $closingDate < $oldStart) $closingDate = $oldStart;
+                $previous->update(['effective_to' => $closingDate, 'is_active' => 0]);
+            }
+            $receipt = new Recei_Add;
+            $receipt->receiptname = $request->receiptname;
+            $receipt->rate1 = $request->rate1;
+            $receipt->period1 = $request->period1;
+            $receipt->rate2 = $request->rate2;
+            $receipt->period2 = $request->period2;
+            $receipt->rate3 = $request->rate3;
+            $receipt->period3 = $request->period3;
+            $receipt->validPeriod = $request->valid;
+            $receipt->Postage_charge = $request->Postage_charge;
+            $receipt->s_charge_less = $request->s_char_less;
+            $receipt->s_charge_greater = $request->s_char_grea;
+            $receipt->service_charge = $request->service_charge;
             $receipt->effective_from = $effectiveFrom;
             $receipt->effective_to = null;
             $receipt->is_active = 1;
-        }
-        $receipt->fill($intervals);
-        $receipt->save();
+            $receipt->fill($intervals);
+            $receipt->save();
+        });
 
         return response()->json([
             'status' => 'success',
@@ -153,7 +160,7 @@ class ReceiptController extends Controller
         $intervals = $this->validatedIntervals($request, 'up_');
         $request->validate([
             'up_receiptname' => 'required|max:80',
-            'up_effective_from' => 'nullable|date',
+            'up_effective_from' => 'nullable|date|before_or_equal:today',
             'up_rate1' => 'required|numeric',
             'up_rate2' => 'required|numeric',
             'up_rate3' => 'nullable|numeric',
@@ -166,6 +173,7 @@ class ReceiptController extends Controller
             'up_Postage_charge' => 'required|numeric',
             'up_service_charge' => 'required|numeric',
         ], [
+            'up_effective_from.before_or_equal' => 'Future scheduling is not supported. Make this change on its effective date.',
             'up_receiptname.required' => 'Receipt type name is required',
             'up_rate1.required' => 'Rate 1 is required',
             'up_rate1.numeric' => 'Rate 1 must be a number',
@@ -194,84 +202,39 @@ class ReceiptController extends Controller
 
         if ($receipt) {
             $effectiveFrom = $request->up_effective_from ? Carbon::parse($request->up_effective_from)->toDateString() : now()->toDateString();
-
-            if (Schema::hasColumn('recei__adds', 'effective_from')) {
-                // If editing a record whose effective_from is already equal to $effectiveFrom, update in place
-                $currentEffectiveFrom = $receipt->effective_from ? Carbon::parse($receipt->effective_from)->toDateString() : null;
-
-                if ($currentEffectiveFrom === $effectiveFrom) {
-                    $receipt->fill($intervals);
-                    $receipt->update([
-                        'receiptname' => $request->up_receiptname,
-                        'rate1' => $request->up_rate1,
-                        'rate2' => $request->up_rate2,
-                        'rate3' => $request->up_rate3,
-                        'period1' => $request->up_period1,
-                        'period2' => $request->up_period2,
-                        'period3' => $request->up_period3,
-                        'validPeriod' => $request->up_valid,
-                        's_charge_less' => $request->up_s_char_less,
-                        's_charge_greater' => $request->up_s_char_grea,
-                        'Postage_charge' => $request->up_Postage_charge,
-                        'service_charge' => $request->up_service_charge,
-                        'effective_from' => $effectiveFrom,
-                        'effective_to' => null,
-                        'is_active' => 1,
-                    ]);
-                } else {
-                    // Close the current version and any active version with this receipt name
-                    $closingDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
-
-                    $receipt->update([
-                        'effective_to' => $closingDate,
-                        'is_active' => 0,
-                    ]);
-
-                    Recei_Add::where('receiptname', $request->up_receiptname)
-                        ->where('id', '!=', $receipt->id)
-                        ->where('is_active', 1)
-                        ->update([
-                            'effective_to' => $closingDate,
-                            'is_active' => 0,
-                        ]);
-
-                    // Insert new version
-                    $newReceipt = new Recei_Add;
-                    $newReceipt->receiptname = $request->up_receiptname;
-                    $newReceipt->rate1 = $request->up_rate1;
-                    $newReceipt->rate2 = $request->up_rate2;
-                    $newReceipt->rate3 = $request->up_rate3;
-                    $newReceipt->period1 = $request->up_period1;
-                    $newReceipt->period2 = $request->up_period2;
-                    $newReceipt->period3 = $request->up_period3;
-                    $newReceipt->validPeriod = $request->up_valid;
-                    $newReceipt->s_charge_less = $request->up_s_char_less;
-                    $newReceipt->s_charge_greater = $request->up_s_char_grea;
-                    $newReceipt->Postage_charge = $request->up_Postage_charge;
-                    $newReceipt->service_charge = $request->up_service_charge;
-                    $newReceipt->effective_from = $effectiveFrom;
-                    $newReceipt->effective_to = null;
-                    $newReceipt->is_active = 1;
-                    $newReceipt->fill($intervals);
-                    $newReceipt->save();
+            if (!Schema::hasColumn('recei__adds', 'effective_from')) {
+                throw ValidationException::withMessages(['up_effective_from' => 'Apply manual SQL 007 before editing receipt types so previous values can be retained.']);
+            }
+            DB::transaction(function () use ($receipt, $request, $effectiveFrom, $intervals) {
+                $current = Recei_Add::whereKey($receipt->id)->lockForUpdate()->firstOrFail();
+                if ($current->is_active === false || $current->effective_to) {
+                    throw ValidationException::withMessages(['up_id' => 'This receipt type has already changed. Reload before editing.']);
                 }
-            } else {
-                $receipt->fill($intervals);
-                $receipt->update([
+                $closingDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
+                $oldStart = $current->effective_from?->toDateString();
+                if ($oldStart && $closingDate < $oldStart) {
+                    $closingDate = $oldStart; // Same-day edits retain both versions; latest id wins for new receipts.
+                }
+                $current->update(['effective_to' => $closingDate, 'is_active' => 0]);
+                if ($current->receiptname !== $request->up_receiptname) {
+                    Recei_Add::where('receiptname', $request->up_receiptname)->where('is_active', 1)
+                        ->update(['effective_to' => $closingDate, 'is_active' => 0]);
+                }
+                $new = $current->replicate();
+                $new->fill([
                     'receiptname' => $request->up_receiptname,
-                    'rate1' => $request->up_rate1,
-                    'rate2' => $request->up_rate2,
-                    'rate3' => $request->up_rate3,
-                    'period1' => $request->up_period1,
-                    'period2' => $request->up_period2,
-                    'period3' => $request->up_period3,
+                    'rate1' => $request->up_rate1, 'rate2' => $request->up_rate2,
+                    'rate3' => $request->up_rate3, 'period1' => $request->up_period1,
+                    'period2' => $request->up_period2, 'period3' => $request->up_period3,
                     'validPeriod' => $request->up_valid,
                     's_charge_less' => $request->up_s_char_less,
                     's_charge_greater' => $request->up_s_char_grea,
                     'Postage_charge' => $request->up_Postage_charge,
                     'service_charge' => $request->up_service_charge,
-                ]);
-            }
+                    'effective_from' => $effectiveFrom, 'effective_to' => null, 'is_active' => 1,
+                ] + $intervals);
+                $new->save();
+            });
 
             return response()->json([
                 'status' => 'success',

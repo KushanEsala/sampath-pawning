@@ -57,4 +57,36 @@ class ReceiptHistoryOperatorTest extends TestCase
         $this->assertSame(200.0, $letter1->trans_amount);
         $this->assertSame('1st Letter', $letter1->letter_sent);
     }
+
+    public function test_remaining_history_prefers_the_event_capital_over_the_latest_receipt_balance(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $rows = collect([
+            (object) [
+                'id' => 1, 'dDate' => '2026-01-01', 'trans_type' => 'PAWN',
+                'trans_pawn_amount' => 10000, 'rate1' => 1, 'rate2' => 1,
+                'rate3' => 1, 'period1' => 10, 'period2' => 15,
+            ],
+            (object) [
+                'id' => 2, 'dDate' => '2026-01-10', 'trans_type' => 'REPAWNING',
+                'historical_capital' => 20000, 'RePawning_amount' => 99999,
+                'rate1' => 1, 'rate2' => 1, 'rate3' => 1,
+                'period1' => 10, 'period2' => 15,
+            ],
+            (object) [
+                'id' => 3, 'dDate' => '2026-01-20', 'trans_type' => 'PART_PAYMENT',
+                'historical_capital' => 15000, 'Paided_Captional' => 5000,
+                'rate1' => 1, 'rate2' => 1, 'rate3' => 1,
+                'period1' => 10, 'period2' => 15,
+            ],
+        ]);
+
+        $history = $service->enrichWithRemainingAmounts($rows);
+        $repawn = $history->firstWhere('trans_type', 'REPAWNING');
+        $partPayment = $history->firstWhere('trans_type', 'PART_PAYMENT');
+
+        $this->assertSame(20000.0, $repawn->remaining_capital);
+        $this->assertSame(15000.0, $partPayment->remaining_capital);
+        $this->assertNotSame(99999.0, $repawn->remaining_capital);
+    }
 }

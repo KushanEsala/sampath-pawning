@@ -4,7 +4,28 @@
     <meta charset="utf-8">
     <title>Receipt History {{ $history['receipt']->Receipt_Number }}</title>
     <style>
-        body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px} h1,h2{margin:0 0 12px} .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}.box{border:1px solid #aaa;padding:8px}table{width:100%;border-collapse:collapse;margin:12px 0 20px}th,td{border:1px solid #777;padding:6px;text-align:left}th{background:#eee}.amount{text-align:right}.print{margin-bottom:16px}@media print{.print{display:none}}
+        @page { margin: 14mm; }
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 18px; background: #fff; }
+        h1, h2 { margin: 0 0 10px; font-size: 16px; }
+        h2 { margin-top: 18px; font-size: 13px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+        .box { border: 1px solid #000; padding: 7px; overflow-wrap: anywhere; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 10px 0 16px; }
+        th, td { border: 1px solid #000; padding: 5px; text-align: left; vertical-align: top; color: #000; background: #fff; }
+        .amount, .ledger-money { text-align: right; font-variant-numeric: tabular-nums; }
+        .ledger-date { width: 13%; }
+        .ledger-description { width: 51%; }
+        .ledger-money { width: 12%; }
+        .ledger-balance, .ledger-title { font-weight: bold; }
+        .ledger-summary, .ledger-meta, .ledger-operator { color: #000; font-size: 10px; line-height: 1.35; margin-top: 2px; overflow-wrap: anywhere; }
+        .ledger-detail-grid { display: block; }
+        .ledger-detail-row td { padding: 5px 8px; }
+        .fa, .fas, .far { display: none; }
+        .print { margin-bottom: 16px; }
+        @media print {
+            .print { display: none; }
+            tr { break-inside: avoid; }
+        }
     </style>
 </head>
 <body>
@@ -22,8 +43,6 @@
 <table><thead><tr><th>Principal</th><th>Interest</th><th>Service</th><th>Letter Charges</th><th>Total Interest Payable</th><th>Redemption Total</th></tr></thead><tbody><tr>
     <td class="amount">{{ number_format($financial['principal'],2) }}</td><td class="amount">{{ number_format($financial['interest'],2) }}</td><td class="amount">{{ number_format($financial['service_charge'],2) }}</td><td class="amount">{{ number_format($financial['letter_charge'],2) }}</td><td class="amount">{{ number_format($financial['arrears_total'],2) }}</td><td class="amount">{{ number_format($financial['redemption_total'],2) }}</td>
 </tr></tbody></table>
-<h2>History — Newest First</h2>
-<table><thead><tr><th>Date/Time</th><th>Type</th><th>Amount</th><th>Details</th></tr></thead><tbody>
-@foreach($history['timeline'] as $event)<tr><td>{{ $event['date'] }}</td><td>{{ $event['type'] }}</td><td class="amount">{{ $event['amount'] !== null ? number_format($event['amount'],2) : '' }}</td><td>@foreach($event['details'] as $label=>$value)<strong>{{ $label }}:</strong> {{ $value }}@if(!$loop->last)<br>@endif @endforeach</td></tr>@endforeach
-</tbody></table>
+<h2>Complete Ledger History — Newest First</h2>
+@include('partials.receiptLedgerTable', ['ledgerRows' => $history['ledger'], 'ledgerExpanded' => true])
 </body></html>

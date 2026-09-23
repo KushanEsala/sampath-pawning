@@ -74,6 +74,8 @@
                                                 $statusBadge = '<span class="badge bg-danger">Forfeited</span>';
                                             } elseif ($t->IsRedeemed) {
                                                 $statusBadge = '<span class="badge bg-secondary">Redeemed</span>';
+                                            } elseif ($t->is_blocked) {
+                                                $statusBadge = '<span class="badge bg-danger">Blocked</span>';
                                             }
                                         @endphp
                                         <tr>
@@ -111,7 +113,7 @@
                     $financial = $history['financial'];
                 @endphp
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5 class="mb-0">Receipt {{ $receipt->Receipt_Number }} (Ticket: {{ $receipt->Ticket_Number }})</h5>
+                    <h5 class="mb-0">Receipt {{ $receipt->Receipt_Number }} (Ticket: {{ $receipt->Ticket_Number }}) @if($receipt->is_blocked)<span class="badge bg-danger">Blocked — redemption disabled</span>@endif</h5>
                     <div>
                         @if(($searchType ?? '') === 'nic' || request()->has('search_type'))
                             <a class="btn btn-outline-secondary me-2" href="{{ route('receipt.search', ['search_type' => 'nic', 'search_query' => $receipt->Customer_NIC]) }}">
@@ -163,23 +165,16 @@
                 </div></div>
 
                 <div class="card"><div class="card-body table-responsive">
-                    <h5>Complete History — Newest First</h5>
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-dark"><tr><th>Date/Time</th><th>Type</th><th>Amount</th><th>Details</th></tr></thead>
-                        <tbody>
-                        @forelse($history['timeline'] as $event)
-                            <tr><td>{{ $event['date'] }}</td><td>{{ $event['type'] }}</td><td class="text-end">{{ $event['amount'] !== null ? number_format($event['amount'], 2) : '' }}</td><td>
-                                @foreach($event['details'] as $label => $value)<strong>{{ $label }}:</strong> {{ $value }}@if(!$loop->last)<br>@endif @endforeach
-                                @if(!empty($event['print_url']))<br><a target="_blank" class="btn btn-outline-secondary btn-sm" href="{{ $event['print_url'] }}">Print stock transfer</a>@endif
-                            </td></tr>
-                        @empty<tr><td colspan="4" class="text-center text-muted">No history entries found.</td></tr>@endforelse
-                        </tbody>
-                    </table>
+                    <h5>Complete Ledger History — Newest First</h5>
+                    <p class="text-muted small mb-2">DR records amounts added to the receipt balance. CR records customer payments and other reductions.</p>
+                    @include('partials.receiptLedgerTable', ['ledgerRows' => $history['ledger']])
                 </div></div>
             @endif
         </div>
     </div>
 </div>
+
+@include('partials.receiptLedgerAssets')
 
 <script>
     function updateSearchPlaceholder() {

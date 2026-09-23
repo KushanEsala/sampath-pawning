@@ -88,28 +88,8 @@
     </style>
 </head>
 
-{{-- ═══════════════════════════════════════════════════════════════
-     PHP: build karatage rate map and calculate totalvalueinterest
-     from (Weight × pawningrate) for each pawn detail row
-════════════════════════════════════════════════════════════════ --}}
 @php
-    // Build a map: [ 'descrption' => pawningrate ]
-    $karatageRateMap = [];
-    foreach ($karatageData as $k) {
-        $karatageRateMap[$k->descrption] = $k->pawningrate;
-    }
-
-    // Formula:
-    // pawningrate = price per 8 grams
-    // 1 gram value = pawningrate ÷ 8
-    // item value   = (pawningrate ÷ 8) × Weight
-    $calculatedTotalValue = 0;
-    foreach ($pawnDetails as $detail) {
-        $pawningrate  = $karatageRateMap[$detail->Karatage] ?? 0;
-        $perGramRate  = $pawningrate / 8;
-        $itemValue    = $perGramRate * $detail->Weight;
-        $calculatedTotalValue += $itemValue;
-    }
+    $calculatedTotalValue = $repawningPreview['article_value'];
 @endphp
 
 <div class="col">
@@ -373,8 +353,13 @@
                 </tr>
                 <tr>
                     @for ($m = 1; $m <= 12; $m++)
-                        <td id="output{{ $m }}">
-                            <input type="text" value="{{ $m }}" id="Interest{{ $m }}"
+                        @php
+                            $monthValue = $repawningPreview['month_options'][$m];
+                        @endphp
+                        <td id="output{{ $m }}" @if ($monthValue === null) style="display:none" @endif>
+                            <input type="text"
+                                value="{{ $monthValue === null ? '' : number_format($monthValue, 2, '.', '') }}"
+                                id="Interest{{ $m }}"
                                 style="outline:#ebf3f9; width:100%; min-width:100px;" readonly>
                         </td>
                     @endfor
@@ -386,40 +371,39 @@
 <br>
 
 
-{{-- ═══════════════════════════════════════════════════════════════
-     JAVASCRIPT
-     BUG FIX: The overdue/penalty branch now checks receipt_name === 'D'
-     exactly like the Part Payment page does. Previously it fired for
-     ALL receipt types (e.g. type A), giving a wrong higher interest.
-════════════════════════════════════════════════════════════════ --}}
+@php
+    $repawningJsConfig = [
+        'receiptName' => strtoupper((string) ($receiptData[0]['receiptname'] ?: $receiptData[0]['Receipt_Type'])),
+        'receiptDate' => $receiptData[0]['Pawn_Date'],
+        'principal' => (float) $repawningPreview['principal'],
+        'previouslyPaidInterest' => (float) ($receiptData[0]['interest_Paid'] ?? 0),
+        'carriedInterest' => (float) ($receiptData[0]['BalanceInterest'] ?? 0),
+        'period1' => (int) ($receiptTypeData->first()->period1 ?? 0),
+        'period2' => (int) ($receiptTypeData->first()->period2 ?? 0),
+        'period3' => (int) ($receiptTypeData->first()->period3 ?? 30),
+        'validDays' => (int) ($receiptTypeData->first()->validPeriod ?? 0),
+        'rate1' => (float) ($receiptTypeData->first()->rate1 ?? 0),
+        'rate2' => (float) ($receiptTypeData->first()->rate2 ?? 0),
+        'rate3' => (float) ($receiptTypeData->first()->rate3 ?? 0),
+        'articleValue' => (float) $repawningPreview['article_value'],
+        'monthlyRate' => (float) $repawningPreview['monthly_rate'],
+        'validMonths' => (int) $repawningPreview['valid_months'],
+        'serviceCharge' => (float) ($financial['service_charge'] ?? 0),
+        'letterCharge' => (float) ($financial['letter_charge'] ?? 0),
+        'stampDuty' => (float) $repawningPreview['stamp_duty'],
+    ];
+@endphp
 <script>
 $(document).ready(function () {
+    const config = @json($repawningJsConfig);
 
-    // ── Set today's date ──────────────────────────────────────────
     document.getElementById('date').valueAsDate = new Date();
+    $('#document_charges').val(config.serviceCharge.toFixed(2));
+    $('#stampduty').val(config.stampDuty.toFixed(2));
 
-    // ── Initial run ───────────────────────────────────────────────
     calculateFinalDate();
     interestCalculations();
 
-    // ── Service charge setup ──────────────────────────────────────
-    let doc_charges   = 0;
-    let stampduty_val = 0;
-    let s_charge_less    = 0;
-    let s_charge_greater = 0;
-
-    @foreach ($receiptTypeData as $receiptType)
-        doc_charges      = {{ $receiptType['documentCharges'] }};
-        stampduty_val    = {{ $receiptType['stampduty'] }};
-        s_charge_less    = parseFloat({{ $receiptType['service_charge'] }}) || 0;
-        s_charge_greater = parseFloat({{ $receiptType['s_charge_greater'] }}) || 0;
-    @endforeach
-
-    let p_amount = parseFloat({{ $receiptData[0]['Pawn_Amount'] }}) || 0;
-    $('#document_charges').val(p_amount > 0 ? s_charge_less : ((p_amount / 100) * s_charge_greater).toFixed(2));
-    $('#stampduty').val(stampduty_val);
-
-    // ── Re-run on date change ─────────────────────────────────────
     $('#date').on('change', function () {
         calculateFinalDate();
         interestCalculations();
@@ -430,146 +414,73 @@ $(document).ready(function () {
         redeemTotalCalculation();
     });
 
-    // ── Date difference (days) ────────────────────────────────────
     function calculateFinalDate() {
-        let receiptDate = new Date("@foreach ($receiptData as $receipt){{ $receipt['Pawn_Date'] }}@endforeach");
+        let receiptDate = new Date(config.receiptDate);
         let todayFormat = new Date($('#date').val());
         let diffDays    = Math.floor((todayFormat - receiptDate) / (1000 * 60 * 60 * 24)) + 1;
         $('#date-period').text(diffDays);
     }
 
-    // ── Interest calculation ──────────────────────────────────────
     function interestCalculations() {
-        let receiptDate = new Date("@foreach ($receiptData as $receipt){{ $receipt['Pawn_Date'] }}@endforeach");
+        let receiptDate = new Date(config.receiptDate);
         let todayFormat = new Date($('#date').val());
         let diffDays    = Math.floor((todayFormat - receiptDate) / (1000 * 60 * 60 * 24)) + 1;
 
-        // If date range is zero or negative, set interest to 0 and return
         if (diffDays <= 0) {
             $('#interest').val('0.00');
             redeemTotalCalculation();
             return;
         }
 
-        let receipt_name = '';
-        let period1 = 0, period2 = 0, period3 = 0;
-        let rate1   = 0, rate2   = 0, rate3   = 0;
-        let valid_period = 0;
-
-        @foreach ($receiptTypeData as $receiptType)
-            receipt_name  = '{{ $receiptType['receiptname'] }}';
-            period1      += {{ $receiptType['period1'] }};
-            period2      += {{ $receiptType['period2'] }};
-            period3      += {{ $receiptType['period3'] }};
-            rate1        += {{ $receiptType['rate1'] }};
-            rate2        += {{ $receiptType['rate2'] }};
-            rate3        += {{ $receiptType['rate3'] }};
-            valid_period += {{ $receiptType['validPeriod'] }};
-        @endforeach
-
-        let amount   = parseFloat({{ $receiptData[0]['Pawn_Amount'] }}) || 0;
         let months   = Math.ceil(diffDays / 30);
         let interest = 0;
 
-        if (receipt_name === 'SILVER') {
-            // ── Silver: flat monthly rate at rate1 ────────────────
-            interest = ((amount / 100) * rate1 * months);
-
-        } else if (receipt_name === 'D') {
-            // ── Type D: simple monthly interest ──────────────────
-            interest = ((amount / 100) * rate2 * months);
-
-        } else if (diffDays > valid_period && receipt_name === 'D') {
-            // ── ✅ FIX: Overdue penalty ONLY for type D ───────────
-            // (This branch is now unreachable for non-D types,
-            //  which previously caused the wrong high interest.)
-            let penaltyDiff   = diffDays - valid_period;
-            let basePart      = (amount / 100) * rate2 * months;
+        if (config.receiptName === 'SILVER') {
+            interest = ((config.principal / 100) * config.rate1 * Math.max(1, diffDays / Math.max(1, config.period3 || 30)));
+        } else if (config.receiptName === 'D' && config.validDays > 0 && diffDays > config.validDays) {
+            let penaltyDiff   = diffDays - config.validDays;
+            let basePart      = (config.principal / 100) * config.rate2 * months;
             let penaltyMonths = Math.ceil(penaltyDiff / 30);
-            let penaltyCharge = (amount / 100) * 0.5 * penaltyMonths;
+            let penaltyCharge = (config.principal / 100) * 0.5 * penaltyMonths;
             interest          = basePart + penaltyCharge;
-
+        } else if (config.receiptName === 'D') {
+            interest = ((config.principal / 100) * config.rate2 * months);
         } else {
-            // ── Normal tiered interest (all non-D types) ──────────
-            if (diffDays <= period1) {
-                interest = (amount / 100) * rate1;
-
-            } else if (diffDays <= period2) {
-                interest = (amount / 100) * rate2;
-
+            if (diffDays <= config.period1) {
+                interest = (config.principal / 100) * config.rate1;
+            } else if (diffDays <= config.period2) {
+                interest = (config.principal / 100) * config.rate2;
             } else if (diffDays <= 30) {
-                interest = (amount / 100) * rate3;
-
+                interest = (config.principal / 100) * config.rate3;
             } else {
                 let fullMonths    = Math.floor(diffDays / 30);
                 let remainingDays = diffDays % 30;
-                let totalRate     = (rate3 * fullMonths) + ((rate3 / 30) * remainingDays);
-                interest          = (amount / 100) * totalRate;
+                let totalRate     = (config.rate3 * fullMonths) + ((config.rate3 / 30) * remainingDays);
+                interest          = (config.principal / 100) * totalRate;
             }
         }
 
+        interest = Math.max(0, interest - config.previouslyPaidInterest + config.carriedInterest);
         $('#interest').val(parseFloat(interest).toFixed(2));
         redeemTotalCalculation();
     }
 
-    // ── Redeem / repawning total ──────────────────────────────────
     function redeemTotalCalculation() {
-        let amount = parseFloat('{{ $receiptData[0]['Pawn_Amount'] }}') || 0;
-
-        // Use karatage pawningrate-based total value (Weight × pawningrate ÷ 8)
-        let totalvalueinterest = parseFloat($('#karatage_total_value').val()) || 0;
-
+        let totalvalueinterest = config.articleValue;
         let discount         = parseFloat($('#redeem_discount').val())    || 0;
-        let interest_to_pay  = parseFloat({{ $financial['interest'] ?? 0 }}) || 0;
+        let interest_to_pay  = parseFloat($('#interest').val())           || 0;
         let stampduty        = parseFloat($('#stampduty').val())          || 0;
-        let document_charges = parseFloat({{ $financial['service_charge'] ?? 0 }}) || 0;
-        let letter_charges = parseFloat({{ $financial['letter_charge'] ?? 0 }}) || 0;
+        let document_charges = parseFloat($('#document_charges').val())   || 0;
+        let letter_charges   = config.letterCharge;
 
-        // Total the customer pays today to redeem or extend
-        let total_pay = (discount > 0)
-            ? (amount + interest_to_pay + document_charges + letter_charges + stampduty - discount).toFixed(2)
-            : (amount + interest_to_pay + document_charges + letter_charges + stampduty).toFixed(2);
+        let totalPay = Math.max(0, config.principal + interest_to_pay + document_charges + letter_charges + stampduty - discount);
+        let totalvalue = totalvalueinterest - totalPay;
+        let monthsInterest = totalvalueinterest / 100 * config.monthlyRate;
 
-        // How much extra cash customer can receive on repawning
-        // = (karatage article value) - (what they owe today)
-        let totalvalue = (totalvalueinterest - (amount + interest_to_pay + document_charges + letter_charges + stampduty)).toFixed(2);
-
-        // Monthly interest rate based on total article value
-        let interestRatetwo;
-        if (receipt_name === 'SILVER') {
-            interestRatetwo = rate1;
-        } else if (totalvalueinterest >= 100000) {
-            interestRatetwo = 1.68;
-        } else if (totalvalueinterest >= 50000) {
-            interestRatetwo = 2.00;
-        } else {
-            interestRatetwo = 2.50;
-        }
-
-        let months_interest = totalvalueinterest / 100 * interestRatetwo;
-
-        let Valid_Period = parseFloat('{{ $receiptData[0]['Valid_Period'] }}') || 0;
-
-        // Build repawning options for each future month
-        let interestValues = {
-            1:  (Valid_Period >= 1)  ? totalvalue                        : null,
-            2:  (Valid_Period >= 2)  ? totalvalue - months_interest      : null,
-            3:  (Valid_Period >= 3)  ? totalvalue - months_interest * 2  : null,
-            4:  (Valid_Period >= 4)  ? totalvalue - months_interest * 3  : null,
-            5:  (Valid_Period >= 5)  ? totalvalue - months_interest * 4  : null,
-            6:  (Valid_Period >= 6)  ? totalvalue - months_interest * 5  : null,
-            7:  (Valid_Period >= 7)  ? totalvalue - months_interest * 6  : null,
-            8:  (Valid_Period >= 8)  ? totalvalue - months_interest * 7  : null,
-            9:  (Valid_Period >= 9)  ? totalvalue - months_interest * 8  : null,
-            10: (Valid_Period >= 10) ? totalvalue - months_interest * 9  : null,
-            11: (Valid_Period >= 11) ? totalvalue - months_interest * 10 : null,
-            12: (Valid_Period >= 12) ? totalvalue - months_interest * 11 : null,
-        };
-
-        $('#redeem_total').val(total_pay);
-        $('#redeem_ammount').val(total_pay);
+        $('#redeem_total').val(totalPay.toFixed(2));
+        $('#redeem_ammount').val(totalPay.toFixed(2));
         $('#ammount').val(totalvalueinterest);
-        $('#totalvalueinterst').val(totalvalue);
+        $('#totalvalueinterst').val(totalvalue.toFixed(2));
 
         // Show / hide repawning row based on available balance
         let val = parseFloat($('#totalvalueinterst').val());
@@ -588,7 +499,6 @@ $(document).ready(function () {
             }
         });
 
-        // Populate the 1-12 month interest table
         function setInterestField(id, value) {
             let field = $('#' + id);
             if (value === null) {
@@ -600,7 +510,10 @@ $(document).ready(function () {
         }
 
         for (let i = 1; i <= 12; i++) {
-            setInterestField('Interest' + i, interestValues[i]);
+            let value = i <= config.validMonths
+                ? totalvalue - (monthsInterest * (i - 1))
+                : null;
+            setInterestField('Interest' + i, value);
         }
     }
 

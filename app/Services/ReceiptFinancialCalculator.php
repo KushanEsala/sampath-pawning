@@ -21,7 +21,7 @@ class ReceiptFinancialCalculator
             : Carbon::parse($calculationDate ?? now())->startOfDay();
 
         $days = ReceiptInterestPeriod::days($receipt, $asOf);
-        $configurationFields = ['period1', 'period2', 'validPeriod', 'rate1', 'rate2', 'rate3', 'service_charge'];
+        $configurationFields = ['period1', 'period2', 'period3', 'validPeriod', 'rate1', 'rate2', 'rate3', 'service_charge'];
         $needsConfigurationFallback = collect($configurationFields)
             ->contains(fn (string $field) => $receipt->{$field} === null);
         $config = $needsConfigurationFallback
@@ -32,13 +32,14 @@ class ReceiptFinancialCalculator
         $principal = (float) ($receipt->Pawn_Amount ?: $receipt->Amount ?: 0);
         $period1 = (int) $this->configuredValue($receipt, $config, 'period1', 0);
         $period2 = (int) $this->configuredValue($receipt, $config, 'period2', 0);
+        $period3 = (int) $this->configuredValue($receipt, $config, 'period3', 30);
         $validPeriod = (int) $this->configuredValue($receipt, $config, 'validPeriod', $receipt->Valid_Period ?? 0);
         $rate1 = (float) $this->configuredValue($receipt, $config, 'rate1', 0);
         $rate2 = (float) $this->configuredValue($receipt, $config, 'rate2', 0);
         $rate3 = (float) $this->configuredValue($receipt, $config, 'rate3', 0);
 
         $grossInterest = $this->interestForDays(
-            $receiptName, $principal, $days, $period1, $period2, $validPeriod,
+            $receiptName, $principal, $days, $period1, $period2, $period3, $validPeriod,
             $rate1, $rate2, $rate3
         );
 
@@ -139,6 +140,7 @@ class ReceiptFinancialCalculator
         int $days,
         int $period1,
         int $period2,
+        int $period3,
         int $validPeriod,
         float $rate1,
         float $rate2,
@@ -151,13 +153,16 @@ class ReceiptFinancialCalculator
         $months = (int) ceil($days / 30);
 
         if ($receiptName === 'SILVER') {
-            return ($principal / 100) * $rate1 * $months;
+            return SilverInterest::amount($principal, $rate1, $days, $period3);
         }
 
-        if ($receiptName === 'D' && $validPeriod > 0 && $days > $validPeriod) {
-            $penaltyMonths = (int) ceil(($days - $validPeriod) / 30);
-            return (($principal / 100) * $rate2 * $months)
-                + (($principal / 100) * 0.5 * $penaltyMonths);
+        if ($receiptName === 'D') {
+            $baseInterest = ($principal / 100) * $rate2 * $months;
+            if ($validPeriod > 0 && $days > $validPeriod) {
+                $penaltyMonths = (int) ceil(($days - $validPeriod) / 30);
+                return $baseInterest + (($principal / 100) * 0.5 * $penaltyMonths);
+            }
+            return $baseInterest;
         }
 
         if ($days <= $period1) {

@@ -660,48 +660,39 @@
             // Calculate the interest
             let amount = parseFloat( {{  $receiptData[0]['Pawn_Amount'] }} ) || 0;
             let paid_interest = parseFloat( {{  $receiptData[0]['interest_Paid'] }} ) || 0;
+            let carried_interest = parseFloat( {{  $receiptData[0]['BalanceInterest'] }} ) || 0;
             let months = Math.ceil(date_range_days / 30);
             let panelty_dif = date_range_days-valid_period;
             let total_int = 0;
             let interest = 0;
 
             if (receipt_name === "SILVER") {
-                interest = (((amount / 100) * rate1) * months);
+                interest = ((amount / 100) * rate1) * Math.max(1, date_range_days / Math.max(1, period3 || 30));
                 $('#interest').val(interest.toFixed(2));
 
+            } else if (receipt_name === "D" && valid_period > 0 && date_range_days > valid_period) {
+                let interest_set = ((amount / 100) * rate2 * months);
+                let panelty_months = Math.ceil(panelty_dif / 30);
+                let panelty_charge = ((amount / 100) * 0.5 * panelty_months);
+                interest = interest_set + panelty_charge;
             } else if (receipt_name === "D") {
                 interest = (((amount / 100) * rate2 ) * months);
-                $('#interest').val(interest.toFixed(2));
-
             } else {
-
-                if (date_range_days > valid_period && receipt_name === "D") {
-                    let interest_set = parseFloat((((amount / 100) * rate2 * months)).toFixed(2)) || 0;
-                    let panelty_rate = 0.5; // The penalty rate (0.5 for 50%)
-                    let panelty_months = Math.ceil(panelty_dif / 30); // Calculate the number of penalty months
-                    let panelty_interest = panelty_rate * panelty_months;
-                    let panelty_charge = parseFloat((((amount / 100) * panelty_interest )).toFixed(2)) || 0;
-                    let interest = interest_set + panelty_charge - paid_interest;
-                    $('#interest').val(interest.toFixed(2));
+                if (date_range_days <= period1) {
+                    interest = ((amount / 100) * rate1);
+                } else if (date_range_days <= period2) {
+                    interest = ((amount / 100) * rate2);
+                } else if (date_range_days <= 30) {
+                    interest = ((amount / 100) * rate3);
                 } else {
-                    // Normal interest calculation
-                    if (date_range_days <= period1) {
-                        interest = ((amount / 100) * rate1);
-                    } else if (date_range_days <= period2) {
-                        interest = ((amount / 100) * rate2);
-                    } else if (date_range_days <= 30) {
-                        interest = ((amount / 100) * rate3);
-                    } else {
-                        let full_months = Math.floor(date_range_days / 30);
-                        let remaining_days = date_range_days % 30;
-                        let totalRate = (rate3 * full_months) + ((rate3 / 30) * remaining_days);
-                        interest = ((amount / 100) * totalRate);
-                    }
-
-                    $('#interest').val(interest.toFixed(2));
+                    let full_months = Math.floor(date_range_days / 30);
+                    let remaining_days = date_range_days % 30;
+                    let totalRate = (rate3 * full_months) + ((rate3 / 30) * remaining_days);
+                    interest = ((amount / 100) * totalRate);
                 }
-
             }
+            interest = Math.max(0, interest - paid_interest + carried_interest);
+            $('#interest').val(interest.toFixed(2));
             redeemTotalCalculation();
 
         }
@@ -712,12 +703,9 @@
         // Calculate the total payment
        function redeemTotalCalculation() {
     let amount = parseFloat({{ $receiptData[0]['Pawn_Amount'] }}) || 0;
-    let paid_interest = parseFloat({{ $receiptData[0]['interest_Paid'] }}) || 0;
-    let Bal_int = parseFloat({{ $receiptData[0]['BalanceInterest'] }}) || 0;
     let discount = parseFloat($('#redeem_discount').val()) || 0;
-    let advance_payment = parseFloat($('#advance_payment').val()) || 0;
-    let interest_Paid = parseFloat($('#interest_Paid').val()) || 0;
-    let interest_to_pay = parseFloat({{ $financial['interest'] ?? 0 }}) || 0;
+    let enteredPayment = parseFloat($('#interest_Paid').val()) || 0;
+    let interest_to_pay = parseFloat($('#interest').val()) || 0;
     let document_charges = parseFloat({{ $financial['service_charge'] ?? 0 }}) || 0;
     let stamp_duty = parseFloat($('#stampduty').val()) || 0;
     let letter_pay_one = parseFloat({{ $receiptData[0]['letter_pay_one'] }}) || 0;
@@ -726,32 +714,36 @@
 
 
     let Postage_Charges = parseFloat({{ $financial['letter_charge'] ?? 0 }}) || 0;
-    let totalPay = interest_to_pay + document_charges + stamp_duty + amount + Postage_Charges;
-    let interestpay = interest_to_pay + document_charges + stamp_duty;
+    let chargesDue = Math.max(0, interest_to_pay + document_charges + stamp_duty + Postage_Charges - discount);
+    let paymentReceived = Math.max(0, enteredPayment - discount);
+    let totalPay = amount + chargesDue;
 
     if (totalPay < 0) totalPay = 0;
 
     $('#redeem_total').val(totalPay.toFixed(2));
     $('#total').val(amount.toFixed(2));
-    $('#BalanceInterest').val(((interest_to_pay + Postage_Charges) - interest_Paid).toFixed(2));
+    $('#BalanceInterest').val(Math.max(0, chargesDue - paymentReceived).toFixed(2));
     $('#Postage_interest').val((interest_to_pay + Postage_Charges).toFixed(2));
 
-    let advancePayment = interest_Paid - interestpay;
+    let advancePayment = Math.min(amount, Math.max(0, paymentReceived - chargesDue));
     $('#advance_payment').val(advancePayment > 0 ? advancePayment.toFixed(2) : '0.00');
 
-    let pawningPayment = amount + interestpay - interest_Paid;
+    let pawningPayment = amount - advancePayment;
     $('#pawning_payment').val(pawningPayment > 0 ? pawningPayment.toFixed(2) : '0.00');
 
-    $('#payable_total').val((interest_Paid - discount).toFixed(2));
+    $('#payable_total').val(paymentReceived.toFixed(2));
 
-    let payTotalAmount = totalPay - advancePayment - document_charges - (pawningPayment > 0 ? pawningPayment : 0);
-    $('#PayTotalAmount').val(payTotalAmount > 0 ? payTotalAmount.toFixed(2) : '0.00');
+    let paidCharges = Math.min(paymentReceived, chargesDue);
+    $('#PayTotalAmount').val(paidCharges > 0 ? paidCharges.toFixed(2) : '0.00');
 
     // Interest Calculation Section
     let totalvalueinterestTotal = parseFloat('{{ $receiptData[0]['Total_Amount'] }}') || 0;
+    let silverPayment = @json(strtoupper((string) ($receiptData[0]['receiptname'] ?: $receiptData[0]['Receipt_Type'])) === 'SILVER');
     let interestRatetwo;
 
-    if (totalvalueinterestTotal >= 100000) {
+    if (silverPayment) {
+        interestRatetwo = {{ (float) ($receiptTypeData->first()->rate1 ?? 0) }};
+    } else if (totalvalueinterestTotal >= 100000) {
         interestRatetwo = 1.68;
     } else if (totalvalueinterestTotal >= 50000) {
         interestRatetwo = 2;
@@ -760,7 +752,7 @@
     }
 
     let months_interest = totalvalueinterestTotal / 100 * interestRatetwo;
-    let Valid_Period = 12;
+    let Valid_Period = silverPayment ? 1 : 12;
 
     let Interests = [];
     for (let i = 0; i < 12; i++) {

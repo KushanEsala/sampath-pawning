@@ -7,15 +7,26 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0">
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
-    <script src="http://cdn.bootcss.com/jquery/2.2.4/jquery.min.js"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <link rel="stylesheet" href="http://cdn.bootcss.com/toastr.js/latest/css/toastr.min.css">
+    <script src="{{ asset('assets/js/jquery-3.6.0.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('assets/css/toastr.min.css') }}">
     <title>Customers</title>
+    <style>
+        .customer-tools{display:flex;flex-wrap:wrap;gap:.7rem;align-items:end;padding:1rem;background:#f6f8fc;border:1px solid #dce4f1;border-radius:12px;margin-bottom:1rem}
+        .customer-tools label{display:block;font-size:.78rem;font-weight:700;color:#44546d;margin-bottom:.3rem}
+        .customer-tools .customer-query{flex:2 1 280px}.customer-tools .customer-filter{flex:1 1 145px}
+        .customer-tools .customer-action{display:flex;gap:.5rem;align-items:center}
+        .customer-register-meta{display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;color:#69788e;font-size:.83rem;margin-bottom:.65rem}
+        .customer-register{width:100%;min-width:730px}.customer-register th{background:#eaf0fb;color:#243954;font-size:.82rem;text-transform:uppercase;letter-spacing:.035em}
+        .customer-register td{color:#203047}.customer-code,.customer-phone{font-variant-numeric:tabular-nums;white-space:nowrap}.customer-name{font-weight:600}
+        .customer-view-cell{width:80px}.customer-status{display:inline-block;padding:.25rem .55rem;border-radius:999px;font-size:.78rem;font-weight:700}
+        .customer-status.is-active{color:#0b6944;background:#def4e8}.customer-status.is-blacklisted{color:#9d3030;background:#fde6e6}
+        .customer-detail-row td{padding:0!important;background:#f8faff}.customer-detail-panel{padding:1rem 1.2rem;border-left:3px solid #6a50e8}
+        .customer-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:.85rem 1.2rem;overflow-wrap:anywhere}
+        .customer-detail-label{display:block;color:#718096;text-transform:uppercase;letter-spacing:.04em;font-size:.7rem;font-weight:700;margin-bottom:.15rem}
+        .customer-detail-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.customer-empty{text-align:center;padding:2rem!important;color:#617087}
+        .customer-pager{margin-top:1rem}
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -57,8 +68,13 @@
                                                 {{-- --------------search and add customer button-------- --}}
                                                 <div class="row">
                                                     {{-- ........search area.......... --}}
-                                                    <div class="col-md-6">
-                                               
+                                                    <div class="col-12">
+                                                        <form method="get" action="{{ route('master_customers') }}" class="customer-tools" role="search">
+                                                            <div class="customer-query"><label for="customerQuery">Find customer</label><input id="customerQuery" class="form-control" name="q" value="{{ request('q') }}" placeholder="Name, NIC, telephone or code"></div>
+                                                            <div class="customer-filter"><label for="customerStatus">Status</label><select id="customerStatus" name="status" class="form-select"><option value="">All statuses</option><option value="active" @selected(request('status') === 'active')>Active</option><option value="blacklisted" @selected(request('status') === 'blacklisted')>Blacklisted</option></select></div>
+                                                            <div class="customer-filter"><label for="customerPageSize">Rows</label><select id="customerPageSize" name="per_page" class="form-select">@foreach([10,25,50] as $size)<option value="{{ $size }}" @selected((int) request('per_page',25) === $size)>{{ $size }}</option>@endforeach</select></div>
+                                                            <div class="customer-action"><button class="btn btn-primary" type="submit"><i class="fas fa-search me-1"></i>Search</button><a class="btn btn-outline-secondary" href="{{ route('master_customers') }}">Clear</a></div>
+                                                        </form>
                                                     </div>
                                                     {{-- .............add customer button.......... --}}
                                                     <div class="col-md-6">
@@ -90,7 +106,7 @@
                                                                                             <div class="row">
                                                                                                     <div class="col-md-4">
                                                                                                         <label>Code <span style="color:#FF0000; font-weight: bold; ">*</span> :</label>
-                                                                                                        <input type="text" value="{{ $maxCustomer+1}}" name="code" id="code" class="form-control" placeholder="Customer Code" required>
+                                                                                                        <input type="text" name="code" id="code" class="form-control" placeholder="Customer Code" required>
                                                                                                     </div>
                                                                                                 <div class="col-md-4">
                                                                                                     <label>Title <span style="color:#FF0000; font-weight: bold; ">*</span> :</label>
@@ -231,81 +247,8 @@
                                                 </div>
                                             </div>
 
-                                            <div class="card-body">
-                                                <div class="table-responsive">
-                                                    <div class="table-data">
-                                                        <table class="table table-bordered table-center table-hover datatable">
-                                                            <thead >
-                                                                <tr class="table-secondary">
-                                                                    <th>Code</th>
-                                                                    <th>Title</th>
-                                                                    <th>First Name</th>
-                                                                    <th>Last Name</th>
-                                                                    <th>Gender</th>
-                                                                    <th>Contact</th>
-                                                                    <th>Email</th>
-                                                                    <th>NIC</th>
-                                                                    <th>Status</th>
-                                                                    <th>Address</th>
-                                                                    <th>Action</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                @foreach ($customers as $key=>$data)
-                                                                <tr>
-                                                                    <td>{{$data->Code}}</td>
-                                                                    <td>{{$data->Title}}</td>
-                                                                    <td>{{$data->First_name}}</td>
-                                                                    <td>{{$data->Last_name}}</td>
-                                                                    <td>{{$data->Gender}}</td>
-                                                                    <td>{{$data->Contact_1}}</td>
-                                                                    <td>{{$data->Email}}</td>
-                                                                    <td>{{$data->NIC}}</td>
-                                                                    <td>
-                                                                        @if ($data->Status == 1)
-                                                                        <span style="color: rgb(20, 247, 13)">Active</span>
-                                                                        @else
-                                                                        <span style="color: rgb(252, 4, 4)">Blacklisted</span>
-                                                                        @endif
-                                                                    </td>
-                                                                    <td>{{$data->Address_1}}</td>
-                                                                    <td>
-                                                                        <a href=""
-                                                                            class="btn btn-sm btn-success update_customer_form bg-success-light text-success me-2"
-                                                                            data-bs-toggle="modal" data-bs-target="#updateCustomerModel"
-                                                                            data-id="{{$data->id}}"
-                                                                            data-code="{{$data->Code}}"
-                                                                            data-title="{{$data->Title}}"
-                                                                            data-gender="{{$data->Gender}}"
-                                                                            data-first_name="{{$data->First_name}}"
-                                                                            data-middle_name="{{$data->Middle_name}}"
-                                                                            data-last_name="{{$data->Last_name}}"
-                                                                            data-address1="{{$data->Address_1}}"
-                                                                            data-city1="{{$data->City_1}}"
-                                                                            data-address2="{{$data->Address_2}}"
-                                                                            data-city2="{{$data->City_2}}"
-                                                                            data-contact1="{{$data->Contact_1}}"
-                                                                            data-contact2="{{$data->Contact_2}}"
-                                                                            data-email="{{$data->Email}}"
-                                                                            data-nic="{{$data->NIC}}"
-                                                                            data-driving_license="{{$data->Driving_license}}"
-                                                                            data-passport="{{$data->Passport}}"
-                                                                            data-other_identifications="{{$data->Other_identifications}}"
-                                                                            data-status="{{$data->Status}}" >
-                                                                            <i class="far fa-edit me-1"></i> Edit
-                                                                        </a>
-
-                                                                        <button type="button" class="btn btn-sm delete_customer btn-danger bg-danger-light text-danger me-2"
-                                                                        data-id="{{$data->id}}">
-                                                                            <i class="far fa-trash-alt me-1"></i> Delete
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                                @endforeach
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
+                                            <div class="card-body pt-0" id="customerResults">
+                                                @include('customer_pagination', ['customers' => $customers])
                                             </div>
                                         </div>
                                     </div>
@@ -539,7 +482,7 @@
                         if(res.status=='success'){
                             $("#addCustomerModel").modal('hide');
                             $('#addCustomer')[0].reset();
-                            $('.table').load(location.href+' .table');
+                            location.reload();
                             Command: toastr["success"]("Customer Added ...!", "Success")
                                 toastr.options = {
                                 "closeButton": true,
@@ -581,7 +524,7 @@
                                 data:{"_token": "{{ csrf_token() }}",customer_id:customer_id},
                                 success:function(res){
                                     if(res.status=='success'){
-                                        $('.table').load(location.href+' .table');
+                                        location.reload();
                                         Command: toastr["success"]("Customer deleted...", "Success")
                                         toastr.options = {
                                         "closeButton": true,
@@ -701,7 +644,7 @@
                                 if(res.status=='success'){
                                     $("#updateCustomerModel").modal('hide');
                                     $('#updateCustomer')[0].reset();
-                                    $('.table').load(location.href+' .table');
+                                    location.reload();
                                     Command: toastr["success"]("Customer Datails Updated...", "Success")
                                         toastr.options = {
                                         "closeButton": true,
@@ -736,22 +679,25 @@
     </script>
 
 <script>
-    $(document).ready(function() {
-        $('.datatable').DataTable();
+    $(document).on('click', '.customer-detail-toggle', function () {
+        const target = $('#' + $(this).data('target'));
+        const opened = !target.hasClass('d-none');
+        target.toggleClass('d-none', opened);
+        $(this).attr('aria-expanded', String(!opened)).html(opened ? '<i class="far fa-eye me-1"></i>View' : '<i class="fas fa-chevron-up me-1"></i>Hide');
+    });
+    $('#addCustomerModel').on('show.bs.modal', function () {
+        $.getJSON('{{ route('customer.next-code') }}').done(function (data) { $('#code').val(data.code); });
     });
 </script>
 
-    <script src="assets/js/jquery-3.6.0.min.js"></script>
     <script src="assets/js/feather.min.js"></script>
     {{-- <script src="assets/plugins/select2/js/select2.min.js"></script> --}}
     <script src="assets/plugins/slimscroll/jquery.slimscroll.min.js"></script>
-    <script src="assets/plugins/datatables/jquery.dataTables.min.js"></script>
-    <script src="assets/plugins/datatables/datatables.min.js"></script>
     <script src="assets/js/script.js"></script>
     <script src="assets/plugins/apexchart/apexcharts.min.js"></script>
     <script src="assets/plugins/apexchart/chart-data.js"></script>
-    <script src="http://cdn.bootcss.com/toastr.js/latest/js/toastr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+    <script src="{{ asset('assets/js/toastr.min.js') }}"></script>
+    <script src="{{ asset('assets/js/bootstrap.bundle.min.js') }}"></script>
 
 </body>
 @endsection

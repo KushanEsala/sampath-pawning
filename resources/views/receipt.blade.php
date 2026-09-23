@@ -393,13 +393,9 @@
                         <div class="col-12">
                             <div class="table-wrapper">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 class="mb-0 text-primary"><i class="fas fa-list me-2"></i>Receipt Types {{ !empty($showAll) ? '(All Versions / History)' : '(Active Versions)' }}</h5>
+                                    <h5 class="mb-0 text-primary"><i class="fas fa-list me-2"></i>Receipt Types (Current)</h5>
                                     <div>
-                                        @if(!empty($showAll))
-                                            <a href="{{ url('/receipt') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-check-circle me-1"></i>Show Active Only</a>
-                                        @else
-                                            <a href="{{ url('/receipt?history=1') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-history me-1"></i>View All History / Versions</a>
-                                        @endif
+                                        <button type="button" class="btn btn-outline-secondary btn-sm receipt-history-button" data-type="" data-bs-toggle="modal" data-bs-target="#receiptHistoryModal"><i class="fas fa-history me-1"></i>All history</button>
                                     </div>
                                 </div>
                                 <div class="table-data">
@@ -469,6 +465,7 @@
                                                 </td>
                                                 <td>
                                                     <div class="action-buttons">
+                                                        <button type="button" class="btn btn-sm btn-outline-primary receipt-history-button" data-type="{{ $receipt->receiptname }}" data-bs-toggle="modal" data-bs-target="#receiptHistoryModal" title="View saved versions"><i class="fas fa-history"></i></button>
                                                         <a href="#" class="btn btn-sm btn-success update_receipt_form"
                                                             data-bs-toggle="modal" data-bs-target="#updateReceiptModel"
                                                             data-letter-1-days="{{ $receipt->letter_1_days ?? 21 }}"
@@ -504,6 +501,13 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="modal fade" id="receiptHistoryModal" tabindex="-1" aria-labelledby="receiptHistoryTitle" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+                            <div class="modal-header"><h5 class="modal-title" id="receiptHistoryTitle">Receipt type change history</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                            <div class="modal-body" id="receiptHistoryContent" aria-live="polite">Loading saved versions…</div>
+                        </div></div>
                     </div>
 
                     {{-- Update Receipt Modal --}}
@@ -684,6 +688,14 @@
             });
 
             $(document).ready(function(){
+                $(document).on('click', '.receipt-history-button', function () {
+                    const name = $(this).attr('data-type') || '';
+                    $('#receiptHistoryTitle').text(name ? name + ' — change history' : 'All receipt type history');
+                    $('#receiptHistoryContent').text('Loading saved versions…');
+                    $.get('{{ route('receipt_type_history') }}', name ? {name: name} : {})
+                        .done(function (html) { $('#receiptHistoryContent').html(html); })
+                        .fail(function () { $('#receiptHistoryContent').text('History could not be loaded. Please retry.'); });
+                });
                 // Initialize DataTable
                 var table = $('#receiptTable').DataTable({
                     responsive: true,
@@ -775,7 +787,7 @@
                 $(document).on('click','.update_receipt_form',function(){
                     $('#up_id').val($(this).data('id'));
                     $('#up_receiptname').val($(this).data('receiptname'));
-                    $('#up_effective_from').val($(this).data('effective-from') || '{{ date("Y-m-d") }}');
+                    $('#up_effective_from').val('{{ date("Y-m-d") }}');
                     $('#up_rate1').val($(this).data('rate1'));
                     $('#up_period1').val($(this).data('period1'));
                     $('#up_rate2').val($(this).data('rate2'));

@@ -83,7 +83,7 @@
                                     </script>
                                 @endif
 
-                                <form action="{{ route('Store_RepawningSum') }}" method="post">
+                                <form id="repawningForm" action="{{ route('Store_RepawningSum') }}" method="post">
                                     @csrf
 
                                     {{-- ── Search inputs ───────────────────────────────────── --}}
@@ -323,22 +323,12 @@
                 </div>
                 <div class="modal-body">
                     <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle mb-0">
+                        <table class="table table-bordered table-hover align-middle mb-0 receipt-ledger-table">
                             <thead>
-                                <tr style="background-color: rgb(12,119,241); color: aliceblue;">
-                                    <th style="text-align: center;">Date</th>
-                                    <th style="text-align: center;">Payment Type</th>
-                                    <th style="text-align: center;">Payment Amount</th>
-                                    <th style="text-align: center;">Customer Paid</th>
-                                    <th style="text-align: center;">Paid Capital</th>
-                                    <th style="text-align: center;">Paid Interest</th>
-                                    <th style="text-align: center;">Repawn Amount</th>
-                                    <th style="text-align: center;">Letters Sent</th>
-                                    <th style="text-align: center;">Remaining Amount</th>
-                                    <th style="text-align: center;">Extend Date</th>
-                                </tr>
+                                <tr><th class="ledger-date">Date</th><th class="ledger-description">Description</th><th class="ledger-money">DR</th><th class="ledger-money">CR</th><th class="ledger-money">Balance</th></tr>
                             </thead>
                             <tbody id="CustomerDetails"></tbody>
+                            <tfoot><tr><th colspan="2" class="text-end">Ledger totals / Current balance</th><th id="historyTotalDr" class="ledger-money ledger-dr">0.00</th><th id="historyTotalCr" class="ledger-money ledger-cr">0.00</th><th id="historyCurrentBalance" class="ledger-money ledger-balance">0.00</th></tr></tfoot>
                         </table>
                     </div>
                     <div class="text-center mt-4">
@@ -349,6 +339,7 @@
             </div>
         </div>
     </div>
+    @include('partials.receiptLedgerAssets')
 
 
     {{-- ── Set today's date ────────────────────────────────────── --}}
@@ -424,19 +415,19 @@
                     });
 
                     // Load payment history table
-                    loadPaymentHistory(search_receipt_no);
+                    window.loadRepawningPaymentHistory(search_receipt_no);
 
                 }, 300));
             });
         });
 
-        function loadPaymentHistory(search_receipt_no) {
+        window.loadRepawningPaymentHistory = function (search_receipt_no) {
             if (!search_receipt_no) {
                 $('#CustomerDetails').html('');
                 $('#paymentHistoryReceiptInfo').text('');
                 return;
             }
-            $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">Loading...</td></tr>');
+            $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
             $('#paymentHistoryReceiptInfo').text('Receipt / Ticket #' + search_receipt_no);
 
             $.ajax({
@@ -510,16 +501,20 @@
                             `;
                         });
 
+                        tableRows = window.ReceiptHistoryLedger.renderRows(data);
+                        window.ReceiptHistoryLedger.updateTotals(data);
                         $('#CustomerDetails').html(tableRows);
                     } else {
-                        $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">No payment history found</td></tr>');
+                        window.ReceiptHistoryLedger.updateTotals([]);
+                        $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">No payment history found</td></tr>');
                     }
                 },
                 error: function () {
-                    $('#CustomerDetails').html('<tr><td colspan="10" class="text-center text-danger">Error fetching payment history</td></tr>');
+                    window.ReceiptHistoryLedger.updateTotals([]);
+                    $('#CustomerDetails').html('<tr><td colspan="5" class="text-center text-danger">Error fetching payment history</td></tr>');
                 }
             });
-        }
+        };
     </script>
 
     {{-- ── Search by Ticket Number ─────────────────────────────── --}}
@@ -537,7 +532,7 @@
                     if (!search_receipt_no) return;
 
                     $.ajax({
-                        url: "{{ route('search_ticket_ajax') }}",
+                        url: "{{ route('search_repawning_ticket_ajax') }}",
                         method: 'GET',
                         data: { search_receipt_no: search_receipt_no },
                         success: function (response) {
@@ -573,7 +568,7 @@
                         }
                     });
 
-                    loadPaymentHistory(search_receipt_no);
+                    window.loadRepawningPaymentHistory($('#r_number').val() || search_receipt_no);
                 }, 300));
             });
         });
@@ -592,7 +587,7 @@
                 if (!search_invoice_no) return;
 
                 $.ajax({
-                    url: "{{ route('search_invoice_ajax') }}",
+                    url: "{{ route('search_repawning_invoice_ajax') }}",
                     method: 'GET',
                     data: { search_invoice_no: search_invoice_no },
                     success: function (response) {
@@ -605,6 +600,8 @@
                         }
                         $('.dynamic-area').html(response);
                         $('#search_receipt').val($('#r_number').val());
+                        $('#search_ticket').val($('#t_number').val());
+                        window.loadRepawningPaymentHistory($('#r_number').val());
                     }
                 });
             });
@@ -621,6 +618,16 @@
                 alert('❌ Payable total cannot be greater than Total Value Interest!');
                 this.value = '';
                 this.focus();
+            }
+        });
+    </script>
+
+    <script>
+        document.getElementById('repawningForm').addEventListener('submit', function () {
+            const submitButton = this.querySelector('button[name="redeem"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'SAVING...';
             }
         });
     </script>

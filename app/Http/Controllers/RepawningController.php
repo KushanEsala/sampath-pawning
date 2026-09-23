@@ -22,7 +22,9 @@ use App\Models\MPawnfeedback;
 use Illuminate\Support\Facades\DB;
 use App\Services\ReceiptFinancialCalculator;
 use App\Services\ReceiptLifecycleService;
+use App\Services\RepawningCalculator;
 use App\Services\ReceiptTypeResolver;
+use Illuminate\Validation\ValidationException;
 
 
 class RepawningController extends Controller
@@ -31,7 +33,7 @@ class RepawningController extends Controller
     public function index()
     {
         $branch_code = auth()->user()->BC;
-        $maxRedeemNo = TRedeemSum::where('BC',$branch_code)
+        $maxRedeemNo = TRepawningSum::where('BC',$branch_code)
         ->orderBy('Redeem_Number', 'desc')
         ->value('Redeem_Number');
         $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
@@ -47,168 +49,141 @@ class RepawningController extends Controller
     // ─────────────────────────────────────────────────────────────
     // Receipt Search function
     // ─────────────────────────────────────────────────────────────
-    public function search(Request $request, ?ReceiptFinancialCalculator $calculator = null, ?ReceiptTypeResolver $resolver = null)
+    public function search(
+        Request $request,
+        ?ReceiptFinancialCalculator $calculator = null,
+        ?ReceiptTypeResolver $resolver = null,
+        ?RepawningCalculator $repawningCalculator = null
+    )
     {
         $calculator  = $calculator ?? app(ReceiptFinancialCalculator::class);
         $resolver    = $resolver ?? app(ReceiptTypeResolver::class);
+        $repawningCalculator = $repawningCalculator ?? app(RepawningCalculator::class);
         $receiptNo   = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
-        $today_date  = Carbon::today();
 
-        $dataTPawnSum = TPawnSum::where('Receipt_Number', $receiptNo)
+        $receipt = TPawnSum::where('Receipt_Number', $receiptNo)
             ->where('IsRedeemed', 0)
             ->where('isForfeit', 0)
             ->where('BC', $branch_code)
-            ->get();
+            ->first();
 
-        $data = $dataTPawnSum;
-
-        if ($data->count() > 0) {
-
-            $cus_nic  = $data->first()->Customer_NIC;
-            $cus_data = Customer::where('NIC', $cus_nic)->get();
-
-            $receipt_typ  = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
-
-            $maxRedeemNo  = TRedeemSum::where('BC', $branch_code)
-                ->orderBy('Redeem_Number', 'desc')
-                ->value('Redeem_Number');
-            $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
-
-            $pawn_type   = "Pawn";
-            $receiptType = $resolver->getActiveTypes();
-
-            $MPawnfeedback = MPawnfeedback::where('Receipt_Number', $receiptNo)
-                ->where('BC', $branch_code)
-                ->get();
-
-            // ── Karatage pawning rate lookup ──────────────────────────
-            $pawnDetails = TPawnDetails::where('Receipt_Number', $receiptNo)
-                ->where('BC', $branch_code)
-                ->get();
-
-            $karatages    = $pawnDetails->pluck('Karatage')->unique()->filter()->toArray();
-            $karatageData = karatage::whereIn('descrption', $karatages)->get();
-            // ─────────────────────────────────────────────────────────
-
-            return view('repawningsearch')
-                ->with('receiptType',    $receiptType)
-                ->with('maxRedeem',      $maxRedeemNos)
-                ->with('MPawnfeedback',  $MPawnfeedback)
-                ->with('customerData',   $cus_data)
-                ->with('receiptTypeData',$receipt_data)
-                ->with('pawnType',       $pawn_type)
-                ->with('receiptData',    $data)
-                ->with('pawnDetails',    $pawnDetails)    // ✅ pawn detail rows
-                ->with('karatageData',   $karatageData)
-                ->with('financial',      $calculator->calculate($data->first()));
-
-        } else {
+        if (!$receipt) {
             return response()->json(['status' => 'not_found']);
         }
+
+        return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
     }
 
     // ─────────────────────────────────────────────────────────────
     // Invoice Search function
     // ─────────────────────────────────────────────────────────────
-    public function searchInvoice(Request $request, ?ReceiptTypeResolver $resolver = null)
+    public function searchInvoice(
+        Request $request,
+        ?ReceiptFinancialCalculator $calculator = null,
+        ?ReceiptTypeResolver $resolver = null,
+        ?RepawningCalculator $repawningCalculator = null
+    )
     {
+        $calculator  = $calculator ?? app(ReceiptFinancialCalculator::class);
         $resolver    = $resolver ?? app(ReceiptTypeResolver::class);
+        $repawningCalculator = $repawningCalculator ?? app(RepawningCalculator::class);
         $invoiceNo   = $request->search_invoice_no;
         $branch_code = auth()->user()->BC;
 
-        $TOpeningPawnSumdata = TOpeningPawnSum::where('Invoice_Number', $invoiceNo)
+        $receipt = TPawnSum::where('Invoice_Number', $invoiceNo)
             ->where('IsRedeemed', 0)
             ->where('isForfeit', 0)
             ->where('BC', $branch_code)
-            ->get();
+            ->first();
 
-        $data = $TOpeningPawnSumdata;
-
-        if ($data->count() > 0) {
-
-            $cus_nic  = $data->first()->Customer_NIC;
-            $cus_data = Customer::where('NIC', $cus_nic)->get();
-
-            $receipt_typ  = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
-
-            $maxRedeemNo  = TRedeemSum::where('BC', $branch_code)
-                ->orderBy('Redeem_Number', 'desc')
-                ->value('Redeem_Number');
-            $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
-
-            $pawn_type = "Opening_Pawn";
-
-            return view('redeemSearch')
-                ->with('maxRedeem',      $maxRedeemNos)
-                ->with('customerData',   $cus_data)
-                ->with('receiptTypeData',$receipt_data)
-                ->with('pawnType',       $pawn_type)
-                ->with('receiptData',    $data);
-
-        } else {
+        if (!$receipt) {
             return response()->json(['status' => 'not_found']);
         }
+
+        return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
     }
 
     // ─────────────────────────────────────────────────────────────
     // Ticket Search function
     // ─────────────────────────────────────────────────────────────
-    public function searchTicket(Request $request, ?ReceiptTypeResolver $resolver = null)
+    public function searchTicket(
+        Request $request,
+        ?ReceiptFinancialCalculator $calculator = null,
+        ?ReceiptTypeResolver $resolver = null,
+        ?RepawningCalculator $repawningCalculator = null
+    )
     {
+        $calculator  = $calculator ?? app(ReceiptFinancialCalculator::class);
         $resolver    = $resolver ?? app(ReceiptTypeResolver::class);
+        $repawningCalculator = $repawningCalculator ?? app(RepawningCalculator::class);
         $receiptNo   = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
 
-        $dataTPawnSum = TPawnSum::where('Ticket_Number', $receiptNo)
+        $receipt = TPawnSum::where('Ticket_Number', $receiptNo)
             ->where('IsRedeemed', 0)
             ->where('isForfeit', 0)
             ->where('BC', $branch_code)
-            ->get();
+            ->first();
 
-        $data = $dataTPawnSum;
-
-        if ($data->count() > 0) {
-
-            $cus_nic  = $data->first()->Customer_NIC;
-            $cus_data = Customer::where('NIC', $cus_nic)->get();
-
-            $receipt_typ  = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
-
-            $maxRedeemNo  = TRedeemSum::where('BC', $branch_code)
-                ->orderBy('Redeem_Number', 'desc')
-                ->value('Redeem_Number');
-            $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
-
-            $pawn_type = "Pawn";
-
-            // ── Karatage pawning rate lookup ──────────────────────────
-            // Ticket search uses Ticket_Number to find the actual receipt number
-            $actualReceiptNo = $data->first()->Receipt_Number;
-
-            $pawnDetails = TPawnDetails::where('Receipt_Number', $actualReceiptNo)
-                ->where('BC', $branch_code)
-                ->get();
-
-            $karatages    = $pawnDetails->pluck('Karatage')->unique()->filter()->toArray();
-            $karatageData = karatage::whereIn('descrption', $karatages)->get();
-            // ─────────────────────────────────────────────────────────
-
-            return view('redeemSearch')
-                ->with('maxRedeem',      $maxRedeemNos)
-                ->with('customerData',   $cus_data)
-                ->with('receiptTypeData',$receipt_data)
-                ->with('pawnType',       $pawn_type)
-                ->with('receiptData',    $data)
-                ->with('pawnDetails',    $pawnDetails)
-                ->with('karatageData',   $karatageData);
-
-        } else {
+        if (!$receipt) {
             return response()->json(['status' => 'not_found']);
         }
+
+        return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
+    }
+
+    private function renderSearchResult(
+        TPawnSum $receipt,
+        ReceiptFinancialCalculator $calculator,
+        ReceiptTypeResolver $resolver,
+        RepawningCalculator $repawningCalculator
+    ) {
+        $branchCode = auth()->user()->BC;
+        $currentType = $resolver->resolveForCurrentCycle($receipt);
+        $calculationReceipt = $resolver->receiptForCalculation($receipt);
+        $receiptData = collect([$calculationReceipt]);
+        $financial = $calculator->calculate($calculationReceipt);
+        $pawnDetails = TPawnDetails::where('Receipt_Number', $receipt->Receipt_Number)
+            ->where('BC', $branchCode)
+            ->get();
+        $karatages = $pawnDetails->pluck('Karatage')->unique()->filter()->values();
+        $karatageData = karatage::whereIn('descrption', $karatages)->get();
+        $isSilver = strtoupper((string) ($receipt->receiptname ?: $receipt->Receipt_Type)) === 'SILVER';
+        $articleValue = $repawningCalculator->preview(
+            $receipt,
+            $pawnDetails,
+            $karatageData,
+            $financial,
+            $currentType,
+            $currentType
+        )['article_value'];
+        $repawnType = $resolver->resolveForRepawnAmount($articleValue, now(), $isSilver) ?? $currentType;
+        $preview = $repawningCalculator->preview(
+            $receipt,
+            $pawnDetails,
+            $karatageData,
+            $financial,
+            $currentType,
+            $repawnType
+        );
+        $maxRedeemNo = TRepawningSum::where('BC', $branchCode)->max('Redeem_Number');
+
+        return view('repawningsearch', [
+            'receiptType' => $resolver->getActiveTypes(),
+            'maxRedeem' => str_pad((string) ($maxRedeemNo ?? 0), 4, '0', STR_PAD_LEFT),
+            'MPawnfeedback' => MPawnfeedback::where('Receipt_Number', $receipt->Receipt_Number)
+                ->where('BC', $branchCode)
+                ->get(),
+            'customerData' => Customer::where('NIC', $receipt->Customer_NIC)->get(),
+            'receiptTypeData' => collect([$currentType]),
+            'pawnType' => 'Pawn',
+            'receiptData' => $receiptData,
+            'pawnDetails' => $pawnDetails,
+            'karatageData' => $karatageData,
+            'financial' => $financial,
+            'repawningPreview' => $preview,
+        ]);
     }
 
 
@@ -231,6 +206,9 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         'sum_total_weight'      => 'required|numeric',
         'sum_pawn_weight'       => 'required|numeric',
         'original_pawn_amount'  => 'required|numeric',
+        'payable_total'         => 'required|numeric|min:0',
+        'validyed_type'         => 'required|integer|min:1|max:12',
+        'redeem_discount'       => 'nullable|numeric|min:0',
     ]);
 
     DB::beginTransaction();
@@ -246,34 +224,52 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $existingPawn = TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0)
             ->lockForUpdate()->firstOrFail();
-        $financial = $calculator->calculate($existingPawn);
-        $documentCharges = $financial['service_charge'];
-        $letterCharges = $financial['letter_charge'];
-        $request->merge(['document_charges' => $documentCharges, 'Postage_Charges' => $letterCharges]);
+        $duplicateRepawn = TRepawningSum::where('BC', $branch_code)
+            ->where('Redeem_Number', $request->redeem_no)
+            ->exists();
+        if ($duplicateRepawn) {
+            throw ValidationException::withMessages([
+                'redeem_no' => 'This repawning number has already been saved. Refresh the page before trying again.',
+            ]);
+        }
+        $calculationReceipt = $resolver->receiptForCalculation($existingPawn);
+        $financial = $calculator->calculate($calculationReceipt, $request->redeem_date);
+        $currentType = $resolver->resolveForCurrentCycle($existingPawn);
+        $documentCharges = (float) $financial['service_charge'];
+        $letterCharges = (float) $financial['letter_charge'];
+        $paidInterest = (float) $financial['interest'];
+        $stampFee = (float) ($currentType->stampduty ?? 0);
+        $discount = (float) ($request->redeem_discount ?? 0);
+        $payableTotal = (float) $request->payable_total;
+        $validMonths = (int) $request->validyed_type;
+        $isSilverReceipt = strtoupper((string) ($existingPawn->receiptname ?: $existingPawn->Receipt_Type)) === 'SILVER';
+        if ($isSilverReceipt) $validMonths = 1;
+        $currentPrincipal = (float) ($existingPawn->Pawn_Amount ?: $existingPawn->Amount ?: 0);
+        $redeemTotal = max(0, $currentPrincipal + $paidInterest + $documentCharges + $letterCharges + $stampFee - $discount);
 
         /* =========================
            SAVE REPAWNING SUMMARY
         ==========================*/
         $NewRedeem = new TRepawningSum();
         $NewRedeem->Receipt_Number       = $request->receipt_number;
-        $NewRedeem->Invoice_Number       = $request->invoice_number;
-        $NewRedeem->Ticket_Number        = $request->ticket_number;
+        $NewRedeem->Invoice_Number       = $existingPawn->Invoice_Number;
+        $NewRedeem->Ticket_Number        = $existingPawn->Ticket_Number;
         $NewRedeem->Pawn_Receipt_Type    = $request->pawn_receipt_type;
         $NewRedeem->Redeem_Date          = $request->redeem_date;
         $NewRedeem->Redeem_Number        = $request->redeem_no;
-        $NewRedeem->Total_Weight         = $request->sum_total_weight;
-        $NewRedeem->Pawn_Weight          = $request->sum_pawn_weight;
-        $NewRedeem->Original_Pawn_Amount = $request->original_pawn_amount;
-        $NewRedeem->Payable_Pawn_Amount  = $request->original_pawn_amount;
-        $NewRedeem->Paid_Interest        = $request->paid_interest ?? 0;
+        $NewRedeem->Total_Weight         = $existingPawn->Total_Weight;
+        $NewRedeem->Pawn_Weight          = $existingPawn->Pawn_Weight;
+        $NewRedeem->Original_Pawn_Amount = $existingPawn->Amount;
+        $NewRedeem->Payable_Pawn_Amount  = $currentPrincipal;
+        $NewRedeem->Paid_Interest        = $paidInterest;
         $NewRedeem->Payable_Interest     = $request->payable_interest ?? 0;
-        $NewRedeem->Stamp_Fee            = $request->stamp_fee ?? 0;
-        $NewRedeem->Document_Charges     = $documentCharges;           // ✅ checkbox-aware
+        $NewRedeem->Stamp_Fee            = $stampFee;
+        $NewRedeem->Document_Charges     = $documentCharges;
         $NewRedeem->Advance_Balance      = $request->advance_balance ?? 0;
-        $NewRedeem->Discount             = $request->redeem_discount ?? 0;
-        $NewRedeem->Payable_Total        = $request->payable_total;
-        $NewRedeem->Redeem_total         = $request->redeem_total;
-        $NewRedeem->validyed_type        = $request->validyed_type;
+        $NewRedeem->Discount             = $discount;
+        $NewRedeem->Payable_Total        = $payableTotal;
+        $NewRedeem->Redeem_total         = $redeemTotal;
+        $NewRedeem->validyed_type        = $validMonths;
         $NewRedeem->OC                   = $username;
         $NewRedeem->BC                   = $branch_code;
         $NewRedeem->save();
@@ -283,26 +279,23 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         ==========================*/
         $pawnSum = $existingPawn;
         $hasArrearsLetters = (bool) ($pawnSum->is_letter_1 || $pawnSum->is_letter_2 || $pawnSum->is_letter_3);
-        $requiredArrears = $hasArrearsLetters ? $calculator->calculate($pawnSum)['arrears_total'] : 0;
-        $arrearsPaid = (float) ($request->paid_interest ?? 0)
+        $requiredArrears = $hasArrearsLetters ? $financial['arrears_total'] : 0;
+        $arrearsPaid = $paidInterest
             + (float) $letterCharges
             + (float) $documentCharges;
 
-        $totalPawnAmount = TPawnSum::where('Receipt_Number', $request->receipt_number)
-            ->where('BC', $branch_code)
-            ->sum('Pawn_Amount');
-
-        $totalRepawnPayment = $totalPawnAmount
-            + $request->payable_total
-            + $request->paid_interest
-            + $documentCharges;                                        // ✅ checkbox-aware
+        $totalRepawnPayment = max(0, $currentPrincipal
+            + $payableTotal
+            + $paidInterest
+            + $documentCharges
+            + $letterCharges
+            + $stampFee
+            - $discount);
 
         /* =========================
            FINAL DATE
         ==========================*/
-        $final_date = Carbon::parse($request->redeem_date)
-            ->addMonths($request->validyed_type)
-            ->toDateString();
+        $final_date = Carbon::parse($request->redeem_date)->addMonths(max(1, $validMonths))->toDateString();
 
         /* =========================
            PAWN TRANSACTION
@@ -313,12 +306,12 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $TPawnTrans->code            = $request->receipt_number;
         $TPawnTrans->trans_no        = $request->redeem_no;
         $TPawnTrans->trans_type      = 'REPAWNING';
-        $TPawnTrans->trans_amount    = $request->redeem_total;
+        $TPawnTrans->trans_amount    = $redeemTotal;
         $TPawnTrans->dDate           = $request->redeem_date;
         $TPawnTrans->Dr_amount       = 0;
-        $TPawnTrans->Cr_amount       = $request->payable_total;
-        $TPawnTrans->Paided_Interest = $request->paid_interest;
-        $TPawnTrans->Pawn_Amount     = $request->original_pawn_amount;
+        $TPawnTrans->Cr_amount       = $payableTotal;
+        $TPawnTrans->Paided_Interest = $paidInterest;
+        $TPawnTrans->Pawn_Amount     = $currentPrincipal;
         $TPawnTrans->Extend_Date     = $final_date;
         $TPawnTrans->OC              = $username;
         $TPawnTrans->BC              = $branch_code;
@@ -332,22 +325,22 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $interestIncomeAccountId = 3;
         $feeIncomeAccountId      = 4;
 
-        $totalFees      = ($request->stamp_fee ?? 0) + $documentCharges + $letterCharges;
-        $extraCashGiven = $request->payable_total ?? 0;
-        $interestPaid   = $request->paid_interest ?? 0;
+        $totalFees      = $stampFee + $documentCharges + $letterCharges;
+        $extraCashGiven = $payableTotal;
+        $interestPaid   = $paidInterest;
         $netCashOut     = $extraCashGiven - $interestPaid - $totalFees;
 
         if ($extraCashGiven > 0) {
             DB::table('t_account_trans')->insert([
                 'trans_date'   => $request->redeem_date,
-               'voucher_no'   => 'REPAWNING-' . $request->invoice_number,
+               'voucher_no'   => 'REPAWNING-' . $existingPawn->Invoice_Number,
                 'account_id'   => $cashAccountId,
                 'related_id'   => $request->redeem_no,
                 'related_type' => 'REPAWNING',
-                'Invoice_no'   => $request->invoice_number,
+                'Invoice_no'   => $existingPawn->Invoice_Number,
                 'dr'           => 0,
                 'cr'           => $extraCashGiven,
-                'description'  => 'Extra cash disbursed on repawning - Receipt #' . $request->invoice_number,
+                'description'  => 'Extra cash disbursed on repawning - Receipt #' . $existingPawn->Receipt_Number,
                 'branch_code'  => $branch_code,
                 'created_by'   => $username,
                 'created_at'   => now(),
@@ -362,23 +355,11 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $isSilver = strtoupper((string) ($existingPawn->receiptname ?: $existingPawn->Receipt_Type)) === 'SILVER';
 
         if ($isSilver) {
-            $rateRow = $resolver->resolveByDate('SILVER', $repawnDate);
+            $rateRow = $resolver->resolveForRepawnAmount($totalRepawnPayment, $repawnDate, true);
             $interestRateName = 'SILVER';
             $interestRate     = $rateRow->rate1 ?? $existingPawn->rate1 ?? 0;
         } else {
-            $rateRow = Recei_Add::active()
-                ->effectiveOn($repawnDate)
-                ->where(function ($q) use ($totalRepawnPayment) {
-                    if ($totalRepawnPayment >= 100000) {
-                        $q->where('pawn_amount', '>=', 100000);
-                    } elseif ($totalRepawnPayment >= 50000) {
-                        $q->whereBetween('pawn_amount', [50000, 99999]);
-                    } else {
-                        $q->where('pawn_amount', '<', 50000);
-                    }
-                })
-                ->orderByDesc('effective_from')
-                ->first();
+            $rateRow = $resolver->resolveForRepawnAmount($totalRepawnPayment, $repawnDate);
 
             $interestRateName = $rateRow->receiptname ?? null;
             $interestRate     = $rateRow->rate3 ?? 0;
@@ -390,11 +371,13 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $updateData = [
             'RePawning_amount'   => $totalRepawnPayment,
             'Pawn_Amount'        => $totalRepawnPayment,
-            'RePawn_get_amount'  => $request->payable_total,
+            'RePawn_get_amount'  => $payableTotal,
             'RePawning_date'     => $request->redeem_date,
             'Pawn_Date'          => $request->redeem_date,
-            'Valid_Period'       => $request->validyed_type,
-            'RePawning_interest' => $request->paid_interest,
+            'Valid_Period'       => $validMonths,
+            'RePawning_interest' => $paidInterest,
+            'interest_Paid'      => 0,
+            'BalanceInterest'    => 0,
             'Final_date'         => $final_date,
         ];
 
@@ -470,7 +453,10 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
             'companyData'     => Company::latest()->first(),
             'branchDetails'   => branchDel::where('bccode', $branch_code)->first(),
             'karatage_data'   => karatage::whereIn('descrption', $karatages)->get(),
-            'T_Receipt_Type'  => Recei_Add::where('receiptname', $pawnSum->Receipt_Type)->first(),
+            'T_Receipt_Type'  => $resolver->resolveForReceipt(
+                TPawnSum::where('Receipt_Number', $request->receipt_number)
+                    ->where('BC', $branch_code)->firstOrFail()
+            ),
         ];
 
         $pdf1     = PDF::loadView('reCustomerpawnReceiptPrint', $pdfData);

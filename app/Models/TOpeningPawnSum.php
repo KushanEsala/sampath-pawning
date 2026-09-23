@@ -9,6 +9,7 @@ class TOpeningPawnSum extends Model
 {
     use HasFactory;
     protected $fillable=[
+        'is_blocked', 'blocked_at', 'blocked_by', 'block_reason',
         'Customer_NIC',
         'Customer_Name',
         'Customer_Address',
@@ -23,5 +24,10 @@ class TOpeningPawnSum extends Model
         'OC',
         'BC',
         'BC'
+    ];
+
+    protected $casts = [
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
     ];
 }

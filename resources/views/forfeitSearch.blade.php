@@ -360,8 +360,7 @@
             let interest = 0;
 
             if (receipt_name.toUpperCase() === "SILVER") {
-                let months = Math.ceil(date_range_days / 30);
-                interest = ((amount / 100) * rate1) * months;
+                interest = ((amount / 100) * rate1) * Math.max(1, date_range_days / Math.max(1, period3 || 30));
             } else {
                 if (date_range_days <= period1) {
                     interest = ((amount / 100) * rate1);
@@ -415,6 +414,5 @@
     });
 
 </script>
-
 
 

@@ -238,4 +238,79 @@ class ForfeitReportRenderingTest extends TestCase
         $this->assertStringContainsString('2026-02-02', $html);
         $this->assertStringContainsString('2026-04-06', $html);
     }
+
+    public function test_receipt_history_ledger_renders_debits_credits_balances_and_operator(): void
+    {
+        $ledgerRows = collect([[
+            'date' => '2026-09-09',
+            'description' => 'Part payment received',
+            'summary' => 'Paid capital: Rs. 5,000.00 • Paid interest: Rs. 1,000.00',
+            'details' => ['Paid capital: Rs. 5,000.00', 'Interest: Rs. 600.00 for 14 days'],
+            'dr' => 0,
+            'cr' => 6000,
+            'balance' => 29922.88,
+            'operator' => 'cashier · Test Branch · Branch 001',
+        ]]);
+
+        $html = view('partials.receiptLedgerTable', compact('ledgerRows'))->render();
+
+        foreach (['Date', 'Description', 'DR', 'CR', 'Balance'] as $heading) {
+            $this->assertStringContainsString('>'.$heading.'</th>', $html);
+        }
+        $this->assertStringContainsString('6,000.00', $html);
+        $this->assertStringContainsString('29,922.88', $html);
+        $this->assertStringContainsString('Paid capital: Rs. 5,000.00', $html);
+        $this->assertStringContainsString('data-ledger-detail=', $html);
+        $this->assertStringContainsString('View details', $html);
+        $this->assertStringContainsString('Interest: Rs. 600.00 for 14 days', $html);
+        $this->assertStringContainsString('cashier · Test Branch · Branch 001', $html);
+
+        foreach (['pawningPartPayment.blade.php', 'RedeemReceipt.blade.php', 'repawning.blade.php'] as $template) {
+            $source = file_get_contents(resource_path('views/'.$template));
+            $this->assertStringContainsString("partials.receiptLedgerAssets", $source);
+            $this->assertStringContainsString('historyCurrentBalance', $source);
+        }
+    }
+
+    public function test_receipt_history_print_expands_every_detail_in_black_and_white(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Number' => 4520,
+            'Invoice_Number' => '769116',
+            'Ticket_Number' => 4520,
+            'Customer_Name' => 'Example Customer',
+            'Receipt_Date' => '2026-04-05',
+            'Final_date' => '2027-09-09',
+        ]);
+        $history = [
+            'receipt' => $receipt,
+            'customer' => null,
+            'financial' => array_fill_keys([
+                'principal', 'interest', 'service_charge', 'letter_charge',
+                'arrears_total', 'redemption_total',
+            ], 0),
+            'ledger' => collect([
+                [
+                    'date' => '2026-09-09',
+                    'description' => 'Part payment received',
+                    'summary' => 'Paid capital: Rs. 5,000.00',
+                    'details' => ['Expiry extended to 2027-09-09', 'Receipt #4520 / Stock #769116'],
+                    'dr' => 0,
+                    'cr' => 5000,
+                    'balance' => 10000,
+                    'operator' => 'cashier · Branch 001',
+                ],
+            ]),
+        ];
+
+        $html = view('receiptHistoryPrint', compact('history'))->render();
+
+        $this->assertStringContainsString('Expiry extended to 2027-09-09', $html);
+        $this->assertStringContainsString('cashier · Branch 001', $html);
+        $this->assertStringNotContainsString('View details', $html);
+        $this->assertStringNotContainsString('ledger-detail-row d-none', $html);
+        $this->assertStringContainsString('color: #000', $html);
+        $this->assertStringNotContainsString('color:#c00', $html);
+        $this->assertStringNotContainsString('color:#087f23', $html);
+    }
 }

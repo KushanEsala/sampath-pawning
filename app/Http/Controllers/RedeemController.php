@@ -19,6 +19,7 @@ use App\Models\TCustomerAccount;
 use App\Models\TPawnTrans;
 use App\Models\MPawnfeedback;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Services\ReceiptLifecycleService;
 use App\Services\ReceiptFinancialCalculator;
 use App\Services\ReceiptTypeResolver;
@@ -55,11 +56,12 @@ class RedeemController extends Controller
         $receiptNo = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
 
-        $dataTPawnSum = TPawnSum::where('Receipt_Number',$receiptNo)
+        $query = TPawnSum::where('Receipt_Number',$receiptNo)
                         ->where('BC',$branch_code)
                         ->where('IsRedeemed', 0)
-                        ->where('isForfeit', 0)
-                        ->get();
+                        ->where('isForfeit', 0);
+        if (Schema::hasColumn('t_pawn_sums', 'is_blocked')) $query->where('is_blocked', 0);
+        $dataTPawnSum = $query->get();
 
         $data = $dataTPawnSum;
 
@@ -69,8 +71,8 @@ class RedeemController extends Controller
             $cus_data = Customer::where('NIC', $cus_nic)
                         ->get();
 
-            $receipt_typ = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
+            $calculationReceipt = $resolver->receiptForCalculation($data->first());
+            $receipt_data = collect([$resolver->resolveForCurrentCycle($data->first())]);
 
             $maxRedeemNo = TRedeemSum::orderBy('Redeem_Number', 'desc')
             ->value('Redeem_Number');
@@ -90,11 +92,13 @@ class RedeemController extends Controller
             ->with('receiptTypeData', $receipt_data)
             ->with('MPawnfeedback', $MPawnfeedback)
             ->with('pawnType', $pawn_type)
-            ->with('receiptData', $data)
-            ->with('financial', $calculator->calculate($data->first()));
+            ->with('receiptData', collect([$calculationReceipt]))
+            ->with('financial', $calculator->calculate($calculationReceipt));
         }else{
             return response()->json([
-                'status'=>'not_found'
+                'status' => Schema::hasColumn('t_pawn_sums', 'is_blocked') && TPawnSum::where('Receipt_Number', $receiptNo)->where('BC', $branch_code)
+                    ->where('IsRedeemed', 0)->where('isForfeit', 0)->where('is_blocked', 1)->exists()
+                    ? 'blocked' : 'not_found'
             ]);
         }
     }
@@ -106,11 +110,12 @@ class RedeemController extends Controller
         $invoiceNo = $request->search_invoice_no;
         $branch_code = auth()->user()->BC;
 
-        $TOpeningPawnSumdata = TOpeningPawnSum::where('Invoice_Number',$invoiceNo)
+        $query = TOpeningPawnSum::where('Invoice_Number',$invoiceNo)
                         ->where('BC',$branch_code)
                         ->where('IsRedeemed', 0)
-                        ->where('isForfeit', 0)
-                        ->get();
+                        ->where('isForfeit', 0);
+        if (Schema::hasColumn('t_opening_pawn_sums', 'is_blocked')) $query->where('is_blocked', 0);
+        $TOpeningPawnSumdata = $query->get();
 
         $data = $TOpeningPawnSumdata;
 
@@ -122,8 +127,8 @@ class RedeemController extends Controller
                         ->where('BC',$branch_code)
                         ->get();
 
-            $receipt_typ = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
+            $calculationReceipt = $resolver->receiptForCalculation($data->first());
+            $receipt_data = collect([$resolver->resolveForCurrentCycle($data->first())]);
 
             $maxRedeemNo = TRedeemSum::where('BC',$branch_code)
                             ->orderBy('Redeem_Number', 'desc')
@@ -141,7 +146,9 @@ class RedeemController extends Controller
 
         }else{
             return response()->json([
-                'status'=>'not_found'
+                'status' => Schema::hasColumn('t_opening_pawn_sums', 'is_blocked') && TOpeningPawnSum::where('Invoice_Number', $invoiceNo)->where('BC', $branch_code)
+                    ->where('IsRedeemed', 0)->where('isForfeit', 0)->where('is_blocked', 1)->exists()
+                    ? 'blocked' : 'not_found'
             ]);
         }
     }
@@ -153,11 +160,12 @@ class RedeemController extends Controller
         $receiptNo = $request->search_receipt_no;
         $branch_code = auth()->user()->BC;
 
-        $dataTPawnSum = TPawnSum::where('Ticket_Number',$receiptNo)
+        $query = TPawnSum::where('Ticket_Number',$receiptNo)
                         ->where('BC',$branch_code)
                         ->where('IsRedeemed', 0)
-                        ->where('isForfeit', 0)
-                        ->get();
+                        ->where('isForfeit', 0);
+        if (Schema::hasColumn('t_pawn_sums', 'is_blocked')) $query->where('is_blocked', 0);
+        $dataTPawnSum = $query->get();
 
         $data = $dataTPawnSum;
 
@@ -168,8 +176,8 @@ class RedeemController extends Controller
                         ->where('BC',$branch_code)
                         ->get();
 
-            $receipt_typ = $data->first()->Receipt_Type;
-            $receipt_data = $resolver->resolveForReceiptCollection($data->first(), $receipt_typ);
+            $calculationReceipt = $resolver->receiptForCalculation($data->first());
+            $receipt_data = collect([$resolver->resolveForCurrentCycle($data->first())]);
 
             $maxRedeemNo = TRedeemSum::where('BC',$branch_code)
             ->orderBy('Redeem_Number', 'desc')
@@ -184,11 +192,13 @@ class RedeemController extends Controller
             ->with('customerData', $cus_data)
             ->with('receiptTypeData', $receipt_data)
             ->with('pawnType', $pawn_type)
-            ->with('receiptData', $data)
-            ->with('financial', $calculator->calculate($data->first()));
+            ->with('receiptData', collect([$calculationReceipt]))
+            ->with('financial', $calculator->calculate($calculationReceipt));
         }else{
             return response()->json([
-                'status'=>'not_found'
+                'status' => Schema::hasColumn('t_pawn_sums', 'is_blocked') && TPawnSum::where('Ticket_Number', $receiptNo)->where('BC', $branch_code)
+                    ->where('IsRedeemed', 0)->where('isForfeit', 0)->where('is_blocked', 1)->exists()
+                    ? 'blocked' : 'not_found'
             ]);
         }
     }
@@ -199,15 +209,19 @@ class RedeemController extends Controller
     }
 
 
-public function store(Request $request, ReceiptLifecycleService $lifecycle, ReceiptFinancialCalculator $calculator)
+public function store(Request $request, ReceiptLifecycleService $lifecycle, ReceiptFinancialCalculator $calculator, ?ReceiptTypeResolver $resolver = null)
 {
+    $resolver = $resolver ?? app(ReceiptTypeResolver::class);
     $request->validate(['receipt_number'=>'required', 'pawn_receipt_type'=>'required|in:Pawn,Opening_Pawn']);
     DB::beginTransaction();
 
     try {
-        $activeReceipt = \App\Services\ReceiptPaymentEligibility::lock($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
+        $activeReceipt = \App\Services\ReceiptPaymentEligibility::lockForRedemption($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
         if ($request->pawn_receipt_type === 'Pawn') {
-            $financial = $calculator->calculate($activeReceipt);
+            $financial = $calculator->calculate(
+                $resolver->receiptForCalculation($activeReceipt),
+                $request->redeem_date
+            );
             $interestDays = $financial['days'];
             $request->merge([
                 'document_charges' => $financial['service_charge'],
@@ -251,6 +265,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
         $TPawnTrans->dDate = $request->redeem_date;
         $TPawnTrans->Cr_amount = 0;
         $TPawnTrans->Dr_amount = $request->payable_total;
+        $TPawnTrans->Paided_Interest = $request->paid_interest;
         $TPawnTrans->OC = auth()->user()->username;
         $TPawnTrans->BC = auth()->user()->BC;
         $TPawnTrans->save();
