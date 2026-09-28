@@ -95,6 +95,7 @@ class RedeemLateLettersController extends Controller
     {
         $branch_code = auth()->user()->BC;
         $activeTab   = (int) $request->input('tab', 1);
+        $showPrinted = $request->input('show_printed', '1') !== '0';
 
         // Load only the active tab's paginated data
         $tab1 = $activeTab === 1 ? $this->eligibleReceipts($request, $branch_code, $calculator, 1) : null;
@@ -106,9 +107,9 @@ class RedeemLateLettersController extends Controller
         $baseCount = TPawnSum::where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0);
         if ($request->filled('receipt_type')) { $this->applyTypeFilter($baseCount, $request->receipt_type); }
         if ($request->filled('receipt_number')) { $baseCount->where('Receipt_Number', $request->receipt_number); }
-        $count_1st = $this->applyStageFilter(clone $baseCount, $schedule, 1)->count();
-        $count_2nd = $this->applyStageFilter(clone $baseCount, $schedule, 2)->count();
-        $count_3rd = $this->applyStageFilter(clone $baseCount, $schedule, 3)->count();
+        $count_1st = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 1), 1, $showPrinted)->count();
+        $count_2nd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 2), 2, $showPrinted)->count();
+        $count_3rd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 3), 3, $showPrinted)->count();
 
         $companyData = Company::latest()->paginate(1);
         $receiptType = $resolver->getActiveTypes();
@@ -117,7 +118,7 @@ class RedeemLateLettersController extends Controller
             'receiptType', 'companyData',
             'tab1', 'tab2', 'tab3',
             'count_1st', 'count_2nd', 'count_3rd',
-            'activeTab'
+            'activeTab', 'showPrinted'
         ));
     }
 
@@ -298,6 +299,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         }
 
         $this->applyStageFilter($baseQuery, $schedule, $tabLetter);
+        $this->applyPrintedVisibility($baseQuery, $tabLetter, $request->input('show_printed', '1') !== '0');
 
         $paginated = $baseQuery->orderBy('Final_date')->paginate($perPage)->withQueryString();
 
@@ -355,6 +357,16 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
             $stage->whereNull('is_letter_'.$letter)->orWhere('is_letter_'.$letter, 0)
                 ->orWhereRaw($nextDue.' > ?', [$today]);
         });
+    }
+
+    private function applyPrintedVisibility($query, int $letter, bool $showPrinted)
+    {
+        if (!$showPrinted) {
+            $query->where(fn ($pending) => $pending->whereNull('is_letter_'.$letter)
+                ->orWhere('is_letter_'.$letter, 0));
+        }
+
+        return $query;
     }
 
     private function applyTypeFilter($query, string $type): void

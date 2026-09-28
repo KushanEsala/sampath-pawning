@@ -6,6 +6,15 @@ authoritative manual SQL register is `database/manual/README.md`.
 Production rollout, staging rehearsal, data-repair gates, and verification are
 documented in `PRODUCTION_DATABASE_UPGRADE_RUNBOOK.md`.
 
+## 2026-09-28 — Late-letter printed-receipt visibility toggle
+
+- Added a Show/Hide Printed Receipts button to the late-letter page. Printed
+  receipts remain visible by default until their next scheduled stage; hiding
+  them affects only the current report, not their status or letter schedule.
+- Search, receipt-type filtering, tab switching, pagination and tab counts
+  preserve and respect the selected visibility. No database changes or Laravel
+  migrations are required.
+
 ## 2026-09-24 — Redemption negative balance resolution, cash rounding and silver contract flow
 
 - Pinpointed and resolved the root causes of negative balances on redeemed receipts:

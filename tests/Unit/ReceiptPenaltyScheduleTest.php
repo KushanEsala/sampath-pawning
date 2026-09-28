@@ -99,6 +99,21 @@ class ReceiptPenaltyScheduleTest extends TestCase
         }
     }
 
+    public function test_printed_letter_toggle_filters_only_the_current_stage_when_hidden(): void
+    {
+        $filter = new \ReflectionMethod(\App\Http\Controllers\RedeemLateLettersController::class, 'applyPrintedVisibility');
+        $filter->setAccessible(true);
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+
+        foreach ([1, 2, 3] as $letter) {
+            $visible = $filter->invoke($controller, TPawnSum::query(), $letter, true)->toSql();
+            $hidden = $filter->invoke($controller, TPawnSum::query(), $letter, false)->toSql();
+            $this->assertStringNotContainsString('is_letter_'.$letter, $visible);
+            $this->assertStringContainsString('is_letter_'.$letter, $hidden);
+            $this->assertStringContainsString('is null', strtolower($hidden));
+        }
+    }
+
     public function test_unsent_redeemed_and_forfeited_receipts_are_not_reminders(): void
     {
         Carbon::setTestNow('2026-03-26');

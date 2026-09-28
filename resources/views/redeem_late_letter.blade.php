@@ -172,6 +172,7 @@
                                     {{-- Search / Filter --}}
                                     <form method="GET" action="{{ route('pawning_late_letters') }}" class="row g-2 my-3 align-items-end">
                                         <input type="hidden" name="tab" value="{{ $activeTab }}">
+                                        <input type="hidden" name="show_printed" value="{{ $showPrinted ? 1 : 0 }}">
                                         <div class="col-md-3">
                                             <label class="form-label" for="receipt_type">Receipt Type</label>
                                             <select class="form-control" id="receipt_type" name="receipt_type">
@@ -190,7 +191,14 @@
                                         <div class="col-auto"><a class="btn btn-outline-secondary" href="{{ route('pawning_late_letters') }}">Clear</a></div>
                                     </form>
 
-                                    <br>
+                                    <div class="d-flex justify-content-end mb-3">
+                                        <a class="btn btn-outline-primary" role="button"
+                                           aria-pressed="{{ $showPrinted ? 'true' : 'false' }}"
+                                           href="{{ request()->fullUrlWithQuery(['show_printed' => $showPrinted ? 0 : 1, 'page' => 1]) }}">
+                                            <i class="fa {{ $showPrinted ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                                            {{ $showPrinted ? 'Hide Printed Receipts' : 'Show Printed Receipts' }}
+                                        </a>
+                                    </div>
 
                                     {{-- ── TAB NAV ── --}}
                                     <ul class="nav nav-tabs" role="tablist" style="border-bottom: 3px solid #1a3c5e; gap: 6px;">
