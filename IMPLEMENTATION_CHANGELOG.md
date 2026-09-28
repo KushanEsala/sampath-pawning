@@ -205,6 +205,16 @@ documented in `PRODUCTION_DATABASE_UPGRADE_RUNBOOK.md`.
   rewritten; review any contract discrepancies with read-only script 013.
 - No database schema/data changes or Laravel migrations were run for this
   update. No manual SQL needs to be applied for the code changes.
+- Deployment verification: commit `71d8b36b` was pushed to origin and
+  fast-forwarded to Kreethya. Server Blade compilation succeeded. Read-only
+  live counts after deployment found Silver receipts in all letter stages:
+  branch 001 = 60/1/1 and branch 002 = 144/14/1 (first/second/third).
+  A real Silver receipt was copied in memory and its expiry adjusted only on
+  the copy: first-letter eligibility was true on the configured due date and
+  false one day earlier. A saved first-letter event rendered as `1st` with
+  the effective expiry. No live receipt dates were changed. The production
+  checkout's pre-existing generated PDFs and cache `.gitignore` edits were
+  preserved. Local focused tests passed; production PHPUnit is not installed.
 
 ## Deployment rule
 
