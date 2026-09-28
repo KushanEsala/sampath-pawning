@@ -216,6 +216,20 @@ documented in `PRODUCTION_DATABASE_UPGRADE_RUNBOOK.md`.
   checkout's pre-existing generated PDFs and cache `.gitignore` edits were
   preserved. Local focused tests passed; production PHPUnit is not installed.
 
+## 2026-09-28 — Kreethya late-letter HTTP 500 follow-up
+
+- The live access log showed late-letter requests returning 500 shortly after
+  deployment, then 200 for the main page, Silver filter, all three Silver
+  tabs and a letter-print URL without another code change. Rendering the
+  page in-process for both live branches also succeeded. The exact first
+  exception was not captured because the new daily Laravel log had been
+  created by the root deployment user and was not writable by the web user.
+- Corrected ownership of only that daily log and generated Blade cache files
+  to `kreethya:kreethya`, then compiled views as `kreethya`. Verified there
+  were no remaining root-owned compiled views. Subsequent deployments must
+  run Laravel cache commands as the site user. No database or receipt dates
+  were changed, and no migrations were run.
+
 ## Deployment rule
 
 Before deploying against an older database:
