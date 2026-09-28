@@ -152,9 +152,11 @@ class PawningPartPaymentController extends Controller
         $currentType = $resolver->resolveForCurrentCycle($activeReceipt);
         $currentPrincipal = (float) ($activeReceipt->Pawn_Amount ?: $activeReceipt->Amount ?: 0);
         $discount = (float) ($request->redeem_discount ?? 0);
-        $stampFee = (float) ($currentType->stampduty ?? 0);
+        // Part payments collect accrued interest and outstanding letter postage,
+        // but service/stamp charges belong to pawn, repawn or redemption only.
+        $stampFee = 0.0;
         $interestDue = (float) $financial['interest'];
-        $serviceCharge = (float) $financial['service_charge'];
+        $serviceCharge = 0.0;
         $letterCharge = (float) $financial['letter_charge'];
         $allocation = app(PartPaymentCalculator::class)->calculate(
             $currentPrincipal,
@@ -200,7 +202,7 @@ class PawningPartPaymentController extends Controller
             'original_pawn_amount' => $currentPrincipal,
             'PayTotalAmount' => $paidCharges,
         ]);
-        $requiredArrears = $hasArrearsLetters ? $financial['arrears_total'] : 0;
+        $requiredArrears = $hasArrearsLetters ? $interestDue + $letterCharge : 0;
         $receivedAmount = $paymentReceived;
         if ($hasArrearsLetters && $receivedAmount + 0.01 < $requiredArrears) {
             throw ValidationException::withMessages([
@@ -357,6 +359,11 @@ class PawningPartPaymentController extends Controller
                 'forfeit_reminder_days' => $rateRow->forfeit_reminder_days ?? 21,
             ]);
         }
+        if ($isSilver) {
+            $updateData['To_Date'] = Carbon::parse($paymentDate)
+                ->addDays(\App\Services\SilverInterest::validDays($rateRow ?? $currentType))
+                ->toDateString();
+        }
 
         TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', $branch_code)
@@ -455,7 +462,8 @@ class PawningPartPaymentController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data
+            'data'   => $data,
+            'receipt_number' => $receipt->Receipt_Number,
         ]);
     }
 

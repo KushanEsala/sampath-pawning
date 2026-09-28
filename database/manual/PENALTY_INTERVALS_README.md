@@ -26,7 +26,9 @@ New pawn receipts copy the four settings from their selected receipt type. Later
 
 All four defaults are 21 calendar days, following the latest request. To keep a first letter on the expiry date, set First letter days to 0 for the relevant receipt type before creating a pawn.
 
-With expiry 2026-01-01 and all defaults, the letter due dates are January 22, February 12 and March 5. If the third letter is actually issued March 10, the reminder becomes eligible March 31. Printing a letter late does not move the scheduled later-letter dates.
+With expiry 2026-01-01 and all defaults, the earliest letter due dates are January 22, February 12 and March 5. If a letter is printed late, the next stage waits the full configured interval from its actual print date. If the third letter is issued March 10, the reminder becomes eligible March 31. Printed letters stay on their tab, marked Printed, until the next stage is due.
+
+For Silver receipts the expiry used by letters is `To_Date`, not `Final_date`. Older Silver rows whose `To_Date` was not refreshed after a part payment or repawn use the latest transaction date plus the receipt's saved valid-day period for letter scheduling.
 
 ## Revised workflow
 

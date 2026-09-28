@@ -193,7 +193,7 @@
                 Outstanding Amount &amp; Charges:&nbsp;
                 <span>Rs. {{ number_format($receipt->Amount + $interest, 2) }}</span>
                 &nbsp;
-                <small style="color:#888;">(Principal: Rs.{{ number_format($receipt->Amount,2) }}
+                <small style="color:#888;">(Capital: Rs.{{ number_format($receipt->Amount,2) }}
                  + Charges: Rs.{{ number_format($interest,2) }})</small>
             </div>
 

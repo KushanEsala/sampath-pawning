@@ -167,6 +167,45 @@ documented in `PRODUCTION_DATABASE_UPGRADE_RUNBOOK.md`.
 - The attempted read-only live database query did not return and was interrupted; no live Silver rows were inspected or changed in this update.
 - Ran isolated Silver interest and block-eligibility tests, syntax checks and Blade compilation. No migrations were run.
 
+## 2026-09-25 — Ledger ordering, capital wording, and blocked repawning
+
+- Confirmed the existing redemption-interest fallback and write-path changes in code; focused redemption ledger tests pass. Live receipt verification was unavailable because the configured local MySQL server refused the connection.
+- Changed the shared receipt ledger to chronological order (oldest at top, newest at bottom), including non-financial events; the expanded Forfeit List history follows the same direction. Current balance now comes from the final row in both rendered and AJAX history tables.
+- Standardized user-facing "Principal" wording to "Capital" in receipt history, print, arrears, reminder, and forfeit reports. Internal calculation keys and database column names remain unchanged.
+- Repawning lookup by receipt, ticket, or invoice now rejects blocked receipts. The form loads articles and payment history only after an eligible lookup, and the locked save path rejects a receipt blocked after the page was opened.
+- Added isolated ledger-order and block-eligibility tests. No database schema/data changes or SQL script are required for this code-only update; no migrations were run.
+- Focused tests for the new behavior passed (10 tests, including all three repawning lookup routes). A broader related test run passed 24 tests but one older charge-history test requires the unavailable local MySQL server; it was not a code assertion failure in this update.
+
+## 2026-09-25 — Payment-history coverage after local MySQL restart
+
+- Traced Receipt Search, printable receipt history, Redeem, Part Payment, Repawning, and Old Redeem Receipt. The first five already used the shared chronological ledger; Old Redeem Receipt still calculated a separate balance in JavaScript, so its active modal now uses the shared ledger table and renderer. Previously empty Payment History modals on Make Payment and Forfeit Receipt now use that same ledger.
+- Added Print History links to the receipt-level payment-history modals. Their links use the receipt number returned by the shared history endpoint, including when the user searched by ticket, invoice, or an old receipt number. The print view still expands every ledger detail in black and white. New-pawn popups that list a customer's other pawn receipts are labeled Customer Pawn History; they are not a payment ledger for the yet-to-be-issued receipt.
+- Performed read-only live checks after XAMPP became available: receipt 001/4549 has pawn 40,000, service 60, interest 900, redemption 40,960 and closes at 0.00. Its rendered print shows Capital, chronological order, and expanded details. A Silver receipt sample also rendered oldest-first and closed at 0.00.
+- Confirmed the manually installed `is_blocked` column exists and the live blocked receipt returns `blocked` from repawning search (read-only check).
+- Focused payment/history/status tests passed (31 tests, including a print-layout regression check); Blade compilation and PHP syntax checks passed. No database data/schema changes, scripts, or Laravel migrations were run. Existing external/local database updates were left untouched.
+
+## 2026-09-28 — Part payments, letter stages and Silver expiry
+
+- Part payments now apply only accrued interest and outstanding letter postage
+  before capital. They do not collect service charge or stamp duty; pawn,
+  repawn and redemption retain their existing charge rules. After interest is
+  paid, the next interest cycle starts tomorrow, so another payment today
+  reduces capital. Existing historical charge rows were not rewritten.
+- First/second/third letters remain in their own tab marked Printed, with no
+  duplicate print action, until the next configured interval has elapsed.
+  Late printing starts a full waiting interval from the actual print date.
+  The third letter remains until the Forfeit Reminder due date.
+- Letter print ordinal comes from the immutable letter event (not mutable
+  receipt flags). The print and report expiry date follow the schedule.
+- Silver letter expiry is `To_Date` per the client's clarification. For 48
+  active Silver rows on Kreethya where `To_Date` predates a later part payment
+  or repawn, the application derives the current-cycle expiry from the latest
+  transaction date and the receipt's saved valid-day setting. Future Silver
+  part payments/repawns update `To_Date`. `Final_date` and legacy rows are not
+  rewritten; review any contract discrepancies with read-only script 013.
+- No database schema/data changes or Laravel migrations were run for this
+  update. No manual SQL needs to be applied for the code changes.
+
 ## Deployment rule
 
 Before deploying against an older database:

@@ -304,33 +304,15 @@
 
 
 <div class="field Receipt-letter-type_sinhala">
-    @if($receipt->is_letter_1 && $receipt->is_letter_2)
-        3rd
-    @elseif($receipt->is_letter_1)
-        2nd
-    @else
-        1st  {{-- is_letter_1 = null --}}
-    @endif
+    {{ [1 => '1st', 2 => '2nd', 3 => '3rd'][$lno] ?? '' }}
 </div>
 
 <div class="field Receipt-letter-type_tamil">
-    @if($receipt->is_letter_1 && $receipt->is_letter_2)
-        3rd
-    @elseif($receipt->is_letter_1)
-        2nd
-    @else
-        1st
-    @endif
+    {{ [1 => '1st', 2 => '2nd', 3 => '3rd'][$lno] ?? '' }}
 </div>
 
 <div class="field Receipt-letter-type_english">
-    @if($receipt->is_letter_1 && $receipt->is_letter_2)
-        3rd
-    @elseif($receipt->is_letter_1)
-        2nd
-    @else
-        1st
-    @endif
+    {{ [1 => '1st', 2 => '2nd', 3 => '3rd'][$lno] ?? '' }}
 </div>
 
              <div class="field branch-name">{{ $branchDetails->name }}</div>
@@ -340,9 +322,9 @@
             <div class="field customer-address-Receipt">
                 {{ $receipt->Receipt_Number ?? $receipt->old_Receipt_Number }}
             </div>
-            <div class="field expiry-date">{{ date('Y-m-d', strtotime($receipt->Final_date)) }}</div>
-            <div class="field expiry-date-tamil">{{ date('Y-m-d', strtotime($receipt->Final_date)) }}</div>
-            <div class="field expiry-date-english">{{ date('Y-m-d', strtotime($receipt->Final_date)) }}</div>
+            <div class="field expiry-date">{{ $item['expiry_date'] }}</div>
+            <div class="field expiry-date-tamil">{{ $item['expiry_date'] }}</div>
+            <div class="field expiry-date-english">{{ $item['expiry_date'] }}</div>
             <div class="field Receipt-Number-two">{{ $receipt->Receipt_Number }}</div>
             <div class="field Receipt-Amount">
                     {{ number_format(

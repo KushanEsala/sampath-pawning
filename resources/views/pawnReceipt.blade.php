@@ -681,15 +681,15 @@ table td {
         </div>
     </div>
 
-    {{-- show payment history model --}}
-<!-- ================= PAYMENT HISTORY MODAL ================= -->
+    {{-- Customer's prior pawn receipts, not a single receipt's payment ledger. --}}
+<!-- ================= CUSTOMER PAWN HISTORY MODAL ================= -->
 <div class="modal fade" id="paymentHistoryModel" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
 
             <!-- ===== MODAL HEADER ===== -->
             <div class="modal-header bg-primary text-white">
-                <h4 class="modal-title fw-bold">Payment History</h4>
+                <h4 class="modal-title fw-bold">Customer Pawn History</h4>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 

@@ -28,6 +28,8 @@ class SilverInterest
     {
         $configured = (int) ($type->validPeriod ?? 0);
         $period = (int) ($type->period3 ?? 0);
-        return $configured > 0 ? $configured : ($period > 0 ? $period : 30);
+        if ($configured > 0) return $configured;
+        if ($period > 0) return $period;
+        throw new \InvalidArgumentException('Silver receipt type must define valid days or a period.');
     }
 }

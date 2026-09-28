@@ -53,7 +53,7 @@
                 <div class="reminder-report-shell">
                     <table class="table table-bordered table-hover align-middle reminder-report">
                         <colgroup><col style="width:7%"><col style="width:10%"><col style="width:21%"><col style="width:11%"><col style="width:15%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
-                        <thead><tr><th>View</th><th>Receipt No</th><th>Customer</th><th>Expiry</th><th>3rd Letter / Reminder</th><th>Principal</th><th>Interest</th><th>Total to Pay</th></tr></thead>
+                        <thead><tr><th>View</th><th>Receipt No</th><th>Customer</th><th>Expiry</th><th>3rd Letter / Reminder</th><th>Capital</th><th>Interest</th><th>Total to Pay</th></tr></thead>
                         <tbody>
                         @forelse($receipts as $receipt)
                             @php
@@ -76,7 +76,7 @@
                                 <div class="reminder-finance mb-3">
                                     <div><small>Service charge</small><strong>{{ number_format($financial['service_charge'], 2) }}</strong></div>
                                     <div><small>Letter / postage charge</small><strong>{{ number_format($financial['letter_charge'], 2) }}</strong></div>
-                                    <div><small>Principal + arrears</small><strong>{{ number_format($financial['redemption_total'], 2) }}</strong></div>
+                                    <div><small>Capital + arrears</small><strong>{{ number_format($financial['redemption_total'], 2) }}</strong></div>
                                 </div>
                                 <div class="reminder-detail-grid">
                                     <section class="reminder-detail-card">

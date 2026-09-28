@@ -46,4 +46,13 @@ class ReceiptPaymentEligibility
             ]);
         }
     }
+
+    public static function assertRepawningAllowed(Model $receipt): void
+    {
+        if ((bool) ($receipt->is_blocked ?? false)) {
+            throw ValidationException::withMessages([
+                'receipt_number' => 'This receipt is blocked. An administrator must unblock it before repawning.',
+            ]);
+        }
+    }
 }

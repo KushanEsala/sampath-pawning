@@ -3,8 +3,8 @@
     $ledgerExpanded = (bool) ($ledgerExpanded ?? false);
     $totalDr = $ledgerRows->sum('dr');
     $totalCr = $ledgerRows->sum('cr');
-    $firstLedgerRow = $ledgerRows->first();
-    $currentBalance = (float) ($firstLedgerRow['balance'] ?? 0);
+    $lastLedgerRow = $ledgerRows->last();
+    $currentBalance = (float) ($lastLedgerRow['balance'] ?? 0);
 @endphp
 <table class="table table-bordered table-hover align-middle receipt-ledger-table">
     <thead>

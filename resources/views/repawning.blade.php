@@ -332,6 +332,7 @@
                         </table>
                     </div>
                     <div class="text-center mt-4">
+                        <a class="btn btn-outline-dark d-none" data-payment-history-print target="_blank" rel="noopener" href="#">Print History</a>
                         <button type="button" class="btn btn-outline-secondary"
                             data-bs-dismiss="modal">Close</button>
                     </div>
@@ -375,6 +376,11 @@
                         method: 'GET',
                         data: { search_receipt_no: search_receipt_no },
                         success: function (response) {
+                            if (response.status === 'blocked') {
+                                $('.dynamic-area').html('<span class="text-danger text-center">This receipt is blocked. An administrator must unblock it before repawning.</span>');
+                                $('#articleDetails, #CustomerDetails').empty();
+                                return;
+                            }
                             if (response.status === 'not_found') {
                                 $('.dynamic-area').html(
                                     '<span class="text-danger text-center">Receipt not found ...!</span>'
@@ -386,40 +392,33 @@
                             // Sync ticket / invoice fields
                             $('#search_ticket').val($('#t_number').val());
                             $('#search_invoice').val($('#i_number').val());
+                            loadRepawningArticles(search_receipt_no);
+                            window.loadRepawningPaymentHistory(search_receipt_no);
                         }
                     });
-
-                    // Load article details table
-                    $.ajax({
-                        url: "{{ route('view_article_details_ajax') }}",
-                        method: 'GET',
-                        data: { search_receipt_no: search_receipt_no },
-                        success: function (response) {
-                            if (response.status === 'success') {
-                                let rows = '';
-                                response.data.forEach(r => {
-                                    rows += `<tr>
-                                        <td>${r.Category}</td>
-                                        <td>${r.Articles}</td>
-                                        <td>${r.Condition}</td>
-                                        <td>${r.Karatage}</td>
-                                        <td>${r.Weight}</td>
-                                        <td>${r.QTY}</td>
-                                        <td>${r.Value}</td>
-                                        <td>${r.Date}</td>
-                                    </tr>`;
-                                });
-                                $('#articleDetails').html(rows);
-                            }
-                        }
-                    });
-
-                    // Load payment history table
-                    window.loadRepawningPaymentHistory(search_receipt_no);
 
                 }, 300));
             });
         });
+
+        window.loadRepawningArticles = function (search_receipt_no) {
+            $.ajax({
+                url: "{{ route('view_article_details_ajax') }}",
+                method: 'GET',
+                data: { search_receipt_no: search_receipt_no },
+                success: function (response) {
+                    if (response.status !== 'success') return;
+                    let rows = '';
+                    response.data.forEach(r => {
+                        rows += `<tr><td>${r.Category}</td><td>${r.Articles}</td>
+                            <td>${r.Condition}</td><td>${r.Karatage}</td>
+                            <td>${r.Weight}</td><td>${r.QTY}</td>
+                            <td>${r.Value}</td><td>${r.Date}</td></tr>`;
+                    });
+                    $('#articleDetails').html(rows);
+                }
+            });
+        };
 
         window.loadRepawningPaymentHistory = function (search_receipt_no) {
             if (!search_receipt_no) {
@@ -428,6 +427,7 @@
                 return;
             }
             $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
+            window.ReceiptHistoryLedger.setPrintReceipt(null);
             $('#paymentHistoryReceiptInfo').text('Receipt / Ticket #' + search_receipt_no);
 
             $.ajax({
@@ -503,14 +503,17 @@
 
                         tableRows = window.ReceiptHistoryLedger.renderRows(data);
                         window.ReceiptHistoryLedger.updateTotals(data);
+                        window.ReceiptHistoryLedger.setPrintReceipt(response.receipt_number || null);
                         $('#CustomerDetails').html(tableRows);
                     } else {
                         window.ReceiptHistoryLedger.updateTotals([]);
+                        window.ReceiptHistoryLedger.setPrintReceipt(null);
                         $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">No payment history found</td></tr>');
                     }
                 },
                 error: function () {
                     window.ReceiptHistoryLedger.updateTotals([]);
+                    window.ReceiptHistoryLedger.setPrintReceipt(null);
                     $('#CustomerDetails').html('<tr><td colspan="5" class="text-center text-danger">Error fetching payment history</td></tr>');
                 }
             });
@@ -536,6 +539,11 @@
                         method: 'GET',
                         data: { search_receipt_no: search_receipt_no },
                         success: function (response) {
+                            if (response.status === 'blocked') {
+                                $('.dynamic-area').html('<span class="text-danger text-center">This receipt is blocked. An administrator must unblock it before repawning.</span>');
+                                $('#articleDetails, #CustomerDetails').empty();
+                                return;
+                            }
                             if (response.status === 'not_found') {
                                 $('.dynamic-area').html(
                                     '<span class="text-danger text-center">Receipt not found ...!</span>'
@@ -545,30 +553,10 @@
                             $('.dynamic-area').html(response);
                             $('#search_receipt').val($('#r_number').val());
                             $('#search_invoice').val($('#i_number').val());
+                            loadRepawningArticles($('#r_number').val());
+                            window.loadRepawningPaymentHistory($('#r_number').val());
                         }
                     });
-
-                    $.ajax({
-                        url: "{{ route('view_article_details_ajax') }}",
-                        method: 'GET',
-                        data: { search_receipt_no: search_receipt_no },
-                        success: function (response) {
-                            if (response.status === 'success') {
-                                let rows = '';
-                                response.data.forEach(r => {
-                                    rows += `<tr>
-                                        <td>${r.Category}</td><td>${r.Articles}</td>
-                                        <td>${r.Condition}</td><td>${r.Karatage}</td>
-                                        <td>${r.Weight}</td><td>${r.QTY}</td>
-                                        <td>${r.Value}</td><td>${r.Date}</td>
-                                    </tr>`;
-                                });
-                                $('#articleDetails').html(rows);
-                            }
-                        }
-                    });
-
-                    window.loadRepawningPaymentHistory($('#r_number').val() || search_receipt_no);
                 }, 300));
             });
         });
@@ -591,6 +579,12 @@
                     method: 'GET',
                     data: { search_invoice_no: search_invoice_no },
                     success: function (response) {
+                        if (response.status === 'blocked') {
+                            $('#search_receipt, #search_ticket').val('');
+                            $('.dynamic-area').html('<span class="text-danger text-center">This receipt is blocked. An administrator must unblock it before repawning.</span>');
+                            $('#articleDetails, #CustomerDetails').empty();
+                            return;
+                        }
                         if (response.status === 'not_found') {
                             $('#search_receipt').val('');
                             $('.dynamic-area').html(
@@ -601,6 +595,7 @@
                         $('.dynamic-area').html(response);
                         $('#search_receipt').val($('#r_number').val());
                         $('#search_ticket').val($('#t_number').val());
+                        loadRepawningArticles($('#r_number').val());
                         window.loadRepawningPaymentHistory($('#r_number').val());
                     }
                 });

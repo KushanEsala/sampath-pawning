@@ -77,7 +77,7 @@ class ReceiptHistoryService
 
     /**
      * Return one consistent ledger for Receipt Search and every payment page.
-     * Rows are newest first, but balances are calculated oldest first so the
+     * Rows are oldest first so the running balance reads top to bottom and the
      * displayed DR/CR movement always reconciles to the corrected balance.
      */
     public function paymentLedger(TPawnSum $receipt): Collection
@@ -497,7 +497,7 @@ class ReceiptHistoryService
             }
         }
 
-        return $ledger->reverse()->values();
+        return $ledger->values();
     }
 
     private function ledgerSummary(string $type, array $details, float $debit, float $credit): string
@@ -541,15 +541,15 @@ class ReceiptHistoryService
         };
 
         if ($type === 'PAWN') {
-            $details[] = 'Principal: Rs. '.number_format((float) ($row->remaining_capital ?? $row->trans_pawn_amount ?? 0), 2);
+            $details[] = 'Capital: Rs. '.number_format((float) ($row->remaining_capital ?? $row->trans_pawn_amount ?? 0), 2);
         } elseif ($type === 'PART_PAYMENT') {
             $details[] = 'Paid capital: Rs. '.number_format((float) ($row->Paided_Captional ?? 0), 2);
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
         } elseif ($type === 'REPAWNING') {
-            $details[] = 'Opening principal: Rs. '.number_format((float) ($row->trans_pawn_amount ?? $row->Pawn_Amount ?? 0), 2);
+            $details[] = 'Opening capital: Rs. '.number_format((float) ($row->trans_pawn_amount ?? $row->Pawn_Amount ?? 0), 2);
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
             $details[] = 'Additional amount issued: Rs. '.number_format((float) ($row->Cr_amount ?? 0), 2);
-            $details[] = 'New principal: Rs. '.number_format((float) ($row->remaining_capital ?? 0), 2);
+            $details[] = 'New capital: Rs. '.number_format((float) ($row->remaining_capital ?? 0), 2);
         } elseif ($type === 'REDEEM') {
             $details[] = 'Customer payment: Rs. '.number_format((float) ($row->payable_total ?: $row->Dr_amount ?: 0), 2);
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
@@ -585,7 +585,7 @@ class ReceiptHistoryService
             return !in_array($type, $financialTypes, true) && !str_contains($type, 'LETTER');
         })->map(function (array $event) use ($ledger) {
             $date = substr((string) ($event['date'] ?? ''), 0, 10);
-            $nearest = $ledger->first(fn (array $row) => ($row['date'] ?? '') <= $date) ?? $ledger->last();
+            $nearest = $ledger->last(fn (array $row) => ($row['date'] ?? '') <= $date) ?? $ledger->first();
             $details = collect($event['details'] ?? []);
             $operator = (string) ($details->pull('Operator') ?? 'Not recorded');
 
@@ -601,8 +601,8 @@ class ReceiptHistoryService
             ];
         });
 
-        return $ledger->concat($activities)->sortByDesc(function (array $row) {
-            return ($row['date'] ?? '').'|'.(($row['dr'] || $row['cr']) ? '1' : '0');
+        return $ledger->concat($activities)->sortBy(function (array $row) {
+            return ($row['date'] ?? '').'|'.(($row['dr'] || $row['cr']) ? '0' : '1');
         })->values();
     }
 

@@ -27,7 +27,13 @@ class SilverInterestTest extends TestCase
         $type->forceFill(['validPeriod' => 0, 'period3' => 30]);
         $this->assertSame(30, SilverInterest::validDays($type));
         $type->period3 = 0;
-        $this->assertSame(30, SilverInterest::validDays($type));
+        $this->expectException(\InvalidArgumentException::class);
+        SilverInterest::validDays($type);
+    }
+
+    public function test_silver_validity_can_use_configured_days_other_than_thirty(): void
+    {
+        $type = new Recei_Add();
         $type->validPeriod = 45;
         $this->assertSame(45, SilverInterest::validDays($type));
     }

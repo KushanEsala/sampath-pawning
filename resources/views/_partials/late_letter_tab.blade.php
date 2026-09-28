@@ -10,7 +10,7 @@
 --}}
 @php
     $suffix   = $letter_no;
-    $colCount = $extra_col_header ? 7 : 6;   // Manage|Customer|Receipt|Type|FinalDate|DueDate|Action  ± ExtraDate
+    $colCount = $extra_col_header ? 9 : 8;
 @endphp
 
 <table class="table table-bordered table-hover late-letter-table">
@@ -29,7 +29,7 @@
             @if($extra_col_header)
             <th class="text-nowrap">{{ $extra_col_header }}</th>
             @endif
-            <th class="text-nowrap">Final Date</th>
+            <th class="text-nowrap">Expiry Date</th>
             <th class="text-nowrap">Letter Due</th>
             <th class="text-nowrap">Amount</th>
             <th>Action</th>
@@ -42,10 +42,12 @@
                 {{-- Manage --}}
                 <td class="manage-col">
                     <div class="manage-cell">
+                        @unless($r->{'is_letter_'.$letter_no})
                         <input type="checkbox" class="row-check {{ $chk_class }}"
                             data-pawn_sum_id="{{ $r->id }}"
                             data-receipt_no="{{ $r->Receipt_Number }}"
                             data-letter_no="{{ $letter_no }}">
+                        @endunless
                         <button type="button"
                             class="btn btn-sm btn-outline-secondary"
                             data-detail-row="{{ $detailId }}"
@@ -78,16 +80,22 @@
                 @endif
 
                 {{-- Final Date --}}
-                <td class="text-nowrap">{{ optional($r->Final_date)->format('Y-m-d') }}</td>
+                <td class="text-nowrap">{{ $r->arrears_expiry_date ?? '—' }}</td>
 
                 {{-- Letter Due Date --}}
-                <td class="text-nowrap">{{ $r->next_letter_due_date ?? '—' }}</td>
+                <td class="text-nowrap">{{ $r->{'is_letter_'.$letter_no} ? ($r->next_stage_due_date ?? '—') : ($r->next_letter_due_date ?? '—') }}
+                    @if($r->{'is_letter_'.$letter_no})<small class="d-block text-muted">Next stage</small>@endif
+                </td>
 
                 {{-- Amount --}}
                 <td class="text-end text-nowrap">{{ number_format($r->Amount, 2) }}</td>
 
                 {{-- Action --}}
                 <td class="text-center">
+                    @if($r->{'is_letter_'.$letter_no})
+                        <span class="badge bg-secondary">Printed</span>
+                        <small class="d-block text-muted">{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</small>
+                    @else
                     <button type="button"
                         class="btn btn-sm btn-{{ $btn_color }} print_letter_btn"
                         data-pawn_sum_id="{{ $r->id }}"
@@ -95,21 +103,26 @@
                         data-letter_no="{{ $letter_no }}">
                         <i class="fa fa-print me-1"></i> Print
                     </button>
+                    @endif
                 </td>
             </tr>
 
             {{-- ── Expandable detail row ── --}}
             <tr id="{{ $detailId }}" class="detail-row d-none">
-                <td colspan="{{ $colCount + 3 }}">
+                <td colspan="{{ $colCount }}">
                     <div class="detail-panel">
                         <div class="detail-grid">
                             <div class="detail-item"><small>Receipt Date</small><strong>{{ optional($r->Receipt_Date)->format('Y-m-d') }}</strong></div>
                             @if($extra_col_header)
                             <div class="detail-item"><small>{{ $extra_col_header }}</small><strong>{{ optional($r->{$extra_col_key})->format('Y-m-d') ?? '—' }}</strong></div>
                             @endif
-                            <div class="detail-item"><small>Final Date</small><strong>{{ optional($r->Final_date)->format('Y-m-d') }}</strong></div>
+                            <div class="detail-item"><small>Expiry Date</small><strong>{{ $r->arrears_expiry_date ?? '—' }}</strong></div>
                             <div class="detail-item"><small>Letter Due</small><strong>{{ $r->next_letter_due_date ?? '—' }}</strong></div>
-                            <div class="detail-item"><small>Principal</small><strong>{{ number_format($r->Amount, 2) }}</strong></div>
+                            @if($r->{'is_letter_'.$letter_no})
+                            <div class="detail-item"><small>Printed</small><strong>{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</strong></div>
+                            <div class="detail-item"><small>Next Stage Due</small><strong>{{ $r->next_stage_due_date ?? '—' }}</strong></div>
+                            @endif
+                            <div class="detail-item"><small>Capital</small><strong>{{ number_format($r->Amount, 2) }}</strong></div>
                             <div class="detail-item"><small>Interest</small><strong>{{ number_format($r->financial_breakdown['interest'], 2) }}</strong></div>
                             <div class="detail-item"><small>Service Charge</small><strong>{{ number_format($r->financial_breakdown['service_charge'], 2) }}</strong></div>
                             <div class="detail-item"><small>Letter / Postage</small><strong>{{ number_format($r->financial_breakdown['letter_charge'], 2) }}</strong></div>
@@ -123,7 +136,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="{{ $colCount + 3 }}" class="text-center text-muted py-4">
+                <td colspan="{{ $colCount }}" class="text-center text-muted py-4">
                     <i class="fa fa-check-circle me-2 text-success"></i>No receipts pending for this letter stage.
                 </td>
             </tr>
@@ -132,8 +145,8 @@
     @if($paginator->count() > 0)
     <tfoot>
         <tr>
-            <td colspan="{{ $colCount + 3 }}" class="text-end">
-                <strong>Page total (principal):
+            <td colspan="{{ $colCount }}" class="text-end">
+                <strong>Page total (capital):
                     {{ number_format($paginator->getCollection()->sum('Amount'), 2) }}
                 </strong>
             </td>

@@ -172,7 +172,7 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <div class="col-md-12">
-                                                            <button class="btn btn-outline-info form-control" type="button">Payment History</button>
+                                                            <button class="btn btn-outline-info form-control" type="button" data-bs-toggle="modal" data-bs-target="#viewPaymentHistoryModel">Payment History</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -319,44 +319,7 @@
         </div>
     </div>
 
-    {{-- show Payment History model --}}
-    <div class="modal fade" id="viewPaymentHistoryModel" tabindex="-1" role="dialog"
-        aria-labelledby="viewPaymentHistoryLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title m-2" id="viewPaymentHistoryLabel"> Payment History </h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"
-                    aria-label="Close">
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="errMsgContainer"></div>
-                                <form action="" method="post" id="addCustomer">
-                                    @csrf
-                                    <div class="row">
-
-
-
-                                    </div>
-                                    <div class="text-center mt-4">
-                                        <button type="button" class="btn btn-success add_customer bg-success-light text-success me-2">Save</button>
-                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
-                                    </div>
-                            </form>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-        </div>
-    </div>
+    @include('partials.receiptPaymentHistoryModal')
 
 
 

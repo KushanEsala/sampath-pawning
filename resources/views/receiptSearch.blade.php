@@ -141,7 +141,7 @@
                 <div class="card mb-3"><div class="card-body table-responsive">
                     <h5>Current Amounts</h5>
                     <table class="table table-bordered text-end">
-                        <thead><tr><th>Principal</th><th>Interest</th><th>Service Charge</th><th>Letter Charge</th><th>Total Interest Payable</th><th>Redemption Total</th></tr></thead>
+                        <thead><tr><th>Capital</th><th>Interest</th><th>Service Charge</th><th>Letter Charge</th><th>Total Interest Payable</th><th>Redemption Total</th></tr></thead>
                         <tbody><tr>
                             <td>{{ number_format($financial['principal'], 2) }}</td>
                             <td>{{ number_format($financial['interest'], 2) }}@if(!empty($financial['days']))<br><small class="text-muted">(Days: {{ $financial['days'] }})</small>@endif</td>
@@ -165,7 +165,7 @@
                 </div></div>
 
                 <div class="card"><div class="card-body table-responsive">
-                    <h5>Complete Ledger History — Newest First</h5>
+                    <h5>Complete Ledger History — Oldest First</h5>
                     <p class="text-muted small mb-2">DR records amounts added to the receipt balance. CR records customer payments and other reductions.</p>
                     @include('partials.receiptLedgerTable', ['ledgerRows' => $history['ledger']])
                 </div></div>

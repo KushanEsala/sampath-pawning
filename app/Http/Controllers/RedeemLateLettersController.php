@@ -44,19 +44,19 @@ class RedeemLateLettersController extends Controller
         $toDate          = $request->input('to_date');
         $currentDateTime = now();
 
-       $oldPawns = TPawnSum::whereDate('Final_date', '<', $currentDateTime)
-    ->where('IsRedeemed', 0)
-    ->where('BC', $branch_code)
-    ->get();
+        $schedule = new \App\Services\ReceiptPenaltySchedule();
+        $query = TPawnSum::where('IsRedeemed', 0)->where('isForfeit', 0)
+            ->where('BC', $branch_code)
+            ->whereRaw($schedule->expirySql().' < ?', [$currentDateTime->toDateString()]);
 
-if ($fromDate && $toDate) {
-    $oldPawns = TPawnSum::whereBetween('letter_3_date', [$fromDate, $toDate])
-        ->orWhereBetween('letter_2_date', [$fromDate, $toDate])
-        ->orWhereBetween('letter_1_date', [$fromDate, $toDate])
-        ->where('IsRedeemed', 0)
-        ->where('BC', $branch_code)
-        ->get();
-}
+        if ($fromDate && $toDate) {
+            $query->where(function ($dates) use ($fromDate, $toDate) {
+                $dates->whereBetween('letter_3_date', [$fromDate, $toDate])
+                    ->orWhereBetween('letter_2_date', [$fromDate, $toDate])
+                    ->orWhereBetween('letter_1_date', [$fromDate, $toDate]);
+            });
+        }
+        $oldPawns = $query->get();
 
         return view('late_redeem_print_list')
             ->with('toDate', $toDate)
@@ -103,19 +103,12 @@ if ($fromDate && $toDate) {
 
         // Total counts per tab (cheap COUNT queries, no data hydration)
         $schedule = new \App\Services\ReceiptPenaltySchedule();
-        $today    = today()->toDateString();
         $baseCount = TPawnSum::where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0);
-        if ($request->filled('receipt_type')) { $baseCount->where('Receipt_Type', $request->receipt_type); }
+        if ($request->filled('receipt_type')) { $this->applyTypeFilter($baseCount, $request->receipt_type); }
         if ($request->filled('receipt_number')) { $baseCount->where('Receipt_Number', $request->receipt_number); }
-        $count_1st = (clone $baseCount)
-            ->whereRaw($schedule->letterDueSql(1).' <= ?', [$today])
-            ->where(fn ($f) => $f->whereNull('is_letter_1')->orWhere('is_letter_1', 0))->count();
-        $count_2nd = (clone $baseCount)->where('is_letter_1', 1)
-            ->where(fn ($f) => $f->whereNull('is_letter_2')->orWhere('is_letter_2', 0))
-            ->whereRaw($schedule->letterDueSql(2).' <= ?', [$today])->count();
-        $count_3rd = (clone $baseCount)->where('is_letter_2', 1)
-            ->where(fn ($f) => $f->whereNull('is_letter_3')->orWhere('is_letter_3', 0))
-            ->whereRaw($schedule->letterDueSql(3).' <= ?', [$today])->count();
+        $count_1st = $this->applyStageFilter(clone $baseCount, $schedule, 1)->count();
+        $count_2nd = $this->applyStageFilter(clone $baseCount, $schedule, 2)->count();
+        $count_3rd = $this->applyStageFilter(clone $baseCount, $schedule, 3)->count();
 
         $companyData = Company::latest()->paginate(1);
         $receiptType = $resolver->getActiveTypes();
@@ -229,6 +222,7 @@ public function LateRedeemLetterList(Request $request)
         $company = Company::latest()->first();
         $receiptTypeModel = $resolver->resolveForReceipt($receipt);
         $financial = $calculator->calculate($receipt);
+        $schedule = new \App\Services\ReceiptPenaltySchedule();
         $letters = [[
             'receipt' => $receipt,
             'interest' => $financial['interest'],
@@ -237,6 +231,7 @@ public function LateRedeemLetterList(Request $request)
             'receiptType' => $receiptTypeModel,
             'branchDetails' => branchDel::where('bccode', $branch_code)->first(),
             'financial' => $financial,
+            'expiry_date' => $schedule->expiryDate($receipt)->toDateString(),
         ]];
 
         return view('gold_loan_notice_bulk_print', compact('letters', 'company', 'letter_no'));
@@ -270,6 +265,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         $this->applyCurrentCustomerContact($receipt);
         $receiptTypeModel = $resolver->resolveForReceipt($receipt);
         $financial = $calculator->calculate($receipt);
+        $schedule = new \App\Services\ReceiptPenaltySchedule();
         $letters[] = [
             'receipt'     => $receipt,
             'interest'    => $financial['interest'],
@@ -278,6 +274,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
             'receiptType' => $receiptTypeModel,
             'branchDetails'    => branchDel::where('bccode', $branch_code)->first(),
             'financial' => $financial,
+            'expiry_date' => $schedule->expiryDate($receipt)->toDateString(),
         ];
     }
 
@@ -287,34 +284,20 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     private function eligibleReceipts(Request $request, string $branchCode, ReceiptFinancialCalculator $calculator, int $tabLetter = 1)
     {
         $perPage = 25;
-        $today = today();
         $schedule = new \App\Services\ReceiptPenaltySchedule();
-        $dueSql = [1 => $schedule->letterDueSql(1), 2 => $schedule->letterDueSql(2), 3 => $schedule->letterDueSql(3)];
 
         $baseQuery = TPawnSum::where('BC', $branchCode)
             ->where('IsRedeemed', 0)
             ->where('isForfeit', 0);
 
         if ($request->filled('receipt_type')) {
-            $baseQuery->where('Receipt_Type', $request->receipt_type);
+            $this->applyTypeFilter($baseQuery, $request->receipt_type);
         }
         if ($request->filled('receipt_number')) {
             $baseQuery->where('Receipt_Number', $request->receipt_number);
         }
 
-        // Tab-specific filter
-        if ($tabLetter === 1) {
-            $baseQuery->whereRaw($dueSql[1].' <= ?', [$today->toDateString()])
-                ->where(fn ($f) => $f->whereNull('is_letter_1')->orWhere('is_letter_1', 0));
-        } elseif ($tabLetter === 2) {
-            $baseQuery->where('is_letter_1', 1)
-                ->where(fn ($f) => $f->whereNull('is_letter_2')->orWhere('is_letter_2', 0))
-                ->whereRaw($dueSql[2].' <= ?', [$today->toDateString()]);
-        } elseif ($tabLetter === 3) {
-            $baseQuery->where('is_letter_2', 1)
-                ->where(fn ($f) => $f->whereNull('is_letter_3')->orWhere('is_letter_3', 0))
-                ->whereRaw($dueSql[3].' <= ?', [$today->toDateString()]);
-        }
+        $this->applyStageFilter($baseQuery, $schedule, $tabLetter);
 
         $paginated = $baseQuery->orderBy('Final_date')->paginate($perPage)->withQueryString();
 
@@ -345,10 +328,45 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));
             $receipt->setAttribute('next_letter_no', $tabLetter);
             $receipt->setAttribute('next_letter_due_date', $schedule->letterDueDate($receipt, $tabLetter)->toDateString());
+            $receipt->setAttribute('next_stage_due_date', $tabLetter < 3
+                ? $schedule->letterDueDate($receipt, $tabLetter + 1)->toDateString()
+                : optional($schedule->reminderDueDate($receipt))->toDateString());
+            $receipt->setAttribute('arrears_expiry_date', $schedule->expiryDate($receipt)->toDateString());
         });
 
         $paginated->setCollection($receipts);
         return $paginated;
+    }
+
+    private function applyStageFilter($query, \App\Services\ReceiptPenaltySchedule $schedule, int $letter)
+    {
+        $today = today()->toDateString();
+        $query->whereRaw($schedule->letterDueSql($letter).' <= ?', [$today]);
+        if ($letter > 1) $query->where('is_letter_'.($letter - 1), 1);
+        if ($letter < 3) {
+            $query->where(fn ($next) => $next->whereNull('is_letter_'.($letter + 1))
+                ->orWhere('is_letter_'.($letter + 1), 0));
+        }
+
+        // An issued letter remains visible, without a print action, until the
+        // *next* stage is due. The actual issue date enforces a full interval.
+        $nextDue = $letter < 3 ? $schedule->letterDueSql($letter + 1) : $schedule->reminderDueSql();
+        return $query->where(function ($stage) use ($letter, $nextDue, $today) {
+            $stage->whereNull('is_letter_'.$letter)->orWhere('is_letter_'.$letter, 0)
+                ->orWhereRaw($nextDue.' > ?', [$today]);
+        });
+    }
+
+    private function applyTypeFilter($query, string $type): void
+    {
+        if (strtoupper(trim($type)) === 'SILVER') {
+            $query->where(function ($silver) {
+                $silver->whereRaw("UPPER(TRIM(COALESCE(receiptname, ''))) = 'SILVER'")
+                    ->orWhereRaw("UPPER(TRIM(COALESCE(Receipt_Type, ''))) = 'SILVER'");
+            });
+        } else {
+            $query->where('Receipt_Type', $type);
+        }
     }
 
     private function applyCurrentCustomerContact(TPawnSum $receipt, ?Customer $customer = null): void

@@ -88,7 +88,7 @@ window.ReceiptHistoryLedger = window.ReceiptHistoryLedger || {
     updateTotals(rows) {
         const totalDr = rows.reduce((sum, row) => sum + (Number(row.dr) || 0), 0);
         const totalCr = rows.reduce((sum, row) => sum + (Number(row.cr) || 0), 0);
-        const currentBalance = rows.length ? Number(rows[0].balance) || 0 : 0;
+        const currentBalance = rows.length ? Number(rows[rows.length - 1].balance) || 0 : 0;
         const totalDrCell = document.getElementById('historyTotalDr');
         const totalCrCell = document.getElementById('historyTotalCr');
         const balanceCell = document.getElementById('historyCurrentBalance');
@@ -98,6 +98,18 @@ window.ReceiptHistoryLedger = window.ReceiptHistoryLedger || {
             balanceCell.textContent = this.money(currentBalance);
             balanceCell.classList.toggle('ledger-balance-negative', currentBalance < 0);
         }
+    },
+    setPrintReceipt(receiptNumber) {
+        document.querySelectorAll('[data-payment-history-print]').forEach(link => {
+            link.classList.toggle('d-none', !receiptNumber);
+            if (!receiptNumber) {
+                link.removeAttribute('href');
+                return;
+            }
+            const url = new URL(@json(route('receipt.search.print')), window.location.origin);
+            url.searchParams.set('receipt_number', receiptNumber);
+            link.href = url.toString();
+        });
     }
 };
 

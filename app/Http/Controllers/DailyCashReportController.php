@@ -350,8 +350,8 @@ class DailyCashReportController extends Controller
             case 'PART_PAYMENT':
                 if (strpos($baseDescription, 'received from') !== false) {
                     return 'Part Payment - Cash Received';
-                } else if (strpos($baseDescription, 'Principal') !== false) {
-                    return 'Part Payment - Principal Reduction';
+                } else if (strpos($baseDescription, 'Principal') !== false || strpos($baseDescription, 'Capital') !== false) {
+                    return 'Part Payment - Capital Reduction';
                 } else if (strpos($baseDescription, 'Interest') !== false) {
                     return 'Part Payment - Interest Income';
                 } else {

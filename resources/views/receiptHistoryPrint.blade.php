@@ -40,9 +40,9 @@
     <div class="box"><strong>Receipt Date:</strong> {{ optional($receipt->Receipt_Date)->format('Y-m-d') }}<br><strong>Expiry Date:</strong> {{ optional($receipt->Final_date)->format('Y-m-d') }}<br><strong>Printed:</strong> {{ now()->format('Y-m-d H:i') }}</div>
 </div>
 <h2>Current Amounts</h2>
-<table><thead><tr><th>Principal</th><th>Interest</th><th>Service</th><th>Letter Charges</th><th>Total Interest Payable</th><th>Redemption Total</th></tr></thead><tbody><tr>
+<table><thead><tr><th>Capital</th><th>Interest</th><th>Service</th><th>Letter Charges</th><th>Total Interest Payable</th><th>Redemption Total</th></tr></thead><tbody><tr>
     <td class="amount">{{ number_format($financial['principal'],2) }}</td><td class="amount">{{ number_format($financial['interest'],2) }}</td><td class="amount">{{ number_format($financial['service_charge'],2) }}</td><td class="amount">{{ number_format($financial['letter_charge'],2) }}</td><td class="amount">{{ number_format($financial['arrears_total'],2) }}</td><td class="amount">{{ number_format($financial['redemption_total'],2) }}</td>
 </tr></tbody></table>
-<h2>Complete Ledger History — Newest First</h2>
+<h2>Complete Ledger History — Oldest First</h2>
 @include('partials.receiptLedgerTable', ['ledgerRows' => $history['ledger'], 'ledgerExpanded' => true])
 </body></html>

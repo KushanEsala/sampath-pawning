@@ -868,7 +868,8 @@ public function get(Request $request)
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data
+            'data'   => $data,
+            'receipt_number' => $receipt->Receipt_Number,
         ]);
     }
 }

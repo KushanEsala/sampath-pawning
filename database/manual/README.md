@@ -34,6 +34,11 @@ repawning interest and lists receipt-type versions for manual comparison. It
 must never be imported as a data repair. The earlier 008 replay corrected
 principal using posted interest/charges; it did not recalculate historical
 paid interest from master rates.
+`013_silver_letter_eligibility_audit.sql` is read-only. It shows Silver's
+`To_Date` expiry, first-letter interval and old receipts whose `To_Date` was
+not refreshed after a part payment or repawn. The application derives an
+effective expiry from the latest transaction for those legacy rows; do not
+bulk-overwrite historical dates without contract review.
 
 Scripts 001–005, 007 and 009 are one-time schema scripts, not idempotent. Do not run
 them again when their tables/columns already exist. Matching rollback scripts

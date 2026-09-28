@@ -187,7 +187,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="col-md-12">
-                                                        <button class="btn btn-outline-info form-control" type="button">Payment History</button>
+                                                        <button class="btn btn-outline-info form-control" type="button" data-bs-toggle="modal" data-bs-target="#viewPaymentHistoryModel">Payment History</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -370,73 +370,30 @@
     </div>
 
     {{-- show Payment History model --}}
-<div class="modal fade" id="viewPaymentHistoryModel" tabindex="-1" role="dialog"
-   aria-labelledby="viewPaymentHistoryLabel" aria-hidden="true">
-   <div class="modal-dialog modal-xl">
-   <div class="modal-content">
-       <div class="modal-header">
-           <h4 class="modal-title m-2" id="viewPaymentHistoryLabel"> Payment History </h4>
-           <button type="button" class="btn-close" data-bs-dismiss="modal"
-               aria-label="Close">
-           </button>
-       </div>
-       <div class="modal-body">
-           <div class="row">
-               <div class="col-md-12">
-                   <div class="card">
-                       <div class="card-body">
-                           <div class="errMsgContainer"></div>
-                           <form action="" method="post" id="addCustomer">
-                               @csrf
-                               <div class="row">
-                               <div class="table-responsive">
-                               <table border="1" class="table table-bordered">
-                                    <thead>
-                                          <tr style="background-color: rgb(12, 119, 241); color: aliceblue;">
-                                                <th style="width:4%; height:10px; text-align: center;">Mortgage No</th>
-                                                <th style="width:8%; height:10px; text-align: center;">Mortgage Date</th>
-                                                <th style="width:8%; height:10px; text-align: center;">Payment Type</th>
-                                                <th style="width:8%; text-align: center;">Payment Amount</th>
-                                                <th style="width:8%; text-align: center;">Customer Paid Amout</th>
-                                                 <th style="width:8%; text-align: center;">Total Interest</th>
-                                                <th style="width:8%; text-align: center;">Paid Interest Amount</th>
-                                                <th style="width:8%; text-align: center;">Balance Interest Amount</th>
-                                                <th style="width:8%; text-align: center;">Paid Capital Amount</th>
-                                                <th style="width:8%; text-align: center;">Re-Mortgage Amount</th>
-                                                <th style="width:8%; text-align: center;">Postage Charges</th>
-                                                <th style="width:8%; text-align: center;">Postage Details</th>
-                                                <th style="width:8%; text-align: center;">Balance Capital Amount</th>
-                                                <th style="width:8%; text-align: center;">Extend Date</th>
-                                            </tr>
-                                        </thead>
-                                       <tbody id="CustomerDetails">
-
-                                       </tbody>
-                                   </table>
-                                    </div>
-
-                                   {{-- dynamicAdded table --}}
-                                   <table class="table table-bordered" id="dynamicCustomerView">
-
-
-                                   </table>
-
-
-                               </div>
-                               <div class="text-center mt-4">
-                                   <button type="button" class="btn btn-success add_customer bg-success-light text-success me-2">Save</button>
-                                   <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
-                               </div>
-                       </form>
-                   </div>
-               </div>
-               </div>
-           </div>
-
-       </div>
-   </div>
-   </div>
-  </div>
+<div class="modal fade" id="viewPaymentHistoryModel" tabindex="-1" aria-labelledby="viewPaymentHistoryLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title m-2" id="viewPaymentHistoryLabel">Payment History</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle mb-0 receipt-ledger-table">
+                        <thead><tr><th class="ledger-date">Date</th><th class="ledger-description">Description</th><th class="ledger-money">DR</th><th class="ledger-money">CR</th><th class="ledger-money">Balance</th></tr></thead>
+                        <tbody id="CustomerDetails"></tbody>
+                        <tfoot><tr><th colspan="2" class="text-end">Ledger totals / Current balance</th><th id="historyTotalDr" class="ledger-money ledger-dr">0.00</th><th id="historyTotalCr" class="ledger-money ledger-cr">0.00</th><th id="historyCurrentBalance" class="ledger-money ledger-balance">0.00</th></tr></tfoot>
+                    </table>
+                </div>
+                <div class="text-center mt-3">
+                    <a class="btn btn-outline-dark d-none" data-payment-history-print target="_blank" rel="noopener" href="#">Print History</a>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@include('partials.receiptLedgerAssets')
 
 {{-- form default date set for today --}}
 <script>
@@ -458,13 +415,14 @@
         // search receipt data
         $('#search_receipt').on('keyup',function(e){
             e.preventDefault();
-            setTimeout(function() {
+            clearTimeout($(this).data('timer'));
+            $(this).data('timer', setTimeout(function() {
             $('#redeem_discount').val('')
             $('#search_ticket').val('')
             $('#search_invoice').val('')
             let search_receipt_no =  $('#search_receipt').val();
             //
-            if(search_receipt_no != null){
+            if(search_receipt_no){
             $.ajax({
                 url:"{{ route('search_old_receipt_ajax') }}",
                 method:'GET',
@@ -482,6 +440,11 @@
 
                     if(response.status=='not_found'){
                         $('.dynamic-area').html('<span class="text-danger text-center">'+'Receipt not found ...!'+'</span>');
+                        $('#CustomerDetails').empty();
+                        window.ReceiptHistoryLedger.updateTotals([]);
+                        window.ReceiptHistoryLedger.setPrintReceipt(null);
+                    } else {
+                        window.loadOldRedeemPaymentHistory($('#r_number').val());
                     }
                 }
             });
@@ -515,110 +478,45 @@
                         }
             });
 
+            } else {
+                $('.dynamic-area').empty();
+                $('#articleDetails, #CustomerDetails').empty();
+                window.ReceiptHistoryLedger.updateTotals([]);
+                window.ReceiptHistoryLedger.setPrintReceipt(null);
             }
-        }, 300);
+        }, 300));
         })
     });
 </script>
 
 <script>
-    $(document).ready(function () {
-        $('#search_receipt').on('keyup', function (e) {
-            e.preventDefault();
-            clearTimeout($.data(this, 'timer')); // Prevent rapid firing
+    window.loadOldRedeemPaymentHistory = function (receiptNumber) {
+        window.ReceiptHistoryLedger.setPrintReceipt(null);
+        if (!receiptNumber) {
+            $('#CustomerDetails').empty();
+            window.ReceiptHistoryLedger.updateTotals([]);
+            return;
+        }
 
-            $(this).data('timer', setTimeout(function () {
-                $('#redeem_discount').val('');
-                $('#search_ticket').val('');
-                $('#search_invoice').val('');
-
-                let search_receipt_no = $('#search_receipt').val().trim();
-
-                if (search_receipt_no !== '') {
-                    // Show loading message
-                    $('#CustomerDetails').html('<tr><td colspan="11" class="text-center">Loading...</td></tr>');
-
-                    $.ajax({
-                        url: "{{ route('view_dynamicCusDetailsView_details_ajax') }}",
-                        method: 'GET',
-                        data: { search_receipt_no: search_receipt_no },
-                        success: function (response) {
-                            if (response.status === 'success') {
-                                let data = response.data;
-                                let tableRows = '';
-
-                                data.forEach(record => {
-                                    let balance = 0;
-                                    let TotachargesOfPostage = 0;
-
-                                    if (record.trans_type === "REPAWNING") {
-                                        balance = (
-                                            Number(record.trans_amount ?? 0) -
-                                            Number(record.Paided_Captional ?? 0) -
-                                            Number(record.Paided_Interest ?? 0) +
-                                            Number(record.Cr_amount ?? 0) +
-                                            Number(record.Paided_Interest ?? 0)
-                                        );
-                                    } else {
-                                        balance = (
-                                            Number(record.trans_amount ?? 0) -
-                                            Number(record.Paided_Captional ?? 0) -
-                                            Number(record.Paided_Interest ?? 0) +
-                                            Number(record.interest_Balance ?? 0)
-                                        );
-                                    }
-
-                                    balance = balance.toFixed(2);
-                                    TotachargesOfPostage = (parseFloat(balance) + Number(record.Postage_charge ?? 0)).toFixed(2);
-                                    let letterPayOne = Number(record.letter_pay_one ?? 0);
-                                    let letterPayTwo = Number(record.letter_pay_two ?? 0);
-                                    let letterPayThree = Number(record.letter_pay_three ?? 0);
-
-                                    let Postage_chargedata = (letterPayOne + letterPayTwo + letterPayThree).toFixed(2);
-
-
-                                    tableRows += `
-                                        <tr>
-                                            <td>${record.code ?? '0'}</td>
-                                            <td>${record.dDate ?? '0'}</td>
-                                            <td>${record.trans_type}</td>
-                                            <td>${Number(record.trans_amount ?? 0).toFixed(2)}</td>
-                                            <td style="color: green; font-weight: bold;">
-                                                ${record.payable_total ?? '-'}
-                                            </td>
-                                            <td>${(Number(record.Paided_Interest ?? 0) - Number(record.interest_Balance ?? 0)).toFixed(2)}</td>
-                                            <td>${Number(record.interest_Balance ?? 0).toFixed(2)}</td>
-                                            <td>${Number(record.Paided_Captional ?? 0).toFixed(2)}</td>
-                                            <td>${Number(record.Cr_amount ?? 0).toFixed(2)}</td>
-                                            <td>${balance}</td>
-                                            <td>${Postage_chargedata}</td>
-                                            <td>
-                                                    <strong>1 Letter:</strong> ${record.letter_1_date}<br>
-                                                    <strong>2 Letter:</strong> ${record.letter_2_date}<br>
-                                                    <strong>3 Letter:</strong>${record.letter_3_date}
-                                            </td>
-                                            <td>${TotachargesOfPostage}</td>
-                                            <td>${record.Extend_Date ?? '-'}</td>
-                                        </tr>
-                                    `;
-                                });
-
-                                $('#CustomerDetails').html(tableRows);
-                            } else {
-                                $('#CustomerDetails').html('<tr><td colspan="11" class="text-center">No data found</td></tr>');
-                            }
-                        },
-                        error: function () {
-                            $('#CustomerDetails').html('<tr><td colspan="11" class="text-center text-danger">Error fetching data</td></tr>');
-                        }
-                    });
-                } else {
-                    // Clear table if input is cleared
-                    $('#CustomerDetails').html('');
-                }
-            }, 300)); // Delay for 300ms
+        $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
+        $.ajax({
+            url: "{{ route('view_dynamicCusDetailsView_details_ajax') }}",
+            method: 'GET',
+            data: { search_receipt_no: receiptNumber },
+            success: function (response) {
+                const rows = response.status === 'success' ? response.data || [] : [];
+                window.ReceiptHistoryLedger.updateTotals(rows);
+                window.ReceiptHistoryLedger.setPrintReceipt(response.receipt_number || null);
+                $('#CustomerDetails').html(rows.length
+                    ? window.ReceiptHistoryLedger.renderRows(rows)
+                    : '<tr><td colspan="5" class="text-center">No payment history found</td></tr>');
+            },
+            error: function () {
+                window.ReceiptHistoryLedger.updateTotals([]);
+                $('#CustomerDetails').html('<tr><td colspan="5" class="text-center text-danger">Error fetching payment history</td></tr>');
+            }
         });
-    });
+    };
 </script>
 
 <script>

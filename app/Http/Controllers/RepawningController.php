@@ -24,6 +24,7 @@ use App\Services\ReceiptFinancialCalculator;
 use App\Services\ReceiptLifecycleService;
 use App\Services\RepawningCalculator;
 use App\Services\ReceiptTypeResolver;
+use App\Services\ReceiptPaymentEligibility;
 use Illuminate\Validation\ValidationException;
 
 
@@ -72,6 +73,10 @@ class RepawningController extends Controller
             return response()->json(['status' => 'not_found']);
         }
 
+        if ((bool) ($receipt->is_blocked ?? false)) {
+            return response()->json(['status' => 'blocked']);
+        }
+
         return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
     }
 
@@ -101,6 +106,10 @@ class RepawningController extends Controller
             return response()->json(['status' => 'not_found']);
         }
 
+        if ((bool) ($receipt->is_blocked ?? false)) {
+            return response()->json(['status' => 'blocked']);
+        }
+
         return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
     }
 
@@ -128,6 +137,10 @@ class RepawningController extends Controller
 
         if (!$receipt) {
             return response()->json(['status' => 'not_found']);
+        }
+
+        if ((bool) ($receipt->is_blocked ?? false)) {
+            return response()->json(['status' => 'blocked']);
         }
 
         return $this->renderSearchResult($receipt, $calculator, $resolver, $repawningCalculator);
@@ -224,6 +237,7 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $existingPawn = TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0)
             ->lockForUpdate()->firstOrFail();
+        ReceiptPaymentEligibility::assertRepawningAllowed($existingPawn);
         $duplicateRepawn = TRepawningSum::where('BC', $branch_code)
             ->where('Redeem_Number', $request->redeem_no)
             ->exists();
@@ -380,6 +394,11 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
             'BalanceInterest'    => 0,
             'Final_date'         => $final_date,
         ];
+        if ($isSilver) {
+            $updateData['To_Date'] = Carbon::parse($request->redeem_date)
+                ->addDays(\App\Services\SilverInterest::validDays($rateRow ?? $currentType))
+                ->toDateString();
+        }
 
         if ($isSilver && $rateRow) {
             $updateData['Receipt_Type']  = 'SILVER';

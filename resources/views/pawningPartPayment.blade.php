@@ -425,6 +425,7 @@
                                </table>
                            </div>
                            <div class="text-center mt-3">
+                               <a class="btn btn-outline-dark d-none" data-payment-history-print target="_blank" rel="noopener" href="#">Print History</a>
                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                            </div>
                        </div>
@@ -465,6 +466,7 @@
             return;
         }
         $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
+        window.ReceiptHistoryLedger.setPrintReceipt(null);
         $('#paymentHistoryReceiptInfo').text('Receipt / Ticket #' + receiptNo);
 
         $.ajax({
@@ -540,14 +542,17 @@
 
                     tableRows = window.ReceiptHistoryLedger.renderRows(data);
                     window.ReceiptHistoryLedger.updateTotals(data);
+                    window.ReceiptHistoryLedger.setPrintReceipt(response.receipt_number || null);
                     $('#CustomerDetails').html(tableRows);
                 } else {
                     window.ReceiptHistoryLedger.updateTotals([]);
+                    window.ReceiptHistoryLedger.setPrintReceipt(null);
                     $('#CustomerDetails').html('<tr><td colspan="5" class="text-center">No payment history found</td></tr>');
                 }
             },
             error: function () {
                 window.ReceiptHistoryLedger.updateTotals([]);
+                window.ReceiptHistoryLedger.setPrintReceipt(null);
                 $('#CustomerDetails').html('<tr><td colspan="5" class="text-center text-danger">Error fetching payment history</td></tr>');
             }
         });

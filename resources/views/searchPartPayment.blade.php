@@ -582,15 +582,7 @@
                 s_charge_greater = parseFloat({{ $receiptType['s_charge_greater'] }}) || 0;
             @endforeach;
 
-            // $('#document_charges').val(doc_chargers);
-
-            let p_amount = parseFloat( {{  $receiptData[0]['Pawn_Amount'] }} ) || 0;
-            if(p_amount < 25){
-                $('#document_charges').val(s_charge_less);
-            }else{
-                let cal_service = parseFloat((p_amount / 100) * s_charge_greater) || 0;
-                $('#document_charges').val(cal_service);
-            }
+            $('#document_charges, #stampduty').val('0.00');
 
         // run interest calculation when change the amount field
         $('#date, #date-period').on('keyup, change',function(e){
@@ -626,7 +618,7 @@
 
             // CHECK: If date_range_days is 0 or negative, set interest to 0 and return
             if (date_range_days <= 0) {
-                $('#interest').val('0.00');
+                $('#interest').val((Math.max(0, parseFloat({{ $receiptData[0]['BalanceInterest'] ?? 0 }}) || 0)).toFixed(2));
                 redeemTotalCalculation();
                 return;
             }
@@ -706,8 +698,8 @@
     let discount = parseFloat($('#redeem_discount').val()) || 0;
     let enteredPayment = parseFloat($('#interest_Paid').val()) || 0;
     let interest_to_pay = parseFloat($('#interest').val()) || 0;
-    let document_charges = parseFloat({{ $financial['service_charge'] ?? 0 }}) || 0;
-    let stamp_duty = parseFloat($('#stampduty').val()) || 0;
+    let document_charges = 0;
+    let stamp_duty = 0;
     let letter_pay_one = parseFloat({{ $receiptData[0]['letter_pay_one'] }}) || 0;
     let letter_pay_two = parseFloat({{ $receiptData[0]['letter_pay_two'] }}) || 0;
     let letter_pay_three = parseFloat({{ $receiptData[0]['letter_pay_three'] }}) || 0;

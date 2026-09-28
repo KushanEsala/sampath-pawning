@@ -52,7 +52,7 @@
         <div class="forfeit-report-shell">
             <table class="table table-bordered table-hover align-middle forfeit-report">
                 <colgroup><col style="width:7%"><col style="width:13%"><col style="width:27%"><col style="width:12%"><col style="width:13%"><col style="width:14%"><col style="width:14%"></colgroup>
-                <thead><tr><th>View</th><th>Receipt / Stock</th><th>Customer</th><th>Expiry</th><th>Principal</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>View</th><th>Receipt / Stock</th><th>Customer</th><th>Expiry</th><th>Capital</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                 @forelse($recipts as $receipt)
                     @php
@@ -79,14 +79,14 @@
                         </div>
                         <p><strong>Letters issued:</strong> 1st {{ optional($receipt->letter_1_date)->format('Y-m-d') ?? '—' }}; 2nd {{ optional($receipt->letter_2_date)->format('Y-m-d') ?? '—' }}; 3rd {{ optional($receipt->letter_3_date)->format('Y-m-d') ?? '—' }}</p>
                         <h6>{{ $receipt->isForfeit ? 'Calculated amounts (as of today)' : 'Current amounts to pay' }}</h6>
-                        <table class="table table-sm table-bordered"><thead><tr><th>Interest</th><th>Service charge</th><th>Letter charge</th><th>Total arrears</th><th>Principal + arrears</th></tr></thead><tbody><tr><td>{{ number_format($financial['interest'],2) }}@if(!empty($financial['days']))<br><small class="text-muted">(Days: {{ $financial['days'] }})</small>@endif</td>@foreach(['service_charge','letter_charge','arrears_total','redemption_total'] as $key)<td>{{ number_format($financial[$key],2) }}</td>@endforeach</tr></tbody></table>
+                        <table class="table table-sm table-bordered"><thead><tr><th>Interest</th><th>Service charge</th><th>Letter charge</th><th>Total arrears</th><th>Capital + arrears</th></tr></thead><tbody><tr><td>{{ number_format($financial['interest'],2) }}@if(!empty($financial['days']))<br><small class="text-muted">(Days: {{ $financial['days'] }})</small>@endif</td>@foreach(['service_charge','letter_charge','arrears_total','redemption_total'] as $key)<td>{{ number_format($financial[$key],2) }}</td>@endforeach</tr></tbody></table>
                         <h6>Articles</h6>
                         <table class="table table-sm table-bordered"><thead><tr><th>Category</th><th>Article</th><th>Condition</th><th>Karatage</th><th>Weight</th><th>Qty</th><th>Value</th></tr></thead><tbody>@forelse($history['details'] as $article)<tr><td>{{ $article->Category }}</td><td>{{ $article->Articles }}</td><td>{{ $article->Condition }}</td><td>{{ $article->Karatage }}</td><td>{{ $article->Weight }}</td><td>{{ $article->QTY }}</td><td>{{ number_format($article->Value,2) }}</td></tr>@empty<tr><td colspan="7">No article details recorded.</td></tr>@endforelse</tbody></table>
                         @if($receipt->stock_items->isNotEmpty())
                             <h6>Forfeited stock</h6><table class="table table-sm table-bordered"><thead><tr><th>Item code</th><th>Barcode</th><th>Article</th><th>Weight</th><th>Qty</th></tr></thead><tbody>@foreach($receipt->stock_items as $item)<tr><td>{{ $item->Item_code }}</td><td>{{ $item->Bar_code }}</td><td>{{ $item->Item_description }}</td><td>{{ $item->Weight }}</td><td>{{ $item->QTY }}</td></tr>@endforeach</tbody></table>
                         @endif
-                        <h6>History, customer promises and remarks — newest first</h6>
-                        <table class="table table-sm table-bordered"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Details</th></tr></thead><tbody>@forelse($history['timeline'] as $event)<tr><td>{{ $event['date'] }}</td><td>{{ $event['type'] }}</td><td>{{ $event['amount'] !== null ? number_format($event['amount'],2) : '' }}</td><td>@foreach($event['details'] as $label=>$value)<strong>{{ $label }}:</strong> {{ $value }}<br>@endforeach</td></tr>@empty<tr><td colspan="4">No history recorded.</td></tr>@endforelse</tbody></table>
+                        <h6>History, customer promises and remarks — oldest first</h6>
+                        <table class="table table-sm table-bordered"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Details</th></tr></thead><tbody>@forelse($history['timeline']->reverse() as $event)<tr><td>{{ $event['date'] }}</td><td>{{ $event['type'] }}</td><td>{{ $event['amount'] !== null ? number_format($event['amount'],2) : '' }}</td><td>@foreach($event['details'] as $label=>$value)<strong>{{ $label }}:</strong> {{ $value }}<br>@endforeach</td></tr>@empty<tr><td colspan="4">No history recorded.</td></tr>@endforelse</tbody></table>
                         <a class="btn btn-outline-success btn-sm no-report-print" href="{{ route('receipt.search', ['receipt_number'=>$receipt->Receipt_Number]) }}"><i class="fa fa-history"></i> Open Receipt Search History</a>
                     </div></td></tr>
                 @empty

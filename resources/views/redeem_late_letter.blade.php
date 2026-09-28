@@ -172,11 +172,6 @@
                                     {{-- Search / Filter --}}
                                     <form method="GET" action="{{ route('pawning_late_letters') }}" class="row g-2 my-3 align-items-end">
                                         <input type="hidden" name="tab" value="{{ $activeTab }}">
-                                        <div class="col-md-4">
-                                            <label class="form-label" for="receipt_number">Receipt Number</label>
-                                            <input class="form-control" id="receipt_number" name="receipt_number"
-                                                value="{{ request('receipt_number') }}" placeholder="Find a receipt">
-                                        </div>
                                         <div class="col-md-3">
                                             <label class="form-label" for="receipt_type">Receipt Type</label>
                                             <select class="form-control" id="receipt_type" name="receipt_type">
@@ -185,6 +180,11 @@
                                                     <option value="{{ $type->receiptname }}" @selected(request('receipt_type') == $type->receiptname)>{{ $type->receiptname }}</option>
                                                 @endforeach
                                             </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label" for="receipt_number">Receipt Number</label>
+                                            <input class="form-control" id="receipt_number" name="receipt_number"
+                                                value="{{ request('receipt_number') }}" placeholder="Find a receipt">
                                         </div>
                                         <div class="col-auto"><button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Search</button></div>
                                         <div class="col-auto"><a class="btn btn-outline-secondary" href="{{ route('pawning_late_letters') }}">Clear</a></div>
@@ -284,7 +284,7 @@
                                     <tr>
                                         <th>NIC</th><th>Name</th><th>Phone</th>
                                         <th>Receipt No</th><th>Receipt Type</th><th>Date</th>
-                                        <th>Final Date</th><th>Amount</th>
+                                        <th>Expiry Date</th><th>Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -298,7 +298,7 @@
                                             <td>{{ $r->Receipt_Number }}</td>
                                             <td>{{ $r->Receipt_Type }}</td>
                                             <td>{{ optional($r->Receipt_Date)->format('Y-m-d') }}</td>
-                                            <td>{{ optional($r->Final_date)->format('Y-m-d') }}</td>
+                                            <td>{{ $r->arrears_expiry_date ?? '—' }}</td>
                                             <td class="text-end">{{ number_format($r->Amount, 2) }}</td>
                                         </tr>
                                     @endforeach
