@@ -47,6 +47,8 @@ class TPawnSum extends Model
         'Interest',
         'Interest_Rate',
         'Valid_Period',
+        'BalanceInterest',
+        'interest_Paid',
 
         // Weight
         'Total_Weight',

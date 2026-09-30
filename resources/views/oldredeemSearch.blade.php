@@ -400,7 +400,7 @@ $(document).ready(function () {
         let timeDiffMilliseconds = today_format - receiptDate;
         let date_range_days = Math.floor(timeDiffMilliseconds / (1000 * 60 * 60 * 24)) + 1;
 
-        $('#date-period').text(date_range_days);
+        $('#date-period').text(Math.max(0, date_range_days));
     }
 
     // --- Interest calculation function ---
@@ -425,6 +425,15 @@ $(document).ready(function () {
         // --- Calculate Interest ---
         let amount       = parseFloat({{ $receiptData[0]['Pawn_Amount'] }}) || 0;
         let paid_interest = parseFloat({{ $receiptData[0]['interest_Paid'] }}) || 0;
+        let carried_interest = parseFloat({{ $receiptData[0]['BalanceInterest'] ?? 0 }}) || 0;
+
+        // CHECK: If date_range_days is 0 or negative (e.g. part payment done today), no new interest is owed for today
+        if (date_range_days <= 0) {
+            $('#interest').val((Math.max(0, carried_interest)).toFixed(2));
+            redeemTotalCalculation();
+            return;
+        }
+
         let months        = Math.ceil(date_range_days / 30);
         let penalty_days  = date_range_days - valid_period;
         let interest      = 0;

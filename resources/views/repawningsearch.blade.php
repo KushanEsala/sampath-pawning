@@ -418,7 +418,7 @@ $(document).ready(function () {
         let receiptDate = new Date(config.receiptDate);
         let todayFormat = new Date($('#date').val());
         let diffDays    = Math.floor((todayFormat - receiptDate) / (1000 * 60 * 60 * 24)) + 1;
-        $('#date-period').text(diffDays);
+        $('#date-period').text(Math.max(0, diffDays));
     }
 
     function interestCalculations() {
@@ -427,7 +427,7 @@ $(document).ready(function () {
         let diffDays    = Math.floor((todayFormat - receiptDate) / (1000 * 60 * 60 * 24)) + 1;
 
         if (diffDays <= 0) {
-            $('#interest').val('0.00');
+            $('#interest').val((Math.max(0, config.carriedInterest || 0)).toFixed(2));
             redeemTotalCalculation();
             return;
         }

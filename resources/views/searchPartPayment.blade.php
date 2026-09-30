@@ -603,7 +603,7 @@
             let date_range_days = Math.floor(timeDiffMilliseconds / (1000 * 60 * 60 * 24)) + 1;
             // Display the date range
             let DateRangeDisplay = document.getElementById("date-period");
-            DateRangeDisplay.textContent = date_range_days;
+            DateRangeDisplay.textContent = Math.max(0, date_range_days);
         }
 
         function interestCalculations(){

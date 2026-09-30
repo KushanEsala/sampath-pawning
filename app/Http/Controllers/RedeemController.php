@@ -104,7 +104,7 @@ class RedeemController extends Controller
     }
 
     //invoice Search function
-    public function searchInvoice(Request $request, ?ReceiptTypeResolver $resolver = null)
+    public function searchInvoice(Request $request, ReceiptFinancialCalculator $calculator, ?ReceiptTypeResolver $resolver = null)
     {
         $resolver = $resolver ?? app(ReceiptTypeResolver::class);
         $invoiceNo = $request->search_invoice_no;
@@ -142,7 +142,8 @@ class RedeemController extends Controller
             ->with('customerData', $cus_data)
             ->with('receiptTypeData', $receipt_data)
             ->with('pawnType', $pawn_type)
-            ->with('receiptData', $data);
+            ->with('receiptData', collect([$calculationReceipt]))
+            ->with('financial', $calculator->calculate($calculationReceipt));
 
         }else{
             return response()->json([
@@ -223,6 +224,18 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
                 $request->redeem_date
             );
             $interestDays = $financial['days'];
+            if ($interestDays <= 0) {
+                // If today is on or before the loan start/repawn date (e.g. part payment done today),
+                // no new interest is owed for today; only carried balance interest if any.
+                $allowedInterest = (float) ($financial['carried_interest'] ?? 0);
+                if ((float) $request->paid_interest > $allowedInterest) {
+                    $diff = (float) $request->paid_interest - $allowedInterest;
+                    $request->merge([
+                        'paid_interest' => $allowedInterest,
+                        'payable_total' => max(0, (float) $request->payable_total - $diff),
+                    ]);
+                }
+            }
             $request->merge([
                 'document_charges' => $financial['service_charge'],
                 'Postage_Charges' => $financial['letter_charge'],
