@@ -207,3 +207,5 @@ schema presence proves a historical data correction was performed.
 Follow-up: review the 14 ambiguous repawns and 183 orphan article rows from
 the retained audit/source evidence. Do not guess which duplicate repawn was a
 real disbursement, and do not fabricate historical letter events or rates.
+Read-only findings and exact record identifiers are documented in
+`database/manual/PRODUCTION_EXCEPTION_REVIEW_2026-10-04.md`.
