@@ -6,6 +6,21 @@ authoritative manual SQL register is `database/manual/README.md`.
 Production rollout, staging rehearsal, data-repair gates, and verification are
 documented in `PRODUCTION_DATABASE_UPGRADE_RUNBOOK.md`.
 
+## 2026-10-04 — Production database cutover
+
+- Restored the owner's final MySQL export into isolated staging on Kreethya,
+  applied only the missing manual scripts, verified and copied the result to
+  `kreethya_sampath_prod_20261004`, then switched the live app to it. The
+  previous Kreethya database and full backup were retained for rollback.
+- Reconciled 9,864 pawn-article redeemed flags and repaired 4,250
+  unambiguous repawning receipts / 14,186 stored rows. Fourteen ambiguous
+  repawns and 183 orphan details were preserved for manual review; the owner
+  approved going live with the ambiguous repawns unchanged.
+- Verified matching counts/checksums for all 54 tables, application report
+  renders on both branches, and live login/authorization HTTP responses.
+  Full checksums, backup locations and exceptions are in
+  `PRODUCTION_CUTOVER_PLAN_2026-10-03.md`. No Laravel migration or seeder ran.
+
 ## 2026-09-28 — Late-letter printed-receipt visibility toggle
 
 - Added a Show/Hide Printed Receipts button to the late-letter page. Printed

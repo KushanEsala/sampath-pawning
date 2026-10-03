@@ -1,9 +1,35 @@
 # Production database upgrade and data reconciliation
 
-Last reviewed: 2026-09-23. This is the production run plan; it is **not** a
+Last reviewed: 2026-10-03. This is the production run plan; it is **not** a
 record that production was changed. Never run a Laravel migration. Never import
 `E:/GAMESZZ/t_pawn_sums.sql`: it is a phpMyAdmin export of a calculated query,
 not a pawn-table backup or repair script.
+
+For the 2026-10-03 `smartom_sampath (2).sql` export and proposed replacement of
+Kreethya's existing business data, follow the source-specific
+`PRODUCTION_CUTOVER_PLAN_2026-10-03.md` before executing this general runbook.
+
+## Incoming production export and existing Kreethya data
+
+The new production SQL export must first be inspected and restored into a
+**separate staging database**, never imported over `kreethya_sampath` directly.
+Check its database name, `DROP`/`CREATE`/`INSERT` statements, schema version,
+triggers, routines, character set, row counts and receipt-key uniqueness.
+Compare source and destination table-by-table, including all pawn, payment,
+repawn, redemption, article, customer, letter, promise and lifecycle records.
+Identify records created on Kreethya after the source export; decide explicitly
+whether they must be preserved and merged or whether the target will be fully
+replaced. A full import otherwise risks deleting or duplicating those records.
+
+Read-only Kreethya inventory on 2026-10-03: the target database was
+`kreethya_sampath`, and the objects/columns/indexes from manual scripts
+001–005, 007, 009 and 011 were present; `t_pawn_details.isForfeit` also existed.
+The target held 26,296 customers, 16,835 pawn summaries, 19 letter events,
+9 promise records and 112 lifecycle events. These counts will change with live
+activity. Schema presence does **not** prove that optional article-status
+reconciliation or repawning repair 008 was run on every source record.
+`DatabaseSeeder` has no active seed operations; do not run `db:seed` during this
+upgrade.
 
 ## 1. Freeze, identify, and back up
 
@@ -94,11 +120,13 @@ snapshot. A new pawn should use the new type values.
   small-batch helper in dry-run mode, review discrepancies, then apply during
   maintenance only if needed. Keep its backup. Do not retry the huge statement
   blindly or terminate unrelated sessions.
-- **Silver expiry (010):** Run the read-only audit and compare contract terms,
-  selected receipt type, renewal dates, and actual interest period. The current
-  evidence does not settle whether legacy Silver expiry is strictly 30 days or
-  follows a selected multi-month term. Do not write Silver expiry until the
-  business rule is confirmed and a receipt-level correction is reviewed.
+- **Silver expiry (010 and 013):** The client's confirmed letter-expiry basis is
+  `To_Date`, with a configurable receipt-type day period, not a hardcoded
+  30 days. Run both read-only audits and compare contract terms, selected type,
+  renewal dates and actual interest period. The application derives an
+  effective expiry for legacy Silver rows whose `To_Date` was not refreshed
+  after a payment or repawn. Do not bulk-rewrite stored legacy dates without
+  receipt-level review.
 - **Receipt-type history:** New edits are versioned. Already-overwritten old
   values are not recoverable from current rows. Never synthesize prior rates or
   backdate a version without independent source evidence. Historical pawn rate

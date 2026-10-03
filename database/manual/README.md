@@ -1,10 +1,15 @@
 # Manual database upgrade register
 
-Last reviewed: 2026-09-23
+Last reviewed: 2026-10-04
 
-This project does not use Laravel migrations. Codex did not execute any file in
-this directory. Back up the selected database, review each script, and run only
-the scripts required for the target installation.
+This project does not use Laravel migrations. Scripts 001–007, 009 and 011
+were executed manually on the isolated production-export staging database
+on 2026-10-04 (006 was a data reconciliation; 008 was an application repair
+command). The verified upgraded copy was then selected as the live Kreethya
+database. The exact execution and exceptions are recorded in
+`PRODUCTION_CUTOVER_PLAN_2026-10-03.md`. Back up and check each target before
+running any script again; these scripts must not be replayed on the upgraded
+database.
 
 ## Required execution order
 
