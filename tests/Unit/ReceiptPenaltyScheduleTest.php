@@ -27,9 +27,9 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertSame('2026-02-21', $schedule->letterDueDate($receipt, 3)->toDateString());
     }
 
-    public function test_reminder_waits_until_twenty_one_days_after_actual_third_letter(): void
+    public function test_reminder_uses_scheduled_third_letter_date_even_if_printed_late(): void
     {
-        $receipt = new TPawnSum(['Final_date'=>'2026-01-01', 'is_letter_3'=>1, 'letter_3_date'=>'2026-03-05']);
+        $receipt = new TPawnSum(['Final_date'=>'2026-01-01', 'is_letter_3'=>1, 'letter_3_date'=>'2026-03-10']);
         $schedule = new ReceiptPenaltySchedule();
         $this->assertFalse($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-25')));
         $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-26')));
@@ -37,7 +37,7 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-10')));
     }
 
-    public function test_late_printing_waits_full_configured_interval_before_next_letter(): void
+    public function test_late_printing_does_not_postpone_subsequent_letters(): void
     {
         $receipt = new TPawnSum([
             'Final_date' => '2026-01-01',
@@ -46,9 +46,24 @@ class ReceiptPenaltyScheduleTest extends TestCase
         ]);
         $schedule = new ReceiptPenaltySchedule();
         $this->assertSame('2026-01-22', $schedule->letterDueDate($receipt, 1)->toDateString());
-        $this->assertSame('2026-03-03', $schedule->letterDueDate($receipt, 2)->toDateString());
+        $this->assertSame('2026-02-12', $schedule->letterDueDate($receipt, 2)->toDateString());
         $receipt->letter_2_date = '2026-03-10';
-        $this->assertSame('2026-03-31', $schedule->letterDueDate($receipt, 3)->toDateString());
+        $this->assertSame('2026-03-05', $schedule->letterDueDate($receipt, 3)->toDateString());
+    }
+
+    public function test_late_silver_first_letter_keeps_receipt_type_schedule(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type' => 'SILVER', 'receiptname' => 'SILVER',
+            'Receipt_Date' => '2026-01-24', 'Pawn_Date' => '2026-01-24',
+            'To_Date' => '2026-01-24', 'Final_date' => '2026-09-24',
+            'period3' => 30, 'letter_1_days' => 21, 'letter_2_days' => 21,
+            'letter_1_date' => '2026-09-28', 'is_letter_1' => 1,
+        ]);
+        $schedule = new ReceiptPenaltySchedule();
+        $this->assertSame('2026-02-23', $schedule->expiryDate($receipt)->toDateString());
+        $this->assertSame('2026-03-16', $schedule->letterDueDate($receipt, 1)->toDateString());
+        $this->assertSame('2026-04-06', $schedule->letterDueDate($receipt, 2)->toDateString());
     }
 
     public function test_silver_receipt_uses_the_same_expiry_and_letter_intervals(): void
@@ -95,8 +110,17 @@ class ReceiptPenaltyScheduleTest extends TestCase
             $sql = $filter->invoke($controller, TPawnSum::query(), $schedule, $letter)->toSql();
             $this->assertStringContainsString('is_letter_'.$letter, $sql);
             $this->assertStringContainsString('or', strtolower($sql));
-            if ($letter === 3) $this->assertStringContainsString('letter_3_date', $sql);
+            if ($letter === 3) $this->assertStringContainsString('forfeit_reminder_days', $sql);
         }
+    }
+
+    public function test_sql_schedule_does_not_depend_on_print_dates(): void
+    {
+        \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
+        $schedule = new ReceiptPenaltySchedule();
+        $this->assertStringNotContainsString('letter_1_date', $schedule->letterDueSql(2));
+        $this->assertStringNotContainsString('letter_2_date', $schedule->letterDueSql(3));
+        $this->assertStringNotContainsString('letter_3_date', $schedule->reminderDueSql());
     }
 
     public function test_printed_letter_toggle_filters_only_the_current_stage_when_hidden(): void
@@ -131,7 +155,7 @@ class ReceiptPenaltyScheduleTest extends TestCase
     public function test_manual_forfeit_respects_promises_and_existing_queue(): void
     {
         Carbon::setTestNow('2026-03-26');
-        $receipt = new TPawnSum(['is_letter_3'=>1, 'letter_3_date'=>'2026-03-05']);
+        $receipt = new TPawnSum(['Final_date'=>'2026-01-01', 'is_letter_3'=>1, 'letter_3_date'=>'2026-03-05']);
         $service = new ForfeitReminderService(new ReceiptPenaltySchedule(), new ReceiptLifecycleService());
         $this->assertTrue($service->canQueue($receipt, null));
         $promise = new ForfeitReminderPromise(['status'=>'PENDING', 'promise_date'=>'2026-03-27']);

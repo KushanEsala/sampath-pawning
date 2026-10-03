@@ -182,6 +182,7 @@ class ForfeitReportRenderingTest extends TestCase
             $receipt->forceFill([
                 'id'=>$id,
                 'next_letter_due_date'=>'2026-04-06',  // stored as Y-m-d string
+                'arrears_expiry_date'=>'2026-02-02',
                 'financial_breakdown'=>array_fill_keys(
                     ['interest','service_charge','letter_charge','arrears_total','redemption_total'], 0
                 ),
@@ -216,6 +217,7 @@ class ForfeitReportRenderingTest extends TestCase
             'count_2nd'   => $count_2nd,
             'count_3rd'   => $count_3rd,
             'activeTab'   => $activeTab,
+            'showPrinted' => true,
         ])->render();
 
         // Address must never appear

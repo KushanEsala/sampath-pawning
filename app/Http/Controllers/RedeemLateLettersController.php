@@ -351,7 +351,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         }
 
         // An issued letter remains visible, without a print action, until the
-        // *next* stage is due. The actual issue date enforces a full interval.
+        // next scheduled stage is due. Late printing never shifts that date.
         $nextDue = $letter < 3 ? $schedule->letterDueSql($letter + 1) : $schedule->reminderDueSql();
         return $query->where(function ($stage) use ($letter, $nextDue, $today) {
             $stage->whereNull('is_letter_'.$letter)->orWhere('is_letter_'.$letter, 0)

@@ -19,13 +19,7 @@ class ReceiptPenaltySchedule
         for ($number = 1; $number <= $letter; $number++) {
             $days += (int) ($receipt->{'letter_'.$number.'_days'} ?? 21);
         }
-        $due = $this->expiryDate($receipt)->addDays($days);
-        if ($letter > 1 && $receipt->{'letter_'.($letter - 1).'_date'}) {
-            $afterPrinting = Carbon::parse($receipt->{'letter_'.($letter - 1).'_date'})->startOfDay()
-                ->addDays((int) ($receipt->{'letter_'.$letter.'_days'} ?? 21));
-            if ($afterPrinting->gt($due)) $due = $afterPrinting;
-        }
-        return $due;
+        return $this->expiryDate($receipt)->addDays($days);
     }
 
     public function expiryDate(TPawnSum $receipt): Carbon
@@ -69,7 +63,7 @@ class ReceiptPenaltySchedule
     public function reminderDueDate(TPawnSum $receipt): ?Carbon
     {
         if (!$receipt->is_letter_3 || !$receipt->letter_3_date) return null;
-        return Carbon::parse($receipt->letter_3_date)->startOfDay()
+        return $this->letterDueDate($receipt, 3)
             ->addDays((int) ($receipt->forfeit_reminder_days ?? 21));
     }
 
@@ -82,10 +76,8 @@ class ReceiptPenaltySchedule
 
     public function dueReminders(Builder $query): Builder
     {
-        $days = Schema::hasColumn('t_pawn_sums', 'forfeit_reminder_days')
-            ? 'COALESCE(forfeit_reminder_days, 21)' : '21';
         return $query->where('is_letter_3', 1)->whereNotNull('letter_3_date')
-            ->whereRaw("DATE_ADD(DATE(letter_3_date), INTERVAL {$days} DAY) <= ?", [today()->toDateString()]);
+            ->whereRaw($this->reminderDueSql().' <= ?', [today()->toDateString()]);
     }
 
     public function letterDueSql(int $letter): string
@@ -96,12 +88,7 @@ class ReceiptPenaltySchedule
         for ($number = 1; $number <= $letter; $number++) {
             $fields[] = $configured ? "COALESCE(letter_{$number}_days, 21)" : '21';
         }
-        $scheduled = 'DATE_ADD('.$this->expirySql().', INTERVAL ('.implode(' + ', $fields).') DAY)';
-        if ($letter === 1) return $scheduled;
-
-        $interval = $configured ? "COALESCE(letter_{$letter}_days, 21)" : '21';
-        $previous = "letter_".($letter - 1)."_date";
-        return "GREATEST({$scheduled}, COALESCE(DATE_ADD(DATE({$previous}), INTERVAL {$interval} DAY), {$scheduled}))";
+        return 'DATE_ADD('.$this->expirySql().', INTERVAL ('.implode(' + ', $fields).') DAY)';
     }
 
     public function expirySql(): string
@@ -127,6 +114,6 @@ class ReceiptPenaltySchedule
     {
         $days = Schema::hasColumn('t_pawn_sums', 'forfeit_reminder_days')
             ? 'COALESCE(forfeit_reminder_days, 21)' : '21';
-        return "DATE_ADD(DATE(letter_3_date), INTERVAL {$days} DAY)";
+        return 'DATE_ADD('.$this->letterDueSql(3).", INTERVAL {$days} DAY)";
     }
 }

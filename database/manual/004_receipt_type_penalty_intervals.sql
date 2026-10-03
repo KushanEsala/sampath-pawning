@@ -2,7 +2,8 @@
 -- Every existing receipt type receives a 21-day default for each stage.
 -- First letter = expiry + letter_1_days (set 0 for the day of expiry).
 -- Second/third letters = previous scheduled letter date + their interval.
--- Reminder = actual third-letter issue date + forfeit_reminder_days.
+-- Reminder = scheduled third-letter due date + forfeit_reminder_days,
+-- provided the third letter was issued. Late printing does not shift dates.
 ALTER TABLE `recei__adds`
   ADD COLUMN `letter_1_days` SMALLINT UNSIGNED NOT NULL DEFAULT 21,
   ADD COLUMN `letter_2_days` SMALLINT UNSIGNED NOT NULL DEFAULT 21,

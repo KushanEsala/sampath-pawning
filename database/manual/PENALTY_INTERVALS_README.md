@@ -22,13 +22,17 @@ New pawn receipts copy the four settings from their selected receipt type. Later
 | First letter days | Expiry date + first interval |
 | Second letter days | Scheduled first-letter date + second interval |
 | Third letter days | Scheduled second-letter date + third interval |
-| Forfeit Reminder days | Actual third-letter issue date + reminder interval |
+| Forfeit Reminder days | Scheduled third-letter due date + reminder interval, once the third letter is issued |
 
 All four defaults are 21 calendar days, following the latest request. To keep a first letter on the expiry date, set First letter days to 0 for the relevant receipt type before creating a pawn.
 
-With expiry 2026-01-01 and all defaults, the earliest letter due dates are January 22, February 12 and March 5. If a letter is printed late, the next stage waits the full configured interval from its actual print date. If the third letter is issued March 10, the reminder becomes eligible March 31. Printed letters stay on their tab, marked Printed, until the next stage is due.
+With expiry 2026-01-01 and all defaults, the letter due dates are January 22, February 12 and March 5; the reminder is due March 26 after the third letter is issued. A late print does not move any of these due dates. A printed letter stays on its tab until the next scheduled stage is due; if that date already passed, it moves to the next tab immediately, provided the prior letter was issued. The reminder likewise requires an issued third letter.
 
 For Silver receipts the expiry used by letters is `To_Date`, not `Final_date`. Older Silver rows whose `To_Date` was not refreshed after a part payment or repawn use the latest transaction date plus the receipt's saved valid-day period for letter scheduling.
+
+### 2026-10-04 schedule correction
+
+Letter print dates are retained as historical facts only; they no longer delay the next scheduled stage. This is a code-only calculation change: existing receipt-type and pawn interval values stay as saved, and no SQL script or data update is required. Receipts whose next scheduled date already passed may move to the next tab (or the Forfeit Reminder List after the issued third letter) as soon as the updated code is deployed.
 
 ## Revised workflow
 
