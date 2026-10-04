@@ -403,7 +403,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
                 'companyData' => $companyData
             ]);
 
-            $pdfPath = storage_path('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+            $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
             $pdf->save($pdfPath);
 
         } elseif ($Pawn_Receipt_Type == "Opening_Pawn") {
@@ -432,11 +432,11 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
                 'companyData' => $companyData
             ]);
 
-            $pdfPath = storage_path('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+            $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
             $pdf->save($pdfPath);
         }
 
-        $pdfUrl = asset('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+        $pdfUrl = asset('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
 
         DB::commit();
 

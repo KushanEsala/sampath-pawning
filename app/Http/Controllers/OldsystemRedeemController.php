@@ -325,7 +325,7 @@ class OldsystemRedeemController extends Controller
                     'companyData'      => $companyData
                 ]);
 
-                $pdfPath = storage_path('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+                $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
                 $pdf->save($pdfPath);
 
             } elseif ($Pawn_Receipt_Type == "Opening_Pawn") {
@@ -349,11 +349,11 @@ class OldsystemRedeemController extends Controller
                     'companyData'     => $companyData
                 ]);
 
-                $pdfPath = storage_path('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+                $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
                 $pdf->save($pdfPath);
             }
 
-            $pdfUrl = asset('../public/assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
+            $pdfUrl = asset('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');
 
             \App\Services\ReceiptArticleStatus::sync($activeReceipt->fresh(), $request->pawn_receipt_type);
             DB::commit();

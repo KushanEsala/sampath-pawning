@@ -174,10 +174,10 @@ class OpeningPawnController extends Controller
         ]);
 
         // Save the PDF to a temporary file
-        $pdfPath = storage_path('../public/assets/pdf/Opening_pawn_receipt'.$branch_code.'.pdf');
+        $pdfPath = public_path('assets/pdf/Opening_pawn_receipt'.$branch_code.'.pdf');
         $pdf->save($pdfPath);
 
-        $pdfUrl = asset('public/assets/pdf/Opening_pawn_receipt'.$branch_code.'.pdf');
+        $pdfUrl = asset('assets/pdf/Opening_pawn_receipt'.$branch_code.'.pdf');
 
         // Return the PDF as a download
         // return $pdf->stream();
@@ -212,7 +212,7 @@ class OpeningPawnController extends Controller
 
         // Save the PDF to a temporary file
         // $pdfPath = storage_path('app/temp/pawn_receipt.pdf');
-        $pdfPath = storage_path('../public/assets/pdf/pawn_receipt.pdf');
+        $pdfPath = public_path('assets/pdf/pawn_receipt.pdf');
         $pdf->save($pdfPath);
 
         // $pdfUrl = Storage::url('app/temp/pawn_receipt.pdf');

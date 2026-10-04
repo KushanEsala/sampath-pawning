@@ -366,14 +366,14 @@ class PawnController extends Controller
             ]);
 
             // Save PDFs
-            $pdfPath = storage_path('../public/assets/pdf/Pawn_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
+            $pdfPath = public_path('assets/pdf/Pawn_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
             $pdf->save($pdfPath);
 
-            $pdfPath2 = storage_path('../public/assets/pdf/Pawn_ticket_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
+            $pdfPath2 = public_path('assets/pdf/Pawn_ticket_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
             $pdf2->save($pdfPath2);
 
-            $pdfUrl1 = asset('public/assets/pdf/Pawn_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
-            $pdfUrl2 = asset('public/assets/pdf/Pawn_ticket_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
+            $pdfUrl1 = asset('assets/pdf/Pawn_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
+            $pdfUrl2 = asset('assets/pdf/Pawn_ticket_receipt_' . $branch_code . '_' . $nextReceiptNo . '.pdf');
 
             DB::commit();
 
@@ -452,13 +452,13 @@ class PawnController extends Controller
             'T_Receipt_Type'  => $receiptTypeData
         ]);
 
-        $pdfPath = storage_path('../public/assets/pdf/Pawn_receipt' . $branch_code . '.pdf');
+        $pdfPath = public_path('assets/pdf/Pawn_receipt' . $branch_code . '.pdf');
         $pdf->save($pdfPath);
 
-        $pdfPath2 = storage_path('../public/assets/pdf/Pawn_ticket_receipt' . $branch_code . '.pdf');
+        $pdfPath2 = public_path('assets/pdf/Pawn_ticket_receipt' . $branch_code . '.pdf');
         $pdf2->save($pdfPath2);
 
-        $pdfUrl = asset('public/assets/pdf/Pawn_receipt' . $branch_code . '.pdf');
+        $pdfUrl = asset('assets/pdf/Pawn_receipt' . $branch_code . '.pdf');
 
         return response()->json([
             'status'  => 'success',

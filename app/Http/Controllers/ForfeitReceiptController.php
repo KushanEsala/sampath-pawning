@@ -199,7 +199,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle)
         ]);
         $pdf->save($pdfPath);
 
-           $pdfUrl = asset('public/assets/pdf/RepawnReceiptPrint'.$branch_code.'.pdf');
+           $pdfUrl = asset('assets/pdf/RepawnReceiptPrint'.$branch_code.'.pdf');
 
         DB::commit();
 

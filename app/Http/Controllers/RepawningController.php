@@ -479,19 +479,19 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         ];
 
         $pdf1     = PDF::loadView('reCustomerpawnReceiptPrint', $pdfData);
-        $pdfPath1 = storage_path('../public/assets/pdf/Pawn_receipt_customer_' . $branch_code . '.pdf');
+        $pdfPath1 = public_path('assets/pdf/Pawn_receipt_customer_' . $branch_code . '.pdf');
         $pdf1->save($pdfPath1);
 
         $pdf2     = PDF::loadView('two_reOfficepawnReceiptPrint', $pdfData);
-        $pdfPath2 = storage_path('../public/assets/pdf/Pawn_receipt_office_' . $branch_code . '.pdf');
+        $pdfPath2 = public_path('assets/pdf/Pawn_receipt_office_' . $branch_code . '.pdf');
         $pdf2->save($pdfPath2);
 
         DB::commit();
 
         return back()
             ->with('done',     'Repawning completed successfully')
-            ->with('pdfLink1', asset('public/assets/pdf/Pawn_receipt_customer_' . $branch_code . '.pdf'))
-            ->with('pdfLink2', asset('public/assets/pdf/Pawn_receipt_office_'   . $branch_code . '.pdf'));
+            ->with('pdfLink1', asset('assets/pdf/Pawn_receipt_customer_' . $branch_code . '.pdf'))
+            ->with('pdfLink2', asset('assets/pdf/Pawn_receipt_office_'   . $branch_code . '.pdf'));
 
     } catch (\Exception $e) {
         DB::rollBack();
