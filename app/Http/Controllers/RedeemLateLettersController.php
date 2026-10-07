@@ -48,7 +48,7 @@ class RedeemLateLettersController extends Controller
         $schedule = new \App\Services\ReceiptPenaltySchedule();
         $query = TPawnSum::where('IsRedeemed', 0)->where('isForfeit', 0)
             ->where('BC', $branch_code)
-            ->whereRaw($schedule->expirySql().' < ?', [$currentDateTime->toDateString()]);
+            ->whereRaw($schedule->expirySql().' <= ?', [$currentDateTime->toDateString()]);
 
         if ($fromDate && $toDate) {
             $query->where(function ($dates) use ($fromDate, $toDate) {
