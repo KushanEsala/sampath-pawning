@@ -178,7 +178,7 @@
                                             <select class="form-control" id="receipt_type" name="receipt_type">
                                                 <option value="">All types</option>
                                                 @foreach($receiptType as $type)
-                                                    <option value="{{ $type->receiptname }}" @selected(request('receipt_type') == $type->receiptname)>{{ $type->receiptname }}</option>
+                                                    <option value="{{ $type->receiptname }}" @selected(!request()->filled('receipt_number') && request('receipt_type') == $type->receiptname)>{{ $type->receiptname }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
@@ -186,11 +186,24 @@
                                             <label class="form-label" for="receipt_number">Receipt Number</label>
                                             <input class="form-control" id="receipt_number" name="receipt_number"
                                                 value="{{ request('receipt_number') }}" placeholder="Find a receipt">
+                                            <small class="text-muted">Exact receipt search checks every type and letter stage.</small>
                                         </div>
                                         <div class="col-auto"><button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Search</button></div>
                                         <div class="col-auto"><a class="btn btn-outline-secondary" href="{{ route('pawning_late_letters') }}">Clear</a></div>
                                     </form>
 
+                                    @if($searchNotice ?? null)
+                                    <div class="alert alert-info" role="status">
+                                        {{ $searchNotice }}
+                                        @if($searchNoticeLink ?? null)
+                                            <a href="{{ $searchNoticeLink }}" class="alert-link">Open that list</a>
+                                        @endif
+                                    </div>
+                                    @elseif(request()->filled('receipt_number'))
+                                    <p class="text-muted mb-2">Showing this receipt in its current letter stage, including printed letters.</p>
+                                    @endif
+
+                                    @unless(request()->filled('receipt_number'))
                                     <div class="d-flex justify-content-end mb-3">
                                         <a class="btn btn-outline-primary" role="button"
                                            aria-pressed="{{ $showPrinted ? 'true' : 'false' }}"
@@ -199,13 +212,14 @@
                                             {{ $showPrinted ? 'Hide Printed Receipts' : 'Show Printed Receipts' }}
                                         </a>
                                     </div>
+                                    @endunless
 
                                     {{-- ── TAB NAV ── --}}
                                     <ul class="nav nav-tabs" role="tablist" style="border-bottom: 3px solid #1a3c5e; gap: 6px;">
 
                                         <li class="nav-item">
                                             <a class="nav-link letter-tab tab-1st {{ $activeTab == 1 ? 'active' : '' }}"
-                                               href="{{ request()->fullUrlWithQuery(['tab' => 1, 'page' => 1]) }}"
+                                               href="{{ request()->fullUrlWithQuery(['tab' => 1, 'page' => 1, 'receipt_number' => null, 'show_printed' => $showPrinted ? 1 : 0]) }}"
                                                style="border-radius: 8px 8px 0 0; font-weight: 600; padding: 10px 22px;">
                                                 <i class="fas fa-envelope me-2"></i>1st Letter
                                                 <span class="tab-badge">{{ $count_1st }}</span>
@@ -214,7 +228,7 @@
 
                                         <li class="nav-item">
                                             <a class="nav-link letter-tab tab-2nd {{ $activeTab == 2 ? 'active' : '' }}"
-                                               href="{{ request()->fullUrlWithQuery(['tab' => 2, 'page' => 1]) }}"
+                                               href="{{ request()->fullUrlWithQuery(['tab' => 2, 'page' => 1, 'receipt_number' => null, 'show_printed' => $showPrinted ? 1 : 0]) }}"
                                                style="border-radius: 8px 8px 0 0; font-weight: 600; padding: 10px 22px;">
                                                 <i class="fas fa-envelope me-2"></i>2nd Letter
                                                 <span class="tab-badge">{{ $count_2nd }}</span>
@@ -223,7 +237,7 @@
 
                                         <li class="nav-item">
                                             <a class="nav-link letter-tab tab-3rd {{ $activeTab == 3 ? 'active' : '' }}"
-                                               href="{{ request()->fullUrlWithQuery(['tab' => 3, 'page' => 1]) }}"
+                                               href="{{ request()->fullUrlWithQuery(['tab' => 3, 'page' => 1, 'receipt_number' => null, 'show_printed' => $showPrinted ? 1 : 0]) }}"
                                                style="border-radius: 8px 8px 0 0; font-weight: 600; padding: 10px 22px;">
                                                 <i class="fas fa-envelope me-2"></i>3rd Letter
                                                 <span class="tab-badge">{{ $count_3rd }}</span>
@@ -331,6 +345,14 @@
         <script>
         $(document).ready(function () {
 
+            function refreshFromFirstPage() {
+                // Issued letters may leave this stage immediately. Returning to
+                // page 1 prevents offset pagination from skipping shifted rows.
+                var url = new URL(window.location.href);
+                url.searchParams.set('page', '1');
+                window.location.assign(url.toString());
+            }
+
             // ── SELECT-ALL ──
             $(document).on('change', '.select-all-check', function () {
                 var targetClass = '.' + $(this).data('target');
@@ -369,7 +391,7 @@
                     url: "{{ route('arrears.letters.issue-bulk') }}",
                     method: 'POST',
                     data: { _token: "{{ csrf_token() }}", pawn_sum_ids: ids, letter_no: letter_no },
-                    success: function (r) { window.open(r.print_url, '_blank'); setTimeout(function () { location.reload(); }, 1200); },
+                    success: function (r) { window.open(r.print_url, '_blank'); setTimeout(refreshFromFirstPage, 1200); },
                     error:   function (xhr) { alert(xhr.responseJSON?.message || 'Unable to issue the selected letters.'); }
                 });
             });
@@ -385,7 +407,7 @@
                     url: "{{ route('arrears.letters.issue') }}",
                     method: 'POST',
                     data: { _token: "{{ csrf_token() }}", pawn_sum_id: pawn_sum_id, letter_no: letter_no },
-                    success: function (r) { window.open(r.print_url, '_blank'); setTimeout(function () { location.reload(); }, 1200); },
+                    success: function (r) { window.open(r.print_url, '_blank'); setTimeout(refreshFromFirstPage, 1200); },
                     error:   function (xhr) { alert(xhr.responseJSON?.message || 'Unable to issue this letter.'); }
                 });
             });

@@ -24,6 +24,13 @@ class ReceiptPenaltySchedule
 
     public function expiryDate(TPawnSum $receipt): Carbon
     {
+        // The Late Letters list selects its effective expiry with the same SQL
+        // expression used for filtering and sorting. Reuse that date rather
+        // than re-querying transactions for every Silver receipt on a page.
+        if ($receipt->getAttribute('letter_effective_expiry_date')) {
+            return Carbon::parse($receipt->letter_effective_expiry_date)->startOfDay();
+        }
+
         if (!$this->isSilver($receipt)) {
             return Carbon::parse($receipt->Final_date)->startOfDay();
         }
@@ -80,7 +87,7 @@ class ReceiptPenaltySchedule
             ->whereRaw($this->reminderDueSql().' <= ?', [today()->toDateString()]);
     }
 
-    public function letterDueSql(int $letter): string
+    public function letterDueSql(int $letter, ?string $latestCycleDateSql = null): string
     {
         if ($letter < 1 || $letter > 3) throw new \InvalidArgumentException('Invalid letter number.');
         $fields = [];
@@ -88,16 +95,18 @@ class ReceiptPenaltySchedule
         for ($number = 1; $number <= $letter; $number++) {
             $fields[] = $configured ? "COALESCE(letter_{$number}_days, 21)" : '21';
         }
-        return 'DATE_ADD('.$this->expirySql().', INTERVAL ('.implode(' + ', $fields).') DAY)';
+        return 'DATE_ADD('.$this->expirySql($latestCycleDateSql).', INTERVAL ('.implode(' + ', $fields).') DAY)';
     }
 
-    public function expirySql(): string
+    public function expirySql(?string $latestCycleDateSql = null): string
     {
         $cycle = 'DATE(COALESCE(RePawning_date, Pawn_Date, Receipt_Date))';
-        $latest = '(SELECT DATE(t.dDate) FROM t_pawn_trans t WHERE BINARY t.BC = BINARY t_pawn_sums.BC '
-            .'AND BINARY t.code = BINARY t_pawn_sums.Receipt_Number '
-            ."AND t.trans_type IN ('PART_PAYMENT', 'REPAWNING') "
-            .'ORDER BY t.dDate DESC, t.id DESC LIMIT 1)';
+        $latest = $latestCycleDateSql
+            ? 'DATE('.$latestCycleDateSql.')'
+            : '(SELECT DATE(t.dDate) FROM t_pawn_trans t WHERE BINARY t.BC = BINARY t_pawn_sums.BC '
+                .'AND BINARY t.code = BINARY t_pawn_sums.Receipt_Number '
+                ."AND t.trans_type IN ('PART_PAYMENT', 'REPAWNING') "
+                .'ORDER BY t.dDate DESC, t.id DESC LIMIT 1)';
         $historicalDays = "(SELECT COALESCE(NULLIF(a.validPeriod, 0), NULLIF(a.period3, 0)) FROM recei__adds a "
             ."WHERE UPPER(TRIM(a.receiptname)) = 'SILVER' "
             .'AND (a.effective_from IS NULL OR DATE(a.effective_from) <= DATE(COALESCE(Receipt_Date, Pawn_Date))) '
@@ -110,10 +119,10 @@ class ReceiptPenaltySchedule
             .'THEN '.$silverExpiry.' ELSE DATE(Final_date) END)';
     }
 
-    public function reminderDueSql(): string
+    public function reminderDueSql(?string $latestCycleDateSql = null): string
     {
         $days = Schema::hasColumn('t_pawn_sums', 'forfeit_reminder_days')
             ? 'COALESCE(forfeit_reminder_days, 21)' : '21';
-        return 'DATE_ADD('.$this->letterDueSql(3).", INTERVAL {$days} DAY)";
+        return 'DATE_ADD('.$this->letterDueSql(3, $latestCycleDateSql).", INTERVAL {$days} DAY)";
     }
 }

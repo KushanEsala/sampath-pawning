@@ -34,6 +34,10 @@ For Silver receipts the expiry used by letters is `To_Date`, not `Final_date`. O
 
 Letter print dates are retained as historical facts only; they no longer delay the next scheduled stage. This is a code-only calculation change: existing receipt-type and pawn interval values stay as saved, and no SQL script or data update is required. Receipts whose next scheduled date already passed may move to the next tab (or the Forfeit Reminder List after the issued third letter) as soon as the updated code is deployed.
 
+### 2026-10-07 Late Letters visibility correction
+
+An active receipt appears in the first-letter tab as soon as its effective expiry date passes, even if its saved first-letter interval has not elapsed. Until the configured first-letter date arrives it is marked **Scheduled** and cannot be selected or printed. Second and third tabs still require the preceding issued letter and their scheduled due date. The list is ordered by effective expiry and receipt ID, and receipt-number search finds the current stage across types. This is a code-only display/navigation change; no database script or migration is required.
+
 ## Revised workflow
 
 - The Reminder List calculates eligibility when opened/refreshed; it requires no scheduled job. Unpaid receipts appear on the due calendar day, including that day.

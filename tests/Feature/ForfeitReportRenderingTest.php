@@ -182,6 +182,7 @@ class ForfeitReportRenderingTest extends TestCase
             $receipt->forceFill([
                 'id'=>$id,
                 'next_letter_due_date'=>'2026-04-06',  // stored as Y-m-d string
+                'letter_is_due'=>true,
                 'arrears_expiry_date'=>'2026-02-02',
                 'financial_breakdown'=>array_fill_keys(
                     ['interest','service_charge','letter_charge','arrears_total','redemption_total'], 0
@@ -239,6 +240,34 @@ class ForfeitReportRenderingTest extends TestCase
         $this->assertStringContainsString('2026-01-02', $html);
         $this->assertStringContainsString('2026-02-02', $html);
         $this->assertStringContainsString('2026-04-06', $html);
+    }
+
+    public function test_expired_first_letter_waiting_for_print_date_is_visible_but_not_printable(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Number'=>1241, 'Customer_Name'=>'Example', 'Customer_NIC'=>'123V',
+            'Customer_Phone'=>'0771234567', 'Receipt_Type'=>'SILVER',
+            'Receipt_Date'=>'2026-01-24', 'Amount'=>9000, 'is_letter_1'=>false,
+        ]);
+        $receipt->forceFill([
+            'id'=>1241, 'arrears_expiry_date'=>'2026-02-23',
+            'next_letter_due_date'=>'2026-03-09', 'letter_is_due'=>false,
+            'financial_breakdown'=>array_fill_keys(
+                ['interest','service_charge','letter_charge','arrears_total','redemption_total'], 0
+            ),
+        ]);
+        $paginator = new LengthAwarePaginator([$receipt], 1, 25, 1);
+        $html = view('_partials.late_letter_tab', [
+            'paginator'=>$paginator, 'letter_no'=>1, 'chk_class'=>'chk-1',
+            'btn_color'=>'success', 'extra_col_header'=>null, 'extra_col_key'=>null,
+        ])->render();
+
+        $this->assertStringContainsString('2026-02-23', $html);
+        $this->assertStringContainsString('Scheduled', $html);
+        $this->assertStringContainsString('Print from 2026-03-09', $html);
+        $this->assertStringNotContainsString('class="btn btn-sm btn-success print_letter_btn"', $html);
+        $this->assertStringNotContainsString('class="row-check chk-1"', $html);
+        $this->assertStringContainsString('Showing 1–1 of 1 receipts, earliest expiry first.', $html);
     }
 
     public function test_receipt_history_ledger_renders_debits_credits_balances_and_operator(): void

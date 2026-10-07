@@ -123,6 +123,78 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertStringNotContainsString('letter_3_date', $schedule->reminderDueSql());
     }
 
+    public function test_letter_list_uses_one_latest_cycle_join_and_stable_effective_expiry_order(): void
+    {
+        \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $base = new \ReflectionMethod($controller, 'lateLettersBaseQuery');
+        $base->setAccessible(true);
+        $query = $base->invoke($controller, '001');
+        $stage = new \ReflectionMethod($controller, 'applyStageFilter');
+        $stage->setAccessible(true);
+        $schedule = new ReceiptPenaltySchedule();
+        $stage->invoke($controller, $query, $schedule, 1, 'latest_letter_cycle.dDate');
+        $query->selectRaw($schedule->expirySql('latest_letter_cycle.dDate').' AS letter_effective_expiry_date');
+        $query->orderByRaw($schedule->expirySql('latest_letter_cycle.dDate').' ASC')
+            ->orderBy('t_pawn_sums.id');
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('ROW_NUMBER() OVER', $sql);
+        $this->assertStringContainsString('latest_letter_cycle.dDate', $sql);
+        $this->assertStringContainsString('AS letter_effective_expiry_date', $sql);
+        $this->assertStringContainsString('order by', strtolower($sql));
+        $this->assertStringContainsString('`t_pawn_sums`.`id` asc', $sql);
+        $this->assertStringNotContainsString('order by `Final_date`', $sql);
+        $this->assertStringNotContainsString('FROM t_pawn_trans t', $schedule->expirySql('latest_letter_cycle.dDate'));
+    }
+
+    public function test_exact_receipt_search_resolves_its_current_letter_tab(): void
+    {
+        Carbon::setTestNow('2026-03-10');
+        $receipt = new TPawnSum(['Final_date'=>'2026-01-01']);
+        $schedule = new ReceiptPenaltySchedule();
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $resolve = new \ReflectionMethod($controller, 'currentLetterTab');
+        $resolve->setAccessible(true);
+
+        $this->assertSame(1, $resolve->invoke($controller, $receipt, $schedule));
+        $receipt->is_letter_1 = true;
+        $this->assertSame(2, $resolve->invoke($controller, $receipt, $schedule));
+        $receipt->is_letter_2 = true;
+        $this->assertSame(3, $resolve->invoke($controller, $receipt, $schedule));
+    }
+
+    public function test_expired_receipt_is_listed_before_its_first_letter_can_be_printed(): void
+    {
+        Carbon::setTestNow('2026-10-07');
+        \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
+        $receipt = new TPawnSum(['Final_date'=>'2026-10-01', 'letter_1_days'=>14]);
+        $schedule = new ReceiptPenaltySchedule();
+        $this->assertTrue($schedule->expiryDate($receipt)->lte(today()));
+        $this->assertSame('2026-10-15', $schedule->letterDueDate($receipt, 1)->toDateString());
+
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $filter = new \ReflectionMethod($controller, 'applyStageFilter');
+        $filter->setAccessible(true);
+        $query = $filter->invoke($controller, TPawnSum::query(), $schedule, 1);
+        $firstCondition = $query->getQuery()->wheres[0]['sql'];
+        $this->assertStringContainsString('Final_date', $firstCondition);
+        $this->assertStringNotContainsString('letter_1_days', $firstCondition);
+    }
+
+    public function test_preloaded_letter_expiry_is_reused_for_silver_without_a_transaction_query(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type'=>'SILVER', 'Final_date'=>'2027-01-01',
+            'letter_1_days'=>14,
+        ]);
+        $receipt->forceFill(['letter_effective_expiry_date'=>'2026-10-01']);
+        $schedule = new ReceiptPenaltySchedule();
+
+        $this->assertSame('2026-10-01', $schedule->expiryDate($receipt)->toDateString());
+        $this->assertSame('2026-10-15', $schedule->letterDueDate($receipt, 1)->toDateString());
+    }
+
     public function test_printed_letter_toggle_filters_only_the_current_stage_when_hidden(): void
     {
         $filter = new \ReflectionMethod(\App\Http\Controllers\RedeemLateLettersController::class, 'applyPrintedVisibility');

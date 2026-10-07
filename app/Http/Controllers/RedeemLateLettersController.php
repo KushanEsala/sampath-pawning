@@ -22,6 +22,7 @@ use Illuminate\Validation\Rule;
 
 class RedeemLateLettersController extends Controller
 {
+    private const LATEST_CYCLE_DATE_SQL = 'latest_letter_cycle.dDate';
 
     // ══════════════════════════════════════════════════════════════
     // INDEX — main Late Letters listing page
@@ -95,21 +96,51 @@ class RedeemLateLettersController extends Controller
     {
         $branch_code = auth()->user()->BC;
         $activeTab   = (int) $request->input('tab', 1);
+        if ($activeTab < 1 || $activeTab > 3) $activeTab = 1;
         $showPrinted = $request->input('show_printed', '1') !== '0';
+        $schedule = new \App\Services\ReceiptPenaltySchedule();
+        $searchNotice = null;
+        $searchNoticeLink = null;
+
+        if ($request->filled('receipt_number')) {
+            $searched = TPawnSum::where('BC', $branch_code)
+                ->where('Receipt_Number', $request->receipt_number)->first();
+            if (!$searched) {
+                $searchNotice = 'No receipt with this number was found in this branch.';
+            } elseif ($searched->IsRedeemed || $searched->isForfeit) {
+                $searchNotice = 'This receipt is already redeemed or forfeited, so it is not in Late Letters.';
+            } elseif ($searched->forfeit_queued_at) {
+                $searchNotice = 'This receipt has moved to the Forfeit Receipt List.';
+                $searchNoticeLink = route('forfeitReceipt_List', ['receipt_number' => $searched->Receipt_Number]);
+            } elseif ($schedule->expiryDate($searched)->gt(today())) {
+                $searchNotice = 'This receipt has not expired; its current expiry date is '
+                    .$schedule->expiryDate($searched)->toDateString().'.';
+            } elseif ($searched->is_letter_3 && $schedule->reminderIsDue($searched)) {
+                $searchNotice = 'The third letter is complete. This receipt is now in the Forfeit Reminder stage.';
+                $searchNoticeLink = route('forfeit.reminders.index', ['receipt_number' => $searched->Receipt_Number]);
+            } else {
+                $activeTab = $this->currentLetterTab($searched, $schedule);
+                // An exact receipt lookup must not silently hide a printed row.
+                $showPrinted = true;
+                if (!$searched->is_letter_1 && $schedule->letterDueDate($searched, 1)->gt(today())) {
+                    $searchNotice = 'This receipt has expired and is listed below. Its first letter can be printed from '
+                        .$schedule->letterDueDate($searched, 1)->toDateString().'.';
+                }
+            }
+        }
 
         // Load only the active tab's paginated data
-        $tab1 = $activeTab === 1 ? $this->eligibleReceipts($request, $branch_code, $calculator, 1) : null;
-        $tab2 = $activeTab === 2 ? $this->eligibleReceipts($request, $branch_code, $calculator, 2) : null;
-        $tab3 = $activeTab === 3 ? $this->eligibleReceipts($request, $branch_code, $calculator, 3) : null;
+        $tab1 = $activeTab === 1 ? $this->eligibleReceipts($request, $branch_code, $calculator, 1, $showPrinted) : null;
+        $tab2 = $activeTab === 2 ? $this->eligibleReceipts($request, $branch_code, $calculator, 2, $showPrinted) : null;
+        $tab3 = $activeTab === 3 ? $this->eligibleReceipts($request, $branch_code, $calculator, 3, $showPrinted) : null;
 
         // Total counts per tab (cheap COUNT queries, no data hydration)
-        $schedule = new \App\Services\ReceiptPenaltySchedule();
-        $baseCount = TPawnSum::where('BC', $branch_code)->where('IsRedeemed', 0)->where('isForfeit', 0);
-        if ($request->filled('receipt_type')) { $this->applyTypeFilter($baseCount, $request->receipt_type); }
+        $baseCount = $this->lateLettersBaseQuery($branch_code);
+        if ($request->filled('receipt_type') && !$request->filled('receipt_number')) { $this->applyTypeFilter($baseCount, $request->receipt_type); }
         if ($request->filled('receipt_number')) { $baseCount->where('Receipt_Number', $request->receipt_number); }
-        $count_1st = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 1), 1, $showPrinted)->count();
-        $count_2nd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 2), 2, $showPrinted)->count();
-        $count_3rd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 3), 3, $showPrinted)->count();
+        $count_1st = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 1, self::LATEST_CYCLE_DATE_SQL), 1, $showPrinted)->count();
+        $count_2nd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 2, self::LATEST_CYCLE_DATE_SQL), 2, $showPrinted)->count();
+        $count_3rd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 3, self::LATEST_CYCLE_DATE_SQL), 3, $showPrinted)->count();
 
         $companyData = Company::latest()->paginate(1);
         $receiptType = $resolver->getActiveTypes();
@@ -118,7 +149,7 @@ class RedeemLateLettersController extends Controller
             'receiptType', 'companyData',
             'tab1', 'tab2', 'tab3',
             'count_1st', 'count_2nd', 'count_3rd',
-            'activeTab', 'showPrinted'
+            'activeTab', 'showPrinted', 'searchNotice', 'searchNoticeLink'
         ));
     }
 
@@ -282,26 +313,28 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     return view('gold_loan_notice_bulk_print', compact('letters', 'company', 'letter_no'));
 }
 
-    private function eligibleReceipts(Request $request, string $branchCode, ReceiptFinancialCalculator $calculator, int $tabLetter = 1)
+    private function eligibleReceipts(Request $request, string $branchCode, ReceiptFinancialCalculator $calculator, int $tabLetter = 1, bool $showPrinted = true)
     {
         $perPage = 25;
         $schedule = new \App\Services\ReceiptPenaltySchedule();
 
-        $baseQuery = TPawnSum::where('BC', $branchCode)
-            ->where('IsRedeemed', 0)
-            ->where('isForfeit', 0);
+        $baseQuery = $this->lateLettersBaseQuery($branchCode);
 
-        if ($request->filled('receipt_type')) {
+        if ($request->filled('receipt_type') && !$request->filled('receipt_number')) {
             $this->applyTypeFilter($baseQuery, $request->receipt_type);
         }
         if ($request->filled('receipt_number')) {
             $baseQuery->where('Receipt_Number', $request->receipt_number);
         }
 
-        $this->applyStageFilter($baseQuery, $schedule, $tabLetter);
-        $this->applyPrintedVisibility($baseQuery, $tabLetter, $request->input('show_printed', '1') !== '0');
+        $this->applyStageFilter($baseQuery, $schedule, $tabLetter, self::LATEST_CYCLE_DATE_SQL);
+        $this->applyPrintedVisibility($baseQuery, $tabLetter, $showPrinted);
 
-        $paginated = $baseQuery->orderBy('Final_date')->paginate($perPage)->withQueryString();
+        $baseQuery->selectRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' AS letter_effective_expiry_date');
+        $paginated = $baseQuery
+            ->orderByRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' ASC')
+            ->orderBy('t_pawn_sums.id')
+            ->paginate($perPage)->withQueryString();
 
         $receipts = $paginated->getCollection();
 
@@ -330,6 +363,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));
             $receipt->setAttribute('next_letter_no', $tabLetter);
             $receipt->setAttribute('next_letter_due_date', $schedule->letterDueDate($receipt, $tabLetter)->toDateString());
+            $receipt->setAttribute('letter_is_due', $schedule->letterDueDate($receipt, $tabLetter)->lte(today()));
             $receipt->setAttribute('next_stage_due_date', $tabLetter < 3
                 ? $schedule->letterDueDate($receipt, $tabLetter + 1)->toDateString()
                 : optional($schedule->reminderDueDate($receipt))->toDateString());
@@ -340,10 +374,49 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         return $paginated;
     }
 
-    private function applyStageFilter($query, \App\Services\ReceiptPenaltySchedule $schedule, int $letter)
+    private function lateLettersBaseQuery(string $branchCode)
+    {
+        // Compute the latest payment/repawn once per receipt for both filtering
+        // and sorting. A correlated transaction scan for every Silver row made
+        // expiry sorting prohibitively slow on the production database.
+        $rankedCycles = DB::table('t_pawn_trans')
+            ->select('BC', 'code', 'dDate')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY BC, code ORDER BY dDate DESC, id DESC) AS cycle_rank')
+            ->whereIn('trans_type', ['PART_PAYMENT', 'REPAWNING']);
+        $latestCycles = DB::query()->fromSub($rankedCycles, 'ranked_letter_cycles')
+            ->select('BC', 'code', 'dDate')->where('cycle_rank', 1);
+
+        return TPawnSum::query()->select('t_pawn_sums.*')
+            ->leftJoinSub($latestCycles, 'latest_letter_cycle', function ($join) {
+                // Match the transaction table's collation on the outer values.
+                // BINARY on both sides prevented the derived-table lookup and
+                // made every page/count scan thousands of transaction rows.
+                $join->whereRaw('latest_letter_cycle.BC = t_pawn_sums.BC COLLATE utf8mb4_general_ci')
+                    ->whereRaw('latest_letter_cycle.code = CONVERT(t_pawn_sums.Receipt_Number USING utf8mb4) COLLATE utf8mb4_general_ci');
+            })
+            ->where('t_pawn_sums.BC', $branchCode)
+            ->where('t_pawn_sums.IsRedeemed', 0)
+            ->where('t_pawn_sums.isForfeit', 0);
+    }
+
+    private function currentLetterTab(TPawnSum $receipt, \App\Services\ReceiptPenaltySchedule $schedule): int
+    {
+        if ($receipt->is_letter_3) return 3;
+        if ($receipt->is_letter_2 && $schedule->letterDueDate($receipt, 3)->lte(today())) return 3;
+        if ($receipt->is_letter_1 && $schedule->letterDueDate($receipt, 2)->lte(today())) return 2;
+        return 1;
+    }
+
+    private function applyStageFilter($query, \App\Services\ReceiptPenaltySchedule $schedule, int $letter, ?string $latestCycleDateSql = null)
     {
         $today = today()->toDateString();
-        $query->whereRaw($schedule->letterDueSql($letter).' <= ?', [$today]);
+        // Expired receipts enter the first tab immediately, even when a saved
+        // first-letter waiting period still prevents printing. Later stages
+        // remain due-date gated and require the previous letter to be issued.
+        $stageDate = $letter === 1
+            ? $schedule->expirySql($latestCycleDateSql)
+            : $schedule->letterDueSql($letter, $latestCycleDateSql);
+        $query->whereRaw($stageDate.' <= ?', [$today]);
         if ($letter > 1) $query->where('is_letter_'.($letter - 1), 1);
         if ($letter < 3) {
             $query->where(fn ($next) => $next->whereNull('is_letter_'.($letter + 1))
@@ -352,7 +425,9 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
 
         // An issued letter remains visible, without a print action, until the
         // next scheduled stage is due. Late printing never shifts that date.
-        $nextDue = $letter < 3 ? $schedule->letterDueSql($letter + 1) : $schedule->reminderDueSql();
+        $nextDue = $letter < 3
+            ? $schedule->letterDueSql($letter + 1, $latestCycleDateSql)
+            : $schedule->reminderDueSql($latestCycleDateSql);
         return $query->where(function ($stage) use ($letter, $nextDue, $today) {
             $stage->whereNull('is_letter_'.$letter)->orWhere('is_letter_'.$letter, 0)
                 ->orWhereRaw($nextDue.' > ?', [$today]);

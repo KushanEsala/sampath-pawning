@@ -42,12 +42,12 @@
                 {{-- Manage --}}
                 <td class="manage-col">
                     <div class="manage-cell">
-                        @unless($r->{'is_letter_'.$letter_no})
+                        @if(!$r->{'is_letter_'.$letter_no} && $r->letter_is_due)
                         <input type="checkbox" class="row-check {{ $chk_class }}"
                             data-pawn_sum_id="{{ $r->id }}"
                             data-receipt_no="{{ $r->Receipt_Number }}"
                             data-letter_no="{{ $letter_no }}">
-                        @endunless
+                        @endif
                         <button type="button"
                             class="btn btn-sm btn-outline-secondary"
                             data-detail-row="{{ $detailId }}"
@@ -95,6 +95,9 @@
                     @if($r->{'is_letter_'.$letter_no})
                         <span class="badge bg-secondary">Printed</span>
                         <small class="d-block text-muted">{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</small>
+                    @elseif(!$r->letter_is_due)
+                        <span class="badge bg-warning text-dark">Scheduled</span>
+                        <small class="d-block text-muted">Print from {{ $r->next_letter_due_date }}</small>
                     @else
                     <button type="button"
                         class="btn btn-sm btn-{{ $btn_color }} print_letter_btn"
@@ -168,6 +171,11 @@
 </div>
 
 {{-- Pagination --}}
+@if($paginator->total() > 0)
+<p class="text-muted text-center mb-1">
+    Showing {{ $paginator->firstItem() }}–{{ $paginator->lastItem() }} of {{ $paginator->total() }} receipts, earliest expiry first.
+</p>
+@endif
 @if($paginator->hasPages())
 <div class="pagination-wrap d-flex justify-content-center mt-3">
     {{ $paginator->onEachSide(2)->links() }}

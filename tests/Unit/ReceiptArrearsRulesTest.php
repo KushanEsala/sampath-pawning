@@ -33,6 +33,15 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertTrue($service->isEligible($receipt, 2, Carbon::parse('2026-02-10')));
     }
 
+    public function test_expired_receipt_cannot_print_before_its_saved_first_interval(): void
+    {
+        $receipt = new TPawnSum(['Final_date'=>'2026-10-01', 'letter_1_days'=>14]);
+        $service = new ArrearsLetterService(new ReceiptFinancialCalculator(), new ReceiptLifecycleService());
+
+        $this->assertFalse($service->isEligible($receipt, 1, Carbon::parse('2026-10-07')));
+        $this->assertTrue($service->isEligible($receipt, 1, Carbon::parse('2026-10-15')));
+    }
+
     public function test_service_and_letter_charges_are_included_in_arrears(): void
     {
         Carbon::setTestNow('2026-01-10');
