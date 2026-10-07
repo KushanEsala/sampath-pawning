@@ -18,7 +18,7 @@
             <div class="col-md-3"><strong>Postage:</strong> Rs. {{ number_format((float) $version->Postage_charge, 2) }}</div>
             <div class="col-md-3"><strong>Service &lt; 25,000:</strong> Rs. {{ number_format((float) $version->s_charge_less, 2) }}</div>
             <div class="col-md-3"><strong>Service &gt; 25,000:</strong> {{ $version->s_charge_greater }}%</div>
-            <div class="col-md-3"><strong>1st letter:</strong> {{ $version->letter_1_days ?? 21 }} days</div>
+            <div class="col-md-3"><strong>1st letter:</strong> Expiry day now <small class="text-muted">(saved value: {{ $version->letter_1_days ?? 21 }} days)</small></div>
             <div class="col-md-3"><strong>2nd letter:</strong> {{ $version->letter_2_days ?? 21 }} days</div>
             <div class="col-md-3"><strong>3rd letter:</strong> {{ $version->letter_3_days ?? 21 }} days</div>
             <div class="col-md-3"><strong>Forfeit reminder:</strong> {{ $version->forfeit_reminder_days ?? 21 }} days</div>

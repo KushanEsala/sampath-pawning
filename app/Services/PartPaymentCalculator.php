@@ -18,9 +18,12 @@ class PartPaymentCalculator
         $chargesDue = max(0, $interest + $serviceCharge + $letterCharge + $stampDuty - $discount);
         $paymentReceived = max(0, $enteredPayment - $discount);
         $paidCharges = min($paymentReceived, $chargesDue);
-        $paidInterest = min(max(0, $interest), $paidCharges);
+        $interestAfterDiscount = max(0, $interest - min($interest, $discount));
+        $paidInterest = min($interestAfterDiscount, $paidCharges);
+        $capitalizedInterest = max(0, $interestAfterDiscount - $paidInterest);
         $principalPaid = min($principal, max(0, $paymentReceived - $chargesDue));
-        $newPrincipal = max(0, $principal - $principalPaid);
+        $newPrincipal = max(0, $principal - $principalPaid + $capitalizedInterest);
+        $unpaidCharges = max(0, $chargesDue - $paidCharges - $capitalizedInterest);
 
         return [
             'charges_due' => round($chargesDue, 2),
@@ -30,7 +33,8 @@ class PartPaymentCalculator
             'paid_interest' => round($paidInterest, 2),
             'principal_paid' => round($principalPaid, 2),
             'new_principal' => round($newPrincipal, 2),
-            'unpaid_charges' => round(max(0, $chargesDue - $paymentReceived), 2),
+            'capitalized_interest' => round($capitalizedInterest, 2),
+            'unpaid_charges' => round($unpaidCharges, 2),
         ];
     }
 }

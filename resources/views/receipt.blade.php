@@ -458,7 +458,7 @@
                                                 <td>Rs. {{number_format($receipt->s_charge_less ?? 0, 2)}}</td>
                                                 <td>{{$receipt->s_charge_greater}}%</td>
                                                 <td>
-                                                    1st: {{ $receipt->letter_1_days ?? 21 }} /
+                                                    1st: Expiry day /
                                                      2nd: {{ $receipt->letter_2_days ?? 21 }} /
                                                     3rd: {{ $receipt->letter_3_days ?? 21 }} /
                                                     Reminder: {{ $receipt->forfeit_reminder_days ?? 21 }}
@@ -468,7 +468,7 @@
                                                         <button type="button" class="btn btn-sm btn-outline-primary receipt-history-button" data-type="{{ $receipt->receiptname }}" data-bs-toggle="modal" data-bs-target="#receiptHistoryModal" title="View saved versions"><i class="fas fa-history"></i></button>
                                                         <a href="#" class="btn btn-sm btn-success update_receipt_form"
                                                             data-bs-toggle="modal" data-bs-target="#updateReceiptModel"
-                                                            data-letter-1-days="{{ $receipt->letter_1_days ?? 21 }}"
+                                                            data-letter-1-days="0"
                                                             data-letter-2-days="{{ $receipt->letter_2_days ?? 21 }}"
                                                             data-letter-3-days="{{ $receipt->letter_3_days ?? 21 }}"
                                                             data-forfeit-reminder-days="{{ $receipt->forfeit_reminder_days ?? 21 }}"
@@ -799,7 +799,7 @@
                     $('#up_service_charge_greater').val($(this).data('s_char_grea'));
                     $('#up_Postage_charge').val($(this).data('postage-charge'));
                     $('#up_service_charge').val($(this).data('service-charge'));
-                    $('#up_letter_1_days').val($(this).attr('data-letter-1-days') ?? 21);
+                    $('#up_letter_1_days').val(0);
                     $('#up_letter_2_days').val($(this).attr('data-letter-2-days') ?? 21);
                     $('#up_letter_3_days').val($(this).attr('data-letter-3-days') ?? 21);
                     $('#up_forfeit_reminder_days').val($(this).attr('data-forfeit-reminder-days') ?? 21);

@@ -101,10 +101,41 @@ class ReceiptHistoryService
             ->where('BC', $receipt->BC)->get();
         $rows = $this->attachRedemptionInterest($rows, $redeems, $receipt);
         $rows = $this->attachPaymentAndRepawnInterest($rows, $receipt);
+        $rows = $this->attachPartPaymentAllocations($rows, $receipt);
         $rows = $this->appendChargeRows($rows, $receipt);
         $rows = $this->enrichWithRemainingAmounts($rows, $receipt);
 
         return $this->formatLedgerRows($rows, $receipt);
+    }
+
+    /** Attach only explicitly recorded new allocations; legacy payments are never reinterpreted. */
+    private function attachPartPaymentAllocations(Collection $rows, TPawnSum $receipt): Collection
+    {
+        if (!$rows->contains(fn ($row) => strtoupper((string) ($row->trans_type ?? '')) === 'PART_PAYMENT')) return $rows;
+        if (!Schema::hasTable('receipt_lifecycle_events')) return $rows;
+
+        $events = ReceiptLifecycleEvent::where('pawn_sum_id', $receipt->id)
+            ->where('event_type', 'PART_PAYMENT_ALLOCATION')->get(['event_data']);
+        return $this->applyPartPaymentAllocations($rows, $events);
+    }
+
+    private function applyPartPaymentAllocations(Collection $rows, Collection $events): Collection
+    {
+        $allocations = $events
+            ->mapWithKeys(function ($event) {
+                $data = json_decode((string) $event->event_data, true);
+                $id = (int) ($data['transaction_id'] ?? 0);
+                return $id > 0 ? [$id => $data] : [];
+            });
+
+        return $rows->each(function ($row) use ($allocations) {
+            if (strtoupper((string) ($row->trans_type ?? '')) !== 'PART_PAYMENT') return;
+            $allocation = $allocations->get((int) ($row->id ?? 0));
+            if (!$allocation) return;
+            $row->capitalized_interest = max(0, (float) ($allocation['capitalized_interest'] ?? 0));
+            $row->allocation_interest_due = max(0, (float) ($allocation['interest_due'] ?? 0));
+            $row->allocation_discount = max(0, (float) ($allocation['discount'] ?? 0));
+        });
     }
 
     /** Use the redemption summary's posted breakdown or pawn sum / calculator fallback for transactions. */
@@ -372,7 +403,7 @@ class ReceiptHistoryService
             // master rates creates artificial differences even after the
             // underlying principal snapshots have been repaired.
             $recordedInterest = in_array($type, ['PART_PAYMENT', 'REPAWNING', 'REDEEM'], true)
-                ? max(0, (float) ($row->Paided_Interest ?? 0))
+                ? max(0, (float) ($row->allocation_interest_due ?? $row->Paided_Interest ?? 0))
                 : 0.0;
             if ($recordedInterest >= 0.01) {
                 $append(
@@ -403,14 +434,15 @@ class ReceiptHistoryService
                 $credit = max(0, (float) ($row->Dr_amount ?? 0));
             }
 
-            if ($type === 'REDEEM') {
-                $discount = max(0, (float) ($row->Discount ?? 0));
+            if ($type === 'REDEEM' || $type === 'PART_PAYMENT') {
+                $discount = max(0, (float) ($type === 'PART_PAYMENT'
+                    ? ($row->allocation_discount ?? 0) : ($row->Discount ?? 0)));
                 if ($discount >= 0.01) {
                     $append(
                         $date,
                         'Discount allowed',
                         array_filter([
-                            'Discount allowed on redemption: Rs. '.number_format($discount, 2),
+                            'Discount allowed on payment: Rs. '.number_format($discount, 2),
                             $receiptReference,
                         ]),
                         0,
@@ -419,7 +451,9 @@ class ReceiptHistoryService
                         $operator
                     );
                 }
+            }
 
+            if ($type === 'REDEEM') {
                 // If customer cash payment is rounded up to the nearest rupee:
                 $cashRounding = round($credit - $balance, 2);
                 if ($cashRounding > 0.001 && $cashRounding < 5.00) {
@@ -504,7 +538,9 @@ class ReceiptHistoryService
     {
         if ($type === 'PART_PAYMENT') {
             return collect($details)
-                ->filter(fn ($detail) => str_starts_with($detail, 'Paid capital:') || str_starts_with($detail, 'Paid interest:'))
+                ->filter(fn ($detail) => str_starts_with($detail, 'Paid capital:')
+                    || str_starts_with($detail, 'Paid interest:')
+                    || str_starts_with($detail, 'Interest added to capital:'))
                 ->implode(' • ');
         }
 
@@ -545,6 +581,10 @@ class ReceiptHistoryService
         } elseif ($type === 'PART_PAYMENT') {
             $details[] = 'Paid capital: Rs. '.number_format((float) ($row->Paided_Captional ?? 0), 2);
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
+            if ((float) ($row->capitalized_interest ?? 0) > 0) {
+                $details[] = 'Interest added to capital: Rs. '.number_format((float) $row->capitalized_interest, 2);
+                $details[] = 'New capital: Rs. '.number_format((float) ($row->remaining_capital ?? 0), 2);
+            }
         } elseif ($type === 'REPAWNING') {
             $details[] = 'Opening capital: Rs. '.number_format((float) ($row->trans_pawn_amount ?? $row->Pawn_Amount ?? 0), 2);
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
@@ -578,7 +618,7 @@ class ReceiptHistoryService
 
     private function mergeNonFinancialActivity(Collection $ledger, Collection $timeline): Collection
     {
-        $financialTypes = ['PAWN', 'PART_PAYMENT', 'REPAWNING', 'REDEEM', 'SERVICE CHARGE'];
+        $financialTypes = ['PAWN', 'PART_PAYMENT', 'PART PAYMENT ALLOCATION', 'REPAWNING', 'REDEEM', 'SERVICE CHARGE'];
 
         $activities = $timeline->filter(function (array $event) use ($financialTypes) {
             $type = strtoupper((string) ($event['type'] ?? ''));
@@ -714,7 +754,16 @@ class ReceiptHistoryService
             $events->push($this->event($forfeit->Forfeit_Date ?? $forfeit->created_at, 'FORFEITED', (float) $forfeit->Payable_Total, ['Forfeit no' => $forfeit->Forfeit_Number], 0, $forfeit->OC, $receipt->BC));
         }
         foreach ($lifecycle as $row) {
-            $event = $this->event($row->event_date, str_replace('_', ' ', $row->event_type), $row->amount !== null ? (float) $row->amount : null, ['Description' => $row->description], $row->id, $row->created_by, $receipt->BC);
+            $data = json_decode((string) $row->event_data, true) ?: [];
+            $details = ['Description' => $row->description];
+            if ($row->event_type === 'PART_PAYMENT_ALLOCATION') {
+                $details['Paid interest'] = $data['paid_interest'] ?? null;
+                $details['Interest added to capital'] = $data['capitalized_interest'] ?? null;
+                $details['New capital'] = $data['new_capital'] ?? null;
+            }
+            $eventDate = $row->event_type === 'PART_PAYMENT_ALLOCATION'
+                ? ($data['payment_date'] ?? $row->event_date) : $row->event_date;
+            $event = $this->event($eventDate, str_replace('_', ' ', $row->event_type), $row->amount !== null ? (float) $row->amount : null, $details, $row->id, $row->created_by, $receipt->BC);
             if ($row->event_type === 'ARTICLES_TRANSFERRED_TO_STOCK') {
                 $event['print_url'] = route('forfeit.articles.transfer.print', ['events'=>[$row->id]]);
             }
@@ -956,7 +1005,7 @@ class ReceiptHistoryService
             // edited after the transaction. The next event records what was
             // actually charged/paid; only the open period is calculated.
             $interest = $nextTransaction
-                ? max(0, (float) ($nextTransaction->Paided_Interest ?? 0))
+                ? max(0, (float) ($nextTransaction->allocation_interest_due ?? $nextTransaction->Paided_Interest ?? 0))
                 : 0.0;
             if (!$nextTransaction && $remCapital > 0 && $days > 0) {
                 if ($receiptName === 'SILVER') {

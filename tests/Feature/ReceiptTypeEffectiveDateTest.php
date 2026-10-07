@@ -267,7 +267,7 @@ class ReceiptTypeEffectiveDateTest extends TestCase
             'up_s_char_grea' => 2,
             'up_Postage_charge' => 60,
             'up_service_charge' => 250,
-            'up_letter_1_days' => 21,
+            'up_letter_1_days' => 0,
             'up_letter_2_days' => 21,
             'up_letter_3_days' => 21,
             'up_forfeit_reminder_days' => 21,
@@ -292,6 +292,7 @@ class ReceiptTypeEffectiveDateTest extends TestCase
         $this->assertNull($newVersion->effective_to);
         $this->assertEquals(3.8, (float) $newVersion->rate3);
         $this->assertEquals(250, (float) $newVersion->service_charge);
+        $this->assertSame(0, (int) $newVersion->letter_1_days);
 
         // Clean up
         Recei_Add::where('receiptname', 'VER_TEST')->delete();

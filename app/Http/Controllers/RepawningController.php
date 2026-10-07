@@ -415,7 +415,7 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
             $updateData['Postage_charge']= $rateRow->Postage_charge;
             $updateData['s_charge_less'] = $rateRow->s_charge_less;
             $updateData['s_charge_greater'] = $rateRow->s_charge_greater;
-            $updateData['letter_1_days'] = $rateRow->letter_1_days ?? 21;
+            $updateData['letter_1_days'] = 0;
             $updateData['letter_2_days'] = $rateRow->letter_2_days ?? 21;
             $updateData['letter_3_days'] = $rateRow->letter_3_days ?? 21;
             $updateData['forfeit_reminder_days'] = $rateRow->forfeit_reminder_days ?? 21;
@@ -436,7 +436,7 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
             $updateData['Postage_charge']= $rateRow->Postage_charge;
             $updateData['s_charge_less'] = $rateRow->s_charge_less;
             $updateData['s_charge_greater'] = $rateRow->s_charge_greater;
-            $updateData['letter_1_days'] = $rateRow->letter_1_days ?? 21;
+            $updateData['letter_1_days'] = 0;
             $updateData['letter_2_days'] = $rateRow->letter_2_days ?? 21;
             $updateData['letter_3_days'] = $rateRow->letter_3_days ?? 21;
             $updateData['forfeit_reminder_days'] = $rateRow->forfeit_reminder_days ?? 21;

@@ -199,11 +199,11 @@
                                             </div>
 
                                             <div class="col-md-2">
-                                             <input type="text" class="form-control" id="validyed_type" name="validyed_type" readonly>
+                                             <input type="text" class="form-control" id="validyed_type" readonly>
                                             </div>
                                             <div class="col-md-2"></div>
                                             <div class="col-md-2">
-                                                <input type="text" class="form-control" id="matched_interest_index" name="validyed_type" readonly >
+                                                <input type="text" class="form-control" id="matched_interest_index" name="validyed_type" readonly>
                                             </div>
                                         <div class="col-md-2"></div>
                                         </div>
@@ -292,6 +292,16 @@
                                                     <td>
                                                         <input class="form-control" type="text" placeholder="PAYABLE TOTAL:" id="payable_total" name="payable_total" readonly>
                                                     </td>
+                                                </tr>
+                                                <tr>
+                                                    <td></td>
+                                                    <th><label for="capitalized_interest">INTEREST ADDED TO CAPITAL:</label></th>
+                                                    <td><input class="form-control" type="text" id="capitalized_interest" value="0.00" readonly></td>
+                                                </tr>
+                                                <tr>
+                                                    <td></td>
+                                                    <th><label for="new_capital">NEW CAPITAL:</label></th>
+                                                    <td><input class="form-control" type="text" id="new_capital" readonly></td>
                                                 </tr>
 
                                                 <tr>
@@ -475,72 +485,8 @@
             data: { search_receipt_no: receiptNo },
             success: function (response) {
                 if (response.status === 'success' && response.data && response.data.length > 0) {
-                    let data = response.data;
-                    let tableRows = '';
-
-                    data.forEach(record => {
-                        let type = (record.trans_type || '').toUpperCase();
-                        let amountBadge = '';
-                        let customerPaid = '-';
-                        let paidCapital = '-';
-                        let paidInterest = '-';
-                        let repawnAmount = '-';
-
-                        if (type === 'PAWN') {
-                            let amt = Number(record.Cr_amount || record.trans_amount || record.Pawn_Amount || 0);
-                            amountBadge = `<span class="badge bg-success text-white">Credit: ${amt.toFixed(2)}</span>`;
-                            paidCapital = '-';
-                            paidInterest = '-';
-                        } else if (type === 'PART_PAYMENT' || type === 'REDEEM') {
-                            let amt = Number(record.Dr_amount || record.payable_total || record.trans_amount || 0);
-                            amountBadge = `<span class="badge bg-danger text-white">Debit: ${amt.toFixed(2)}</span>`;
-                            customerPaid = record.payable_total ? Number(record.payable_total).toFixed(2) : (record.Dr_amount ? Number(record.Dr_amount).toFixed(2) : '-');
-                            paidCapital = Number(record.Paided_Captional || (type === 'REDEEM' ? record.Pawn_Amount : 0)).toFixed(2);
-                            paidInterest = Number(record.Paided_Interest || 0).toFixed(2);
-                        } else if (type === 'REPAWNING') {
-                            let amt = Number(record.Cr_amount || record.payable_total || record.trans_amount || 0);
-                            amountBadge = `<span class="badge bg-success text-white">Credit: ${amt.toFixed(2)}</span>`;
-                            repawnAmount = amt > 0 ? amt.toFixed(2) : '-';
-                            customerPaid = record.payable_total ? Number(record.payable_total).toFixed(2) : '-';
-                            paidCapital = Number(record.Paided_Captional || 0).toFixed(2);
-                            paidInterest = Number(record.Paided_Interest || 0).toFixed(2);
-                        } else if (type.includes('LETTER')) {
-                            let amt = Number(record.trans_amount || record.Postage_charge || record.letter_charge || 0);
-                            amountBadge = `<span class="badge bg-warning text-dark">Postal: Rs. ${amt.toFixed(2)}</span>`;
-                        } else if (type.includes('CHARGE')) {
-                            let amt = Number(record.trans_amount || record.Postage_charge || 0);
-                            amountBadge = `<span class="badge bg-warning text-dark">Service: Rs. ${amt.toFixed(2)}</span>`;
-                        } else {
-                            let amt = Number(record.trans_amount || 0);
-                            amountBadge = `<span>${amt.toFixed(2)}</span>`;
-                        }
-
-                        // Display letters only on letter charge rows (parallel timeframe where letter was actually sent)
-                        let lettersDisplay = '-';
-                        if (type.includes('LETTER') || record.letter_sent) {
-                            let letterName = record.letter_sent || record.trans_type || 'Letter Sent';
-                            let postalAmt = Number(record.trans_amount || record.Postage_charge || record.letter_charge || 0);
-                            lettersDisplay = `<span class="badge bg-primary text-white">${letterName}</span><br><small class="text-muted">Postal: Rs. ${postalAmt.toFixed(2)}</small>`;
-                        }
-                        let remainingDisplay = record.remaining_display || '-';
-
-                        tableRows += `
-                            <tr>
-                                <td class="text-center">${record.dDate ?? '-'}</td>
-                                <td class="text-center"><strong>${record.trans_type || '-'}</strong></td>
-                                <td class="text-center">${amountBadge}</td>
-                                <td class="text-end" style="color: green; font-weight: bold;">${customerPaid}</td>
-                                <td class="text-end">${paidCapital}</td>
-                                <td class="text-end">${paidInterest}</td>
-                                <td class="text-end">${repawnAmount}</td>
-                                <td class="text-center small">${lettersDisplay}</td>
-                                <td class="text-end">${remainingDisplay}</td>
-                                <td class="text-center">${record.Extend_Date ?? '-'}</td>
-                            </tr>
-                        `;
-                    });
-
-                    tableRows = window.ReceiptHistoryLedger.renderRows(data);
+                    const data = response.data;
+                    const tableRows = window.ReceiptHistoryLedger.renderRows(data);
                     window.ReceiptHistoryLedger.updateTotals(data);
                     window.ReceiptHistoryLedger.setPrintReceipt(response.receipt_number || null);
                     $('#CustomerDetails').html(tableRows);

@@ -174,6 +174,7 @@ class PawningPartPaymentController extends Controller
         $paidInterest = $allocation['paid_interest'];
         $principalPaid = $allocation['principal_paid'];
         $newPrincipal = $allocation['new_principal'];
+        $capitalizedInterest = $allocation['capitalized_interest'];
         $unpaidCharges = $allocation['unpaid_charges'];
 
         if ($paymentReceived + 0.01 >= $redemptionTotal) {
@@ -193,6 +194,7 @@ class PawningPartPaymentController extends Controller
             'Postage_Charges' => $letterCharge,
             'stamp_fee' => $stampFee,
             'paid_interest' => $paidInterest,
+            'capitalized_interest' => $capitalizedInterest,
             'advance_payment' => $principalPaid,
             'Payable_Pawn_Amount' => $newPrincipal,
             'BalanceInterest' => $unpaidCharges,
@@ -250,6 +252,9 @@ class PawningPartPaymentController extends Controller
         $pawndate = Carbon::parse($request->redeem_date)->addDay();
         $isSilver = strtoupper((string) ($activeReceipt->receiptname ?: $activeReceipt->Receipt_Type)) === 'SILVER';
         $final_date_string = Carbon::parse($request->redeem_date)->addMonths(max(1, $validyed_type))->toDateString();
+        // Capitalized interest is already inside the new principal. Only
+        // non-capitalized charges may carry as BalanceInterest; otherwise the
+        // next interest calculation would charge the same amount twice.
         $interest_Balance = $unpaidCharges;
 
         // Create a new Part Payment transaction
@@ -353,7 +358,7 @@ class PawningPartPaymentController extends Controller
                 'Postage_charge' => $rateRow->Postage_charge,
                 's_charge_less' => $rateRow->s_charge_less,
                 's_charge_greater' => $rateRow->s_charge_greater,
-                'letter_1_days' => $rateRow->letter_1_days ?? 21,
+                'letter_1_days' => 0,
                 'letter_2_days' => $rateRow->letter_2_days ?? 21,
                 'letter_3_days' => $rateRow->letter_3_days ?? 21,
                 'forfeit_reminder_days' => $rateRow->forfeit_reminder_days ?? 21,
@@ -368,6 +373,25 @@ class PawningPartPaymentController extends Controller
         TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', $branch_code)
             ->update($updateData);
+
+        if ($capitalizedInterest > 0 || $discount > 0) {
+            $lifecycle->record(
+                $activeReceipt->fresh(),
+                'PART_PAYMENT_ALLOCATION',
+                $capitalizedInterest,
+                'Part payment allocation recorded; unpaid interest added to capital when applicable.',
+                [
+                    'transaction_id' => $TPawnTrans->id,
+                    'payment_date' => $paymentDate,
+                    'interest_due' => round($interestDue, 2),
+                    'paid_interest' => $paidInterest,
+                    'capitalized_interest' => $capitalizedInterest,
+                    'paid_capital' => $principalPaid,
+                    'new_capital' => $newPrincipal,
+                    'discount' => $discount,
+                ]
+            );
+        }
 
         if ($hasArrearsLetters) {
             $lifecycle->reactivate(
@@ -397,7 +421,8 @@ class PawningPartPaymentController extends Controller
             'pawnDetailsData' => $T_detailsdata,
             'redeemdata' => $T_redeemdata,
             'branchDetails' => $branchData,
-            'companyData' => $companyData
+            'companyData' => $companyData,
+            'capitalizedInterest' => $capitalizedInterest,
         ]);
 
         $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');

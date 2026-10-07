@@ -22,7 +22,7 @@ class ForfeitReportRenderingTest extends TestCase
     {
         $pawn = ['Customer_Name'=>'Example','Customer_Address'=>'Main Road','Customer_Phone'=>'0771234567',
             'Customer_NIC'=>'123V','Receipt_Number'=>100,'Invoice_Number'=>300,'Final_date'=>'2026-10-01','Receipt_Date'=>'2026-09-01'];
-        $payment = array_merge(array_fill_keys(['current_pawn_amount','Postage_Charges','Paid_Interest','paid_cap_amount','Payable_Total','Discount','Stamp_Fee','Document_Charges','Original_Pawn_Amount'],100),
+        $payment = array_merge(array_fill_keys(['current_pawn_amount','Postage_Charges','Paid_Interest','paid_cap_amount','Payable_Total','Discount','Stamp_Fee','Document_Charges','Original_Pawn_Amount','Payable_Pawn_Amount'],100),
             ['Receipt_Number'=>100,'Redeem_Date'=>'2026-09-13']);
         $data = ['pawnSumData'=>collect([$pawn]),'pawnDetailsData'=>collect(),'redeemdata'=>collect([$payment]),
             'companyData'=>collect(),'branchDetails'=>collect(),'interestDays'=>13];
@@ -31,6 +31,30 @@ class ForfeitReportRenderingTest extends TestCase
             $this->assertStringContainsString('(13 days)', $html);
             $this->assertStringContainsString('100.00', $html);
         }
+    }
+
+    public function test_part_payment_print_shows_capitalized_interest_and_recorded_new_capital(): void
+    {
+        $pawn = ['Customer_Name'=>'Example','Customer_Address'=>'Main Road','Customer_Phone'=>'0771234567',
+            'Customer_NIC'=>'123V','Receipt_Number'=>100,'Invoice_Number'=>300,'Final_date'=>'2026-10-01','Receipt_Date'=>'2026-09-01'];
+        $payment = array_merge(array_fill_keys([
+            'current_pawn_amount','Postage_Charges','Paid_Interest','paid_cap_amount',
+            'Payable_Total','Discount','Stamp_Fee','Document_Charges','Original_Pawn_Amount',
+        ], 0), [
+            'Receipt_Number'=>100, 'Redeem_Date'=>'2026-09-13',
+            'current_pawn_amount'=>5000, 'Paid_Interest'=>150,
+            'paid_cap_amount'=>5200, 'Payable_Total'=>150, 'Payable_Pawn_Amount'=>5050,
+        ]);
+
+        $html = view('partpaymentReceiptPrint', [
+            'pawnSumData'=>collect([$pawn]), 'pawnDetailsData'=>collect(),
+            'redeemdata'=>collect([$payment]), 'companyData'=>collect(),
+            'branchDetails'=>collect(), 'interestDays'=>13, 'capitalizedInterest'=>50,
+        ])->render();
+
+        $this->assertStringContainsString('Interest Added to Capital', $html);
+        $this->assertStringContainsString('Rs. 50.00', $html);
+        $this->assertStringContainsString('Rs. 5,050.00', $html);
     }
 
     public function test_only_missed_promise_dates_highlight_reminder_rows(): void
@@ -242,7 +266,7 @@ class ForfeitReportRenderingTest extends TestCase
         $this->assertStringContainsString('2026-04-06', $html);
     }
 
-    public function test_expired_first_letter_waiting_for_print_date_is_visible_but_not_printable(): void
+    public function test_expired_first_letter_is_visible_and_printable_on_expiry(): void
     {
         $receipt = new TPawnSum([
             'Receipt_Number'=>1241, 'Customer_Name'=>'Example', 'Customer_NIC'=>'123V',
@@ -251,7 +275,7 @@ class ForfeitReportRenderingTest extends TestCase
         ]);
         $receipt->forceFill([
             'id'=>1241, 'arrears_expiry_date'=>'2026-02-23',
-            'next_letter_due_date'=>'2026-03-09', 'letter_is_due'=>false,
+            'next_letter_due_date'=>'2026-02-23', 'letter_is_due'=>true,
             'financial_breakdown'=>array_fill_keys(
                 ['interest','service_charge','letter_charge','arrears_total','redemption_total'], 0
             ),
@@ -263,10 +287,9 @@ class ForfeitReportRenderingTest extends TestCase
         ])->render();
 
         $this->assertStringContainsString('2026-02-23', $html);
-        $this->assertStringContainsString('Scheduled', $html);
-        $this->assertStringContainsString('Print from 2026-03-09', $html);
-        $this->assertStringNotContainsString('class="btn btn-sm btn-success print_letter_btn"', $html);
-        $this->assertStringNotContainsString('class="row-check chk-1"', $html);
+        $this->assertStringNotContainsString('Scheduled', $html);
+        $this->assertStringContainsString('class="btn btn-sm btn-success print_letter_btn"', $html);
+        $this->assertStringContainsString('class="row-check chk-1"', $html);
         $this->assertStringContainsString('Showing 1–1 of 1 receipts, earliest expiry first.', $html);
     }
 

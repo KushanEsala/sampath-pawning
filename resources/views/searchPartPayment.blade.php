@@ -477,10 +477,10 @@
             </td>
         </tr>
         <tr>
-            <th>Paid Interest</th>
+            <th>Interest Due</th>
             <td>
                 <p>
-                    <input class="form-control text-center" id="interest" type="text" placeholder="Paid Interest"
+                    <input class="form-control text-center" id="interest" type="text" placeholder="Interest Due"
                     name="paid_interest" value="" readonly/>
                 </p>
             </td>
@@ -708,24 +708,29 @@
     let Postage_Charges = parseFloat({{ $financial['letter_charge'] ?? 0 }}) || 0;
     let chargesDue = Math.max(0, interest_to_pay + document_charges + stamp_duty + Postage_Charges - discount);
     let paymentReceived = Math.max(0, enteredPayment - discount);
+    let paidCharges = Math.min(paymentReceived, chargesDue);
+    let interestAfterDiscount = Math.max(0, interest_to_pay - Math.min(interest_to_pay, discount));
+    let paidInterest = Math.min(interestAfterDiscount, paidCharges);
+    let capitalizedInterest = Math.max(0, interestAfterDiscount - paidInterest);
     let totalPay = amount + chargesDue;
 
     if (totalPay < 0) totalPay = 0;
 
     $('#redeem_total').val(totalPay.toFixed(2));
     $('#total').val(amount.toFixed(2));
-    $('#BalanceInterest').val(Math.max(0, chargesDue - paymentReceived).toFixed(2));
+    $('#BalanceInterest').val(Math.max(0, chargesDue - paidCharges - capitalizedInterest).toFixed(2));
     $('#Postage_interest').val((interest_to_pay + Postage_Charges).toFixed(2));
 
     let advancePayment = Math.min(amount, Math.max(0, paymentReceived - chargesDue));
     $('#advance_payment').val(advancePayment > 0 ? advancePayment.toFixed(2) : '0.00');
 
-    let pawningPayment = amount - advancePayment;
+    let pawningPayment = amount - advancePayment + capitalizedInterest;
     $('#pawning_payment').val(pawningPayment > 0 ? pawningPayment.toFixed(2) : '0.00');
+    $('#capitalized_interest').val(capitalizedInterest.toFixed(2));
+    $('#new_capital').val(pawningPayment.toFixed(2));
 
     $('#payable_total').val(paymentReceived.toFixed(2));
 
-    let paidCharges = Math.min(paymentReceived, chargesDue);
     $('#PayTotalAmount').val(paidCharges > 0 ? paidCharges.toFixed(2) : '0.00');
 
     // Interest Calculation Section

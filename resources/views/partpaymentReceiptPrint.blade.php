@@ -221,6 +221,13 @@
             <td>Rs. {{ number_format($redeem['Paid_Interest'],2) }}</td>
         </tr>
 
+        @if(($capitalizedInterest ?? 0) > 0)
+        <tr>
+            <td>Interest Added to Capital</td>
+            <td>Rs. {{ number_format($capitalizedInterest, 2) }}</td>
+        </tr>
+        @endif
+
         <tr>
             <td>Total Amount</td>
             <td>Rs. {{ number_format($redeem['paid_cap_amount'], 2) }}</td>
@@ -232,7 +239,7 @@
         </tr>
         <tr class="total">
             <td>Balance Capital</td>
-            <td>Rs. {{ number_format($redeem['paid_cap_amount'] - $redeem['Payable_Total'], 2) }}</td>
+            <td>Rs. {{ number_format($redeem['Payable_Pawn_Amount'] ?? ($redeem['paid_cap_amount'] - $redeem['Payable_Total']), 2) }}</td>
         </tr>
     </table>
     @endforeach

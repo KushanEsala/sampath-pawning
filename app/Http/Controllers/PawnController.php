@@ -246,7 +246,7 @@ class PawnController extends Controller
                 $PawnSum->Postage_charge    = $receipt->Postage_charge;
                 if (\Illuminate\Support\Facades\Schema::hasColumn('t_pawn_sums', 'letter_1_days')) {
                     foreach (\App\Services\ReceiptPenaltySchedule::FIELDS as $field) {
-                        $PawnSum->{$field} = (int) ($receipt->{$field} ?? 21);
+                        $PawnSum->{$field} = $field === 'letter_1_days' ? 0 : (int) ($receipt->{$field} ?? 21);
                     }
                 }
                 $PawnSum->s_charge_less    = $receipt->s_charge_less;

@@ -267,11 +267,14 @@ class ReceiptController extends Controller
         }
         $rules = [];
         foreach (ReceiptPenaltySchedule::FIELDS as $field) {
-            $rules[$prefix.$field] = ['required', 'integer', 'min:0', 'max:3650'];
+            $rules[$prefix.$field] = $field === 'letter_1_days'
+                ? ['required', 'integer', 'in:0']
+                : ['required', 'integer', 'min:0', 'max:3650'];
         }
         $validated = $request->validate($rules);
         $values = [];
         foreach (ReceiptPenaltySchedule::FIELDS as $field) $values[$field] = (int) $validated[$prefix.$field];
+        $values['letter_1_days'] = 0; // Current workflow: printable on effective expiry.
         return $values;
     }
 }

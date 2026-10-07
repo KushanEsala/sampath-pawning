@@ -38,6 +38,12 @@ Letter print dates are retained as historical facts only; they no longer delay t
 
 An active receipt appears in the first-letter tab as soon as its effective expiry date passes, even if its saved first-letter interval has not elapsed. Until the configured first-letter date arrives it is marked **Scheduled** and cannot be selected or printed. Second and third tabs still require the preceding issued letter and their scheduled due date. The list is ordered by effective expiry and receipt ID, and receipt-number search finds the current stage across types. This is a code-only display/navigation change; no database script or migration is required.
 
+### 2026-10-07 first-letter rule revision
+
+The first letter is now **printable on the effective expiry date** for every active receipt, including older Silver receipts. Old `letter_1_days` snapshots remain in MySQL for audit but no longer delay the live letter schedule. New receipt-type versions and new/renewed pawn snapshots save zero for this field. Second and third stages remain expiry + their configured intervals and require the preceding letter to have been issued; the Forfeit Reminder stage still requires the third letter and its configured wait. A late print does not change the scheduled stage dates. No historical letter flags, print dates, rates, or payment records are rewritten, and no SQL or Laravel migration is needed.
+
+Silver expiry uses the latest part-payment/repawn date plus that receipt's valid-day term when a newer cycle exists, even if an old `To_Date` is still in the future. Without a newer cycle, the valid stored `To_Date` remains the expiry. The valid-day term is dynamic, not a hard-coded 30 days.
+
 ## Revised workflow
 
 - The Reminder List calculates eligibility when opened/refreshed; it requires no scheduled job. Unpaid receipts appear on the due calendar day, including that day.

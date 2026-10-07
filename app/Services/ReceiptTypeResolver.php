@@ -43,7 +43,7 @@ class ReceiptTypeResolver
             $recei->documentCharges = $receiptObj->documentCharges ?? 0;
             $recei->stampduty = $receiptObj->stampduty ?? 0;
             $recei->pawn_amount = $receiptObj->Pawn_Advance_Amount ?? $receiptObj->pawn_amount ?? 0;
-            $recei->letter_1_days = $receiptObj->letter_1_days ?? 21;
+            $recei->letter_1_days = 0;
             $recei->letter_2_days = $receiptObj->letter_2_days ?? 21;
             $recei->letter_3_days = $receiptObj->letter_3_days ?? 21;
             $recei->forfeit_reminder_days = $receiptObj->forfeit_reminder_days ?? 21;
@@ -88,7 +88,7 @@ class ReceiptTypeResolver
             'forfeit_reminder_days',
         ] as $field) {
             if ($configuration->{$field} !== null) {
-                $copy->setAttribute($field, $configuration->{$field});
+                $copy->setAttribute($field, $field === 'letter_1_days' ? 0 : $configuration->{$field});
             }
         }
 

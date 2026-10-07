@@ -53,6 +53,83 @@ class ReceiptLedgerChronologyTest extends TestCase
         $this->assertSame('BLOCKED', $ledger->last()['type']);
     }
 
+    public function test_capitalized_part_payment_reconciles_ledger_and_explains_new_capital(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $receipt = new TPawnSum(['Receipt_Number' => 'TEST', 'Invoice_Number' => 'STOCK']);
+        $rows = collect([
+            (object) [
+                'id' => 1, 'dDate' => '2026-10-01', 'trans_type' => 'PAWN',
+                'OC' => null, 'remaining_capital' => 5000, 'trans_pawn_amount' => 5000,
+                'Cr_amount' => 5000, 'trans_amount' => 5000,
+            ],
+            (object) [
+                'id' => 2, 'dDate' => '2026-10-07', 'trans_type' => 'PART_PAYMENT',
+                'OC' => null, 'Paided_Interest' => 150, 'allocation_interest_due' => 200,
+                'capitalized_interest' => 50, 'Paided_Captional' => 0,
+                'historical_capital' => 5050, 'remaining_capital' => 5050,
+                'payable_total' => 150, 'Dr_amount' => 150,
+            ],
+        ]);
+
+        $format = new \ReflectionMethod($service, 'formatLedgerRows');
+        $ledger = $format->invoke($service, $rows, $receipt);
+
+        $this->assertSame(['PAWN', 'INTEREST_CHARGE', 'PART_PAYMENT'], $ledger->pluck('type')->all());
+        $this->assertSame(200.0, $ledger[1]['dr']);
+        $this->assertSame(150.0, $ledger[2]['cr']);
+        $this->assertSame(5050.0, $ledger->last()['balance']);
+        $this->assertStringContainsString('Interest added to capital: Rs. 50.00', $ledger[2]['summary']);
+        $this->assertContains('New capital: Rs. 5,050.00', $ledger[2]['details']);
+
+        // Legacy rows without an explicit allocation keep their recorded paid
+        // interest; their past balances are not retroactively capitalized.
+        unset($rows[1]->allocation_interest_due, $rows[1]->capitalized_interest);
+        $legacy = $format->invoke($service, $rows, $receipt);
+        $this->assertSame(150.0, $legacy[1]['dr']);
+        $this->assertSame(5000.0, $legacy->last()['balance']);
+    }
+
+    public function test_interest_capitalization_with_discount_has_matching_credit(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $receipt = new TPawnSum(['Receipt_Number' => 'TEST', 'Invoice_Number' => 'STOCK']);
+        $rows = collect([
+            (object) ['id'=>1, 'dDate'=>'2026-10-01', 'trans_type'=>'PAWN', 'OC'=>null,
+                'remaining_capital'=>5000, 'Cr_amount'=>5000, 'trans_amount'=>5000],
+            (object) ['id'=>2, 'dDate'=>'2026-10-07', 'trans_type'=>'PART_PAYMENT', 'OC'=>null,
+                'Paided_Interest'=>100, 'allocation_interest_due'=>200, 'allocation_discount'=>50,
+                'capitalized_interest'=>50, 'Paided_Captional'=>0, 'remaining_capital'=>5050,
+                'payable_total'=>100, 'Dr_amount'=>100],
+        ]);
+
+        $format = new \ReflectionMethod($service, 'formatLedgerRows');
+        $ledger = $format->invoke($service, $rows, $receipt);
+
+        $this->assertSame(['PAWN', 'INTEREST_CHARGE', 'DISCOUNT', 'PART_PAYMENT'], $ledger->pluck('type')->all());
+        $this->assertSame(5050.0, $ledger->last()['balance']);
+    }
+
+    public function test_only_explicit_allocation_event_marks_a_part_payment_as_capitalized(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $rows = collect([
+            (object) ['id'=>1, 'trans_type'=>'PART_PAYMENT', 'Paided_Interest'=>150],
+            (object) ['id'=>2, 'trans_type'=>'PART_PAYMENT', 'Paided_Interest'=>150],
+        ]);
+        $event = (object) ['event_data'=>json_encode([
+            'transaction_id'=>2, 'interest_due'=>200,
+            'capitalized_interest'=>50, 'discount'=>0,
+        ])];
+
+        $apply = new \ReflectionMethod($service, 'applyPartPaymentAllocations');
+        $apply->invoke($service, $rows, collect([$event]));
+
+        $this->assertFalse(property_exists($rows[0], 'capitalized_interest'));
+        $this->assertSame(50.0, $rows[1]->capitalized_interest);
+        $this->assertSame(200.0, $rows[1]->allocation_interest_due);
+    }
+
     public function test_print_history_uses_the_same_order_and_expands_all_details(): void
     {
         $receipt = new TPawnSum([

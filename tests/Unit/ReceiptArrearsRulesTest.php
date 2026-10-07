@@ -16,9 +16,9 @@ class ReceiptArrearsRulesTest extends TestCase
         $receipt = new TPawnSum(['Final_date' => '2026-01-10']);
         $service = new ArrearsLetterService(new ReceiptFinancialCalculator(), new ReceiptLifecycleService());
 
-        $this->assertSame('2026-01-31', $service->dueDate($receipt, 1)->toDateString());
-        $this->assertSame('2026-02-21', $service->dueDate($receipt, 2)->toDateString());
-        $this->assertSame('2026-03-14', $service->dueDate($receipt, 3)->toDateString());
+        $this->assertSame('2026-01-10', $service->dueDate($receipt, 1)->toDateString());
+        $this->assertSame('2026-01-31', $service->dueDate($receipt, 2)->toDateString());
+        $this->assertSame('2026-02-21', $service->dueDate($receipt, 3)->toDateString());
     }
 
     public function test_late_first_letter_does_not_reset_next_interval(): void
@@ -33,13 +33,13 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertTrue($service->isEligible($receipt, 2, Carbon::parse('2026-02-10')));
     }
 
-    public function test_expired_receipt_cannot_print_before_its_saved_first_interval(): void
+    public function test_expired_receipt_can_print_on_expiry_despite_old_first_interval(): void
     {
         $receipt = new TPawnSum(['Final_date'=>'2026-10-01', 'letter_1_days'=>14]);
         $service = new ArrearsLetterService(new ReceiptFinancialCalculator(), new ReceiptLifecycleService());
 
-        $this->assertFalse($service->isEligible($receipt, 1, Carbon::parse('2026-10-07')));
-        $this->assertTrue($service->isEligible($receipt, 1, Carbon::parse('2026-10-15')));
+        $this->assertFalse($service->isEligible($receipt, 1, Carbon::parse('2026-09-30')));
+        $this->assertTrue($service->isEligible($receipt, 1, Carbon::parse('2026-10-01')));
     }
 
     public function test_service_and_letter_charges_are_included_in_arrears(): void
