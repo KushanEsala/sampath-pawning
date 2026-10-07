@@ -410,9 +410,8 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     private function applyStageFilter($query, \App\Services\ReceiptPenaltySchedule $schedule, int $letter, ?string $latestCycleDateSql = null)
     {
         $today = today()->toDateString();
-        // Expired receipts enter the first tab immediately, even when a saved
-        // first-letter waiting period still prevents printing. Later stages
-        // remain due-date gated and require the previous letter to be issued.
+        // Expired receipts enter the first tab and become printable on expiry.
+        // Later stages remain due-date gated and require the previous letter.
         $stageDate = $letter === 1
             ? $schedule->expirySql($latestCycleDateSql)
             : $schedule->letterDueSql($letter, $latestCycleDateSql);
