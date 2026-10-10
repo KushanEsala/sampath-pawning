@@ -275,9 +275,10 @@
                     <div class="card-body">
                         @if(($effectivePolicy['amount_limit'] > 0 && $pawnStats->pawn_amount > $effectivePolicy['amount_limit'])
                             || ($effectivePolicy['count_limit'] > 0 && $pawnStats->pawn_count > $effectivePolicy['count_limit']))
-                            <div class="alert alert-warning">Existing active receipts already exceed this customer's limit. They remain unchanged; new pawns and repawns will be checked against the limit.</div>
+                            <div class="alert alert-warning">This customer currently has {{ number_format($pawnStats->pawn_count) }} active receipt(s) totaling Rs. {{ number_format($pawnStats->pawn_amount, 2) }} across all branches. A saved limit is below that exposure. Enter a sufficient new limit or 0/blank for no limit before saving.</div>
                         @endif
-                        <form method="POST" action="{{ route('customerUpdatestatus.update', $customer->id) }}">
+                        <form id="customer-status-policy-form" method="POST" action="{{ route('customerUpdatestatus.update', $customer->id) }}"
+                              data-active-amount="{{ $pawnStats->pawn_amount }}" data-active-count="{{ $pawnStats->pawn_count }}">
                             @csrf
                             @method('PUT')
 
@@ -477,6 +478,7 @@
                                 <div class="col-md-12 mt-2">
                                     <p class="cu-section-title">Status &amp; Limits</p>
                                     <p class="text-muted small">Status and limits apply to this NIC across every branch. Leave a limit blank or set it to 0 for no limit.</p>
+                                    <p class="small mb-0">Current active exposure: <strong>Rs. {{ number_format($pawnStats->pawn_amount, 2) }}</strong> across <strong>{{ number_format($pawnStats->pawn_count) }} receipt(s)</strong>. A positive limit must be at least the corresponding current value.</p>
                                 </div>
 
                                 <div class="col-md-4">
@@ -493,7 +495,7 @@
                                     <div class="form-group">
                                         <label>Limit Amount</label>
                                         <input type="number" step="0.01" min="0" name="limit_amount" class="form-control"
-                                               value="{{ $effectivePolicy['amount_limit'] ?: '' }}" placeholder="No limit">
+                                               value="{{ old('limit_amount', $effectivePolicy['amount_limit'] ?: '') }}" placeholder="No limit">
                                     </div>
                                 </div>
 
@@ -501,8 +503,12 @@
                                     <div class="form-group">
                                         <label>Limit Pawn Count</label>
                                         <input type="number" step="1" min="0" name="limit_pawn_count" class="form-control"
-                                               value="{{ $effectivePolicy['count_limit'] ?: '' }}" placeholder="No limit">
+                                               value="{{ old('limit_pawn_count', $effectivePolicy['count_limit'] ?: '') }}" placeholder="No limit">
                                     </div>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <div id="customer-limit-warning" class="alert alert-warning d-none mb-0" role="alert" aria-live="assertive"></div>
                                 </div>
 
                                 <!-- Action Buttons -->
@@ -527,6 +533,42 @@
 
     </div>
 </div>
+
+<script>
+    (() => {
+        const form = document.getElementById('customer-status-policy-form');
+        if (!form) return;
+        const amountInput = form.querySelector('[name="limit_amount"]');
+        const countInput = form.querySelector('[name="limit_pawn_count"]');
+        const warning = document.getElementById('customer-limit-warning');
+        const save = form.querySelector('button[type="submit"]');
+        const activeAmount = Number(form.dataset.activeAmount) || 0;
+        const activeCount = Number(form.dataset.activeCount) || 0;
+        const money = value => Number(value).toLocaleString('en-LK', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+
+        function checkLimits() {
+            const enteredAmount = Number(amountInput.value);
+            const enteredCount = Number(countInput.value);
+            const amountTooLow = enteredAmount > 0 && enteredAmount + 0.009 < activeAmount;
+            const countTooLow = enteredCount > 0 && enteredCount < activeCount;
+            const messages = [];
+            if (amountTooLow) messages.push(`Entered amount limit Rs. ${money(enteredAmount)} is below active capital Rs. ${money(activeAmount)}. Enter at least Rs. ${money(activeAmount)}, or 0/blank for no limit.`);
+            if (countTooLow) messages.push(`Entered count limit ${enteredCount} is below ${activeCount} active receipts. Enter at least ${activeCount}, or 0/blank for no limit.`);
+            amountInput.classList.toggle('is-invalid', amountTooLow);
+            countInput.classList.toggle('is-invalid', countTooLow);
+            amountInput.setAttribute('aria-invalid', String(amountTooLow));
+            countInput.setAttribute('aria-invalid', String(countTooLow));
+            warning.textContent = messages.join(' ');
+            warning.classList.toggle('d-none', messages.length === 0);
+            save.disabled = messages.length > 0;
+        }
+        amountInput.addEventListener('input', checkLimits);
+        countInput.addEventListener('input', checkLimits);
+        checkLimits();
+    })();
+</script>
 
 <script src="assets/js/jquery-3.6.0.min.js"></script>
 <script src="assets/js/bootstrap.bundle.min.js"></script>

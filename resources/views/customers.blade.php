@@ -234,6 +234,8 @@
                                                                                             <div class="col-md-6"><label>Pawn amount limit (blank or 0 = no limit)</label><input type="number" min="0" step="0.01" id="limit_amount" class="form-control"></div>
                                                                                             <div class="col-md-6"><label>Active pawn count limit (blank or 0 = no limit)</label><input type="number" min="0" step="1" id="limit_pawn_count" class="form-control"></div>
                                                                                         </div>
+                                                                                        <p id="add-limit-exposure" class="small text-muted mt-2 mb-0" aria-live="polite">Enter the NIC to see current active capital and receipt count across all branches.</p>
+                                                                                        <div id="add-limit-warning" class="alert alert-warning mt-2 d-none" role="alert" aria-live="assertive"></div>
                                                                                         <div class="text-center mt-4">
                                                                                             <button type="button" class="btn btn-success add_customer bg-success-light text-success me-2">Save</button>
                                                                                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
@@ -406,6 +408,8 @@
                                                                      <div class="col-md-6"><label>Pawn amount limit (blank or 0 = no limit)</label><input type="number" min="0" step="0.01" id="up_limit_amount" class="form-control"></div>
                                                                      <div class="col-md-6"><label>Active pawn count limit (blank or 0 = no limit)</label><input type="number" min="0" step="1" id="up_limit_pawn_count" class="form-control"></div>
                                                                  </div>
+                                                                 <p id="edit-limit-exposure" class="small text-muted mt-2 mb-0" aria-live="polite">Current active capital and receipt count will load for this NIC.</p>
+                                                                 <div id="edit-limit-warning" class="alert alert-warning mt-2 d-none" role="alert" aria-live="assertive"></div>
                                                                  <div class="text-center mt-4">
                                                                      <button type="button" class="btn btn-success update_customer bg-success-light text-success me-2">Update</button>
                                                                      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
@@ -699,6 +703,90 @@
 
         });
     </script>
+
+<script>
+    (() => {
+        const current = { add: null, edit: null };
+        const requestNumber = { add: 0, edit: 0 };
+        const timers = { add: null, edit: null };
+        const selectors = {
+            add: { nic: '#nic', amount: '#limit_amount', count: '#limit_pawn_count',
+                summary: '#add-limit-exposure', warning: '#add-limit-warning', save: '.add_customer' },
+            edit: { nic: '#up_nic', amount: '#up_limit_amount', count: '#up_limit_pawn_count',
+                summary: '#edit-limit-exposure', warning: '#edit-limit-warning', save: '.update_customer' }
+        };
+        const money = amount => Number(amount).toLocaleString('en-LK', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+
+        function showWarning(mode) {
+            const fields = selectors[mode];
+            const response = current[mode];
+            if (!response) return;
+
+            const activeAmount = Number(response.exposure.pawn_amount) || 0;
+            const activeCount = Number(response.exposure.pawn_count) || 0;
+            const amountInput = Number($(fields.amount).val());
+            const countInput = Number($(fields.count).val());
+            const amountTooLow = amountInput > 0 && amountInput + 0.009 < activeAmount;
+            const countTooLow = countInput > 0 && countInput < activeCount;
+            const warnings = [];
+            if (amountTooLow) {
+                warnings.push(`Entered amount limit Rs. ${money(amountInput)} is below active capital Rs. ${money(activeAmount)}. Enter at least Rs. ${money(activeAmount)}, or 0/blank for no limit.`);
+            }
+            if (countTooLow) {
+                warnings.push(`Entered count limit ${countInput} is below ${activeCount} active receipts. Enter at least ${activeCount}, or 0/blank for no limit.`);
+            }
+
+            $(fields.summary).text(`Current exposure across all branches: ${activeCount} active receipt(s), Rs. ${money(activeAmount)} active capital.`
+                + (mode === 'add' && response.existing_policy ? ' This NIC already has a customer policy; its saved limits will be reused for a new branch record.' : ''));
+            $(fields.warning).text(warnings.join(' ')).toggleClass('d-none', warnings.length === 0);
+            $(fields.amount).toggleClass('is-invalid', amountTooLow).attr('aria-invalid', String(amountTooLow));
+            $(fields.count).toggleClass('is-invalid', countTooLow).attr('aria-invalid', String(countTooLow));
+            $(fields.save).prop('disabled', warnings.length > 0);
+        }
+
+        function loadExposure(mode) {
+            const fields = selectors[mode];
+            const nic = String($(fields.nic).val() || '').trim();
+            const sequence = ++requestNumber[mode];
+            current[mode] = null;
+            $(fields.warning).addClass('d-none').empty();
+            $(fields.amount + ', ' + fields.count).removeClass('is-invalid').attr('aria-invalid', 'false');
+            if (!nic) {
+                $(fields.summary).text('Enter the NIC to see current active capital and receipt count across all branches.');
+                $(fields.save).prop('disabled', false);
+                return;
+            }
+
+            $(fields.summary).text('Checking active receipts across all branches…');
+            $(fields.save).prop('disabled', true);
+            $.getJSON('{{ route('customer.limit-exposure') }}', { nic: nic })
+                .done(response => {
+                    if (sequence !== requestNumber[mode] || nic !== String($(fields.nic).val() || '').trim()) return;
+                    current[mode] = response;
+                    showWarning(mode);
+                })
+                .fail(() => {
+                    if (sequence !== requestNumber[mode]) return;
+                    $(fields.summary).text('Could not load current exposure. The server will check the limits when you save.');
+                    $(fields.save).prop('disabled', false);
+                });
+        }
+
+        $('#nic, #up_nic').on('input', function () {
+            const mode = this.id === 'nic' ? 'add' : 'edit';
+            clearTimeout(timers[mode]);
+            current[mode] = null;
+            $(selectors[mode].save).prop('disabled', true);
+            timers[mode] = setTimeout(() => loadExposure(mode), 300);
+        });
+        $('#limit_amount, #limit_pawn_count').on('input', () => showWarning('add'));
+        $('#up_limit_amount, #up_limit_pawn_count').on('input', () => showWarning('edit'));
+        $(document).on('click', '.update_customer_form', () => loadExposure('edit'));
+        $('#addCustomerModel').on('shown.bs.modal', () => loadExposure('add'));
+    })();
+</script>
 
 <script>
     $(document).on('click', '.customer-detail-toggle', function () {

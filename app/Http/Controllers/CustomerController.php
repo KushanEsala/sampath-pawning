@@ -22,6 +22,18 @@ class CustomerController extends Controller
         return response()->json(['code' => ((int) Customer::max('Code')) + 1]);
     }
 
+    public function limitExposure(Request $request, CustomerPawnPolicy $policy)
+    {
+        $request->validate(['nic' => 'required|string|max:20']);
+        $nic = trim((string) $request->input('nic'));
+        $customers = $policy->customers($nic);
+
+        return response()->json([
+            'exposure' => $policy->exposure($nic),
+            'existing_policy' => $customers->isEmpty() ? null : $policy->policy($customers),
+        ]);
+    }
+
 
     // create customer ajax
     public function create(Request $request, CustomerPawnPolicy $policy){
@@ -42,11 +54,15 @@ class CustomerController extends Controller
             'limit_amount' => 'nullable|numeric|min:0',
             'limit_pawn_count' => 'nullable|integer|min:0',
         ]);
+        return DB::transaction(function () use ($request, $policy) {
         $nic = trim((string) $request->nic);
-        if ($policy->branchCustomer($nic, auth()->user()->BC)) {
+        $existing = $policy->customers($nic, true);
+        if ($existing->contains(fn (Customer $row) => (string) $row->BC === (string) auth()->user()->BC)) {
             throw ValidationException::withMessages(['nic' => 'This customer already exists in this branch.']);
         }
-        $existing = $policy->customers($nic);
+        $policy->assertLimitsCoverCurrentReceipts($nic,
+            $request->filled('limit_amount') ? (float) $request->limit_amount : null,
+            $request->filled('limit_pawn_count') ? (int) $request->limit_pawn_count : null);
         $effective = $existing->isEmpty() ? null : $policy->policy($existing);
         $customer = new Customer();
         $customer->Code=$request->code;
@@ -76,6 +92,7 @@ class CustomerController extends Controller
         return response()->json([
             'status'=>'success',
         ]);
+        });
     }
 
     // delete customer ajax
@@ -111,13 +128,18 @@ class CustomerController extends Controller
         DB::transaction(function () use ($request, $contactSync, $policy) {
         $query = Customer::where('id', $request->up_id);
         if (auth()->user()->role !== 'Admin') $query->where('BC', auth()->user()->BC);
-        $customer = $query->lockForUpdate()->firstOrFail();
+        $lookup = $query->firstOrFail();
+        $customer = $policy->customers((string) $lookup->NIC, true)->firstWhere('id', (int) $request->up_id);
+        abort_unless($customer && (auth()->user()->role === 'Admin' || $customer->BC === auth()->user()->BC), 404);
         $oldNic = $customer->NIC;
         $newNic = trim((string) $request->up_nic);
         if (CustomerPawnPolicy::key($oldNic) !== CustomerPawnPolicy::key($newNic)
             && $policy->customers($newNic)->isNotEmpty()) {
             throw ValidationException::withMessages(['up_nic' => 'This NIC already belongs to another customer.']);
         }
+        $policy->assertLimitsCoverCurrentReceipts($oldNic,
+            $request->filled('up_limit_amount') ? (float) $request->up_limit_amount : null,
+            $request->filled('up_limit_pawn_count') ? (int) $request->up_limit_pawn_count : null);
         $before = ['NIC' => $customer->NIC, 'Name' => $customer->Name,
             'Address_1' => $customer->Address_1, 'Contact_1' => $customer->Contact_1];
         $policy->updateIdentityPolicy($oldNic, (int) $request->up_status,

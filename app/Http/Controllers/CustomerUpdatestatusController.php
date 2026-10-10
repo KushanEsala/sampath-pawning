@@ -62,13 +62,19 @@ class CustomerUpdatestatusController extends Controller
                 if (auth()->user()->role !== 'Admin') {
                     $query->where('BC', auth()->user()->BC);
                 }
-                $customer = $query->lockForUpdate()->firstOrFail();
+                $lookup = $query->firstOrFail();
+                $customer = $policy->customers((string) $lookup->NIC, true)->firstWhere('id', (int) $id);
+                abort_unless($customer && (auth()->user()->role === 'Admin' || $customer->BC === auth()->user()->BC), 404);
                 $oldNic = (string) $customer->NIC;
                 $newNic = trim($values['nic']);
                 if (CustomerPawnPolicy::key($oldNic) !== CustomerPawnPolicy::key($newNic)
                     && $policy->customers($newNic)->isNotEmpty()) {
                     throw ValidationException::withMessages(['nic' => 'This NIC already belongs to another customer.']);
                 }
+
+                $policy->assertLimitsCoverCurrentReceipts($oldNic,
+                    isset($values['limit_amount']) ? (float) $values['limit_amount'] : null,
+                    isset($values['limit_pawn_count']) ? (int) $values['limit_pawn_count'] : null);
 
                 $before = ['NIC' => $oldNic, 'Name' => $customer->Name,
                     'Address_1' => $customer->Address_1, 'Contact_1' => $customer->Contact_1];

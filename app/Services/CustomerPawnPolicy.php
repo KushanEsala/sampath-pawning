@@ -115,6 +115,35 @@ class CustomerPawnPolicy
         return null;
     }
 
+    public function assertLimitsCoverCurrentReceipts(string $nic, ?float $amountLimit, ?int $countLimit): void
+    {
+        $errors = self::limitFloorErrors($this->exposure($nic), $amountLimit, $countLimit);
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    public static function limitFloorErrors(array $exposure, ?float $amountLimit, ?int $countLimit): array
+    {
+        $count = (int) $exposure['pawn_count'];
+        $amount = (float) $exposure['pawn_amount'];
+        $errors = [];
+
+        if ($amountLimit !== null && $amountLimit > 0 && $amountLimit + 0.009 < $amount) {
+            $errors['limit_amount'] = 'Entered amount limit Rs. '.number_format($amountLimit, 2)
+                .' is below current active capital Rs. '.number_format($amount, 2)
+                .' across '.$count.' receipt(s). Enter at least Rs. '.number_format($amount, 2)
+                .' or use 0/blank for no limit.';
+        }
+        if ($countLimit !== null && $countLimit > 0 && $countLimit < $count) {
+            $errors['limit_pawn_count'] = 'Entered pawn count limit '.$countLimit
+                .' is below the current '.$count.' active receipt(s). Enter at least '.$count
+                .' or use 0/blank for no limit.';
+        }
+
+        return $errors;
+    }
+
     public function updateIdentityPolicy(string $nic, int $status, ?float $amountLimit, ?int $countLimit): void
     {
         // Explicit editing replaces conflicting legacy/branch policy snapshots.

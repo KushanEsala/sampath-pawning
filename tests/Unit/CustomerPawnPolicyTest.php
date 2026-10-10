@@ -64,4 +64,19 @@ class CustomerPawnPolicyTest extends TestCase
         $this->assertNull(CustomerPawnPolicy::violation($policy, $exposure, 500.0, 0));
         $this->assertNotNull(CustomerPawnPolicy::violation($policy, $exposure, 500.01, 0));
     }
+
+    public function test_new_customer_limits_cannot_be_below_active_capital_or_receipt_count(): void
+    {
+        $exposure = ['pawn_amount' => 574000.0, 'pawn_count' => 3];
+
+        $errors = CustomerPawnPolicy::limitFloorErrors($exposure, 400000.0, 2);
+        $this->assertArrayHasKey('limit_amount', $errors);
+        $this->assertArrayHasKey('limit_pawn_count', $errors);
+        $this->assertStringContainsString('574,000.00', $errors['limit_amount']);
+        $this->assertStringContainsString('3 active receipt(s)', $errors['limit_pawn_count']);
+
+        $this->assertSame([], CustomerPawnPolicy::limitFloorErrors($exposure, 574000.0, 3));
+        $this->assertSame([], CustomerPawnPolicy::limitFloorErrors($exposure, 0.0, 0));
+        $this->assertSame([], CustomerPawnPolicy::limitFloorErrors($exposure, null, null));
+    }
 }

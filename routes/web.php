@@ -151,6 +151,7 @@ Route::get('/master_edit_customers/{id}', [App\Http\Controllers\CustomerControll
 //Show Customers view
 Route::get('/master_customers', [App\Http\Controllers\CustomerController::class, 'index'])->middleware('auth')->name('master_customers');
 Route::get('/customer-next-code', [App\Http\Controllers\CustomerController::class, 'nextCode'])->middleware('auth')->name('customer.next-code');
+Route::get('/customer-limit-exposure', [App\Http\Controllers\CustomerController::class, 'limitExposure'])->middleware('auth')->name('customer.limit-exposure');
 //Get Customer by Code
 Route::post('/getCustomer', [App\Http\Controllers\CustomerController::class, 'getByID'])->name('getCustomer');
 //Update Customer by Code
