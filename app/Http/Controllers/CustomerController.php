@@ -4,7 +4,10 @@ use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Services\CustomerContactSyncService;
+use App\Services\CustomerPawnPolicy;
+use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
 {
@@ -21,7 +24,7 @@ class CustomerController extends Controller
 
 
     // create customer ajax
-    public function create(Request $request){
+    public function create(Request $request, CustomerPawnPolicy $policy){
         $request->validate([
             'code'=>'required | max:10 ',
             'first_name'=>'required | max:255 ',
@@ -35,7 +38,16 @@ class CustomerController extends Controller
             'driving_license'=>'max:15 ',
             'passport'=>'max:15 ',
             'other_identifications'=>'max:15 ',
+            'status' => 'required|in:0,1',
+            'limit_amount' => 'nullable|numeric|min:0',
+            'limit_pawn_count' => 'nullable|integer|min:0',
         ]);
+        $nic = trim((string) $request->nic);
+        if ($policy->branchCustomer($nic, auth()->user()->BC)) {
+            throw ValidationException::withMessages(['nic' => 'This customer already exists in this branch.']);
+        }
+        $existing = $policy->customers($nic);
+        $effective = $existing->isEmpty() ? null : $policy->policy($existing);
         $customer = new Customer();
         $customer->Code=$request->code;
         $customer->Title=$request->title;
@@ -51,11 +63,13 @@ class CustomerController extends Controller
         $customer->Contact_1=$request->contact1;
         $customer->Contact_2=$request->contact2;
         $customer->Email=$request->email;
-        $customer->NIC=$request->nic;
+        $customer->NIC=$nic;
         $customer->Driving_license=$request->driving_license;
         $customer->Passport=$request->passport;
         $customer->Other_identifications=$request->other_identifications;
-        $customer->Status=$request->status;
+        $customer->Status=$effective ? (int) $effective['active'] : (int) $request->status;
+        $customer->Limit_Amount=$effective ? $effective['amount_limit'] : $request->limit_amount;
+        $customer->Limit_Pawn_Count=$effective ? $effective['count_limit'] : $request->limit_pawn_count;
         $customer->BC = auth()->user()->BC;
         $customer->OC = auth()->user()->username;
         $customer->save();
@@ -75,7 +89,7 @@ class CustomerController extends Controller
     }
 
     // ............update using ajax.................
-    public function update(Request $request, CustomerContactSyncService $contactSync){
+    public function update(Request $request, CustomerContactSyncService $contactSync, CustomerPawnPolicy $policy){
         $request->validate([
             'up_code'=>'required | max:10 ',
             'up_first_name'=>'required | max:255 ',
@@ -89,12 +103,26 @@ class CustomerController extends Controller
             'up_driving_license'=>'max:15 ',
             'up_passport'=>'max:15 ',
             'up_other_identifications'=>'max:15 ',
+            'up_status' => 'required|in:0,1',
+            'up_limit_amount' => 'nullable|numeric|min:0',
+            'up_limit_pawn_count' => 'nullable|integer|min:0',
         ]);
 
-        DB::transaction(function () use ($request, $contactSync) {
-        $customer = Customer::where('id', $request->up_id)->where('BC', auth()->user()->BC)->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($request, $contactSync, $policy) {
+        $query = Customer::where('id', $request->up_id);
+        if (auth()->user()->role !== 'Admin') $query->where('BC', auth()->user()->BC);
+        $customer = $query->lockForUpdate()->firstOrFail();
         $oldNic = $customer->NIC;
-        $before = ['NIC' => $customer->NIC, 'Address_1' => $customer->Address_1, 'Contact_1' => $customer->Contact_1];
+        $newNic = trim((string) $request->up_nic);
+        if (CustomerPawnPolicy::key($oldNic) !== CustomerPawnPolicy::key($newNic)
+            && $policy->customers($newNic)->isNotEmpty()) {
+            throw ValidationException::withMessages(['up_nic' => 'This NIC already belongs to another customer.']);
+        }
+        $before = ['NIC' => $customer->NIC, 'Name' => $customer->Name,
+            'Address_1' => $customer->Address_1, 'Contact_1' => $customer->Contact_1];
+        $policy->updateIdentityPolicy($oldNic, (int) $request->up_status,
+            $request->filled('up_limit_amount') ? (float) $request->up_limit_amount : null,
+            $request->filled('up_limit_pawn_count') ? (int) $request->up_limit_pawn_count : null);
         $fullName = trim(implode(' ', array_filter([$request->up_first_name, $request->up_middle_name, $request->up_last_name])));
         $customer->update([
             'Code'=>$request->up_code,
@@ -111,15 +139,23 @@ class CustomerController extends Controller
             'Contact_1'=>$request->up_contact1,
             'Contact_2'=>$request->up_contact2,
             'Email'=>$request->up_email,
-            'NIC'=>$request->up_nic,
+            'NIC'=>$newNic,
             'Driving_license'=>$request->up_driving_license,
             'Passport'=>$request->up_passport,
             'Other_identifications'=>$request->up_other_identifications,
             'Status'=>$request->up_status,
-            'BC'=>auth()->user()->BC,
+            'Limit_Amount'=>$request->up_limit_amount,
+            'Limit_Pawn_Count'=>$request->up_limit_pawn_count,
             'OC'=>auth()->user()->username,
         ]);
-        $contactSync->syncActiveSnapshots($customer->fresh(), $oldNic, $before);
+        if ($oldNic !== $newNic || $before['Name'] !== $customer->Name
+            || $before['Address_1'] !== $customer->Address_1
+            || $before['Contact_1'] !== $customer->Contact_1) {
+            $contactSync->syncActiveSnapshots($customer->fresh(), $oldNic, $before);
+        }
+        Log::info('Customer policy updated from Master Customer', [
+            'customer_id' => $customer->id, 'updated_by' => auth()->id(),
+        ]);
         });
 
         return response()->json([
@@ -149,14 +185,26 @@ class CustomerController extends Controller
     {
         $request->validate([
             'q' => 'nullable|string|max:80',
-            'status' => 'nullable|in:all,active,blacklisted',
+            'status' => 'nullable|in:all,active,inactive,blacklisted',
             'per_page' => 'nullable|in:10,25,50',
         ]);
         $search = trim((string) $request->input('q', ''));
-        $query = Customer::query()->where('BC', auth()->user()->BC);
+        $query = Customer::query();
+        if (auth()->user()->role === 'Admin') {
+            $query->whereNotNull('BC');
+        } else {
+            $query->where('BC', auth()->user()->BC);
+        }
 
-        if ($request->input('status') === 'active') $query->where('Status', 1);
-        if ($request->input('status') === 'blacklisted') $query->where('Status', 0);
+        if (in_array($request->input('status'), ['active', 'inactive', 'blacklisted'], true)) {
+            $inactiveNics = Customer::where('Status', 0)->pluck('NIC')
+                ->map(fn ($nic) => CustomerPawnPolicy::key((string) $nic))->unique()->values()->all();
+            if ($request->input('status') === 'active') {
+                $query->whereNotIn('NIC', $inactiveNics);
+            } else {
+                $query->whereIn('NIC', $inactiveNics);
+            }
+        }
 
         if ($search !== '') {
             $prefix = $search.'%';
@@ -173,9 +221,22 @@ class CustomerController extends Controller
             });
         }
 
-        return $query->orderByDesc('id')
+        $page = $query->orderByDesc('id')
             ->simplePaginate((int) $request->input('per_page', 25))
             ->withQueryString();
+        $policy = app(CustomerPawnPolicy::class);
+        $keys = $page->getCollection()->pluck('NIC')
+            ->map(fn ($nic) => CustomerPawnPolicy::key((string) $nic))->unique()->values()->all();
+        $policyRows = $keys ? Customer::whereIn('NIC', $keys)->get()
+            ->groupBy(fn (Customer $row) => CustomerPawnPolicy::key((string) $row->NIC)) : collect();
+        $page->getCollection()->each(function (Customer $customer) use ($policy, $policyRows) {
+            $matching = $policyRows->get(CustomerPawnPolicy::key((string) $customer->NIC), collect([$customer]));
+            $effective = $policy->policy($matching);
+            $customer->setAttribute('effective_status', $effective['active'] ? 1 : 0);
+            $customer->setAttribute('effective_amount_limit', $effective['amount_limit']);
+            $customer->setAttribute('effective_count_limit', $effective['count_limit']);
+        });
+        return $page;
     }
 
     public function getByID(Request $request)

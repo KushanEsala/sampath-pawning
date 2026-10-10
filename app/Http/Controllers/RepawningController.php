@@ -25,6 +25,7 @@ use App\Services\ReceiptLifecycleService;
 use App\Services\RepawningCalculator;
 use App\Services\ReceiptTypeResolver;
 use App\Services\ReceiptPaymentEligibility;
+use App\Services\CustomerPawnPolicy;
 use Illuminate\Validation\ValidationException;
 
 
@@ -188,7 +189,9 @@ class RepawningController extends Controller
             'MPawnfeedback' => MPawnfeedback::where('Receipt_Number', $receipt->Receipt_Number)
                 ->where('BC', $branchCode)
                 ->get(),
-            'customerData' => Customer::where('NIC', $receipt->Customer_NIC)->get(),
+            'customerData' => Customer::where('BC', $branchCode)
+                ->where('NIC', trim((string) $receipt->Customer_NIC))
+                ->orderByDesc('id')->limit(1)->get(),
             'receiptTypeData' => collect([$currentType]),
             'pawnType' => 'Pawn',
             'receiptData' => $receiptData,
@@ -203,11 +206,12 @@ class RepawningController extends Controller
     // ─────────────────────────────────────────────────────────────
     // Store Repawning Summary
     // ─────────────────────────────────────────────────────────────
-public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator $calculator = null, ?ReceiptLifecycleService $lifecycle = null, ?ReceiptTypeResolver $resolver = null)
+public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator $calculator = null, ?ReceiptLifecycleService $lifecycle = null, ?ReceiptTypeResolver $resolver = null, ?CustomerPawnPolicy $customerPolicy = null)
 {
     $calculator = $calculator ?? app(ReceiptFinancialCalculator::class);
     $lifecycle  = $lifecycle ?? app(ReceiptLifecycleService::class);
     $resolver   = $resolver ?? app(ReceiptTypeResolver::class);
+    $customerPolicy = $customerPolicy ?? app(CustomerPawnPolicy::class);
 
     $request->validate([
         'receipt_number'        => 'required|string',
@@ -260,6 +264,10 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         if ($isSilverReceipt) $validMonths = 1;
         $currentPrincipal = (float) ($existingPawn->Pawn_Amount ?: $existingPawn->Amount ?: 0);
         $redeemTotal = max(0, $currentPrincipal + $paidInterest + $documentCharges + $letterCharges + $stampFee - $discount);
+        $totalRepawnPayment = max(0, $currentPrincipal
+            + $payableTotal + $paidInterest + $documentCharges
+            + $letterCharges + $stampFee - $discount);
+        $customerPolicy->assertRepawn($existingPawn, $totalRepawnPayment);
 
         /* =========================
            SAVE REPAWNING SUMMARY
@@ -297,14 +305,6 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
         $arrearsPaid = $paidInterest
             + (float) $letterCharges
             + (float) $documentCharges;
-
-        $totalRepawnPayment = max(0, $currentPrincipal
-            + $payableTotal
-            + $paidInterest
-            + $documentCharges
-            + $letterCharges
-            + $stampFee
-            - $discount);
 
         /* =========================
            FINAL DATE
@@ -493,6 +493,9 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
             ->with('pdfLink1', asset('assets/pdf/Pawn_receipt_customer_' . $branch_code . '.pdf'))
             ->with('pdfLink2', asset('assets/pdf/Pawn_receipt_office_'   . $branch_code . '.pdf'));
 
+    } catch (ValidationException $e) {
+        DB::rollBack();
+        return back()->withErrors($e->errors())->withInput();
     } catch (\Exception $e) {
         DB::rollBack();
         return back()->withErrors(['error' => $e->getMessage()]);

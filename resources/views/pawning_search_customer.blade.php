@@ -97,6 +97,10 @@
 
                 <!-- Hidden Customer ID -->
                 <input type="hidden" name="customer_id" value="{{ $customer->id }}">
+                <input type="hidden" id="customerActive" value="{{ $customerActive ? 1 : 0 }}">
+                @unless($customerActive)
+                    <div class="col-12"><div class="alert alert-danger mb-0">This customer is inactive. New pawns and repawns are not allowed.</div></div>
+                @endunless
 
                 <!-- Late (Optional – Set 0 if not calculated) -->
                 <div class="col-md-1 stat-box">
@@ -178,14 +182,14 @@
                     <div class="col-md-3">
                         <label class="customer-label">Limit Amount</label>
                     <input type="text" class="form-control text" id="limitAmount"
-                      value="{{ $Limit_Amount }}" readonly>
+                      value="{{ $Limit_Amount > 0 ? $Limit_Amount : 'No limit' }}" readonly>
                     </div>
 
 
                     <div class="col-md-3">
                        <label class="customer-label">Limit Pawn Count</label>
                          <input type="text" class="form-control text" id="limitPawnCount"
-           value="{{ $Limit_Pawn_Count }}" readonly>
+           value="{{ $Limit_Pawn_Count > 0 ? $Limit_Pawn_Count : 'No limit' }}" readonly>
 
                     </div>
                 </div>

@@ -246,6 +246,14 @@
                         </div>
                     </div>
                 </form>
+                @if($branchChoices->count() > 1)
+                    <div class="mt-3"><span class="customer-label">Branch customer record:</span>
+                        @foreach($branchChoices as $choice)
+                            <a class="btn btn-sm {{ $customer?->BC === $choice->BC ? 'btn-primary' : 'btn-outline-primary' }}"
+                               href="{{ route('customerUpdatestatus', ['nic' => $nic, 'bc' => $choice->BC]) }}">{{ $choice->BC }}</a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -258,13 +266,17 @@
                 <div class="cu-card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5><i class="fas fa-user-edit me-2"></i>Edit Customer Details</h5>
-                        @if($customer->Status == 1)
+                        @if($effectivePolicy['active'])
                             <span class="cu-badge-active">ACTIVE</span>
                         @else
                             <span class="cu-badge-inactive">INACTIVE</span>
                         @endif
                     </div>
                     <div class="card-body">
+                        @if(($effectivePolicy['amount_limit'] > 0 && $pawnStats->pawn_amount > $effectivePolicy['amount_limit'])
+                            || ($effectivePolicy['count_limit'] > 0 && $pawnStats->pawn_count > $effectivePolicy['count_limit']))
+                            <div class="alert alert-warning">Existing active receipts already exceed this customer's limit. They remain unchanged; new pawns and repawns will be checked against the limit.</div>
+                        @endif
                         <form method="POST" action="{{ route('customerUpdatestatus.update', $customer->id) }}">
                             @csrf
                             @method('PUT')
@@ -445,7 +457,7 @@
                                 <div class="cu-stat">
                                     <div class="cu-stat-label">Current Pawning Amount Total</div>
                                     <div class="cu-stat-value">
-                                        {{ number_format($pawnStats->total_pawn_amount ?? 0, 2) }}
+                                        {{ number_format($pawnStats->pawn_amount ?? 0, 2) }}
                                     </div>
                                 </div>
                             </div>
@@ -464,14 +476,15 @@
                                 <!-- Status and Additional Fields -->
                                 <div class="col-md-12 mt-2">
                                     <p class="cu-section-title">Status &amp; Limits</p>
+                                    <p class="text-muted small">Status and limits apply to this NIC across every branch. Leave a limit blank or set it to 0 for no limit.</p>
                                 </div>
 
                                 <div class="col-md-4">
                                     <div class="form-group">
                                         <label>Status <span class="text-danger">*</span></label>
                                         <select name="status" class="form-select" required>
-                                            <option value="1" {{ $customer->Status == 1 ? 'selected' : '' }}>Active</option>
-                                            <option value="0" {{ $customer->Status == 0 ? 'selected' : '' }}>Inactive</option>
+                                            <option value="1" {{ $effectivePolicy['active'] ? 'selected' : '' }}>Active</option>
+                                            <option value="0" {{ !$effectivePolicy['active'] ? 'selected' : '' }}>Inactive</option>
                                         </select>
                                     </div>
                                 </div>
@@ -480,7 +493,7 @@
                                     <div class="form-group">
                                         <label>Limit Amount</label>
                                         <input type="number" step="0.01" min="0" name="limit_amount" class="form-control"
-                                               value="{{ $customer->Limit_Amount }}">
+                                               value="{{ $effectivePolicy['amount_limit'] ?: '' }}" placeholder="No limit">
                                     </div>
                                 </div>
 
@@ -488,7 +501,7 @@
                                     <div class="form-group">
                                         <label>Limit Pawn Count</label>
                                         <input type="number" step="1" min="0" name="limit_pawn_count" class="form-control"
-                                               value="{{ $customer->Limit_Pawn_Count }}">
+                                               value="{{ $effectivePolicy['count_limit'] ?: '' }}" placeholder="No limit">
                                     </div>
                                 </div>
 

@@ -23,6 +23,7 @@ use App\Models\TPawnTrans;
 use Illuminate\Support\Facades\DB;
 use App\Services\ReceiptHistoryService;
 use App\Services\ReceiptTypeResolver;
+use App\Services\CustomerPawnPolicy;
 
 
 class PawnController extends Controller
@@ -109,16 +110,17 @@ class PawnController extends Controller
     }
 
 
-    public function storePawnSum(Request $request, ?ReceiptTypeResolver $resolver = null)
+    public function storePawnSum(Request $request, ?ReceiptTypeResolver $resolver = null, ?CustomerPawnPolicy $customerPolicy = null)
     {
         $resolver = $resolver ?? app(ReceiptTypeResolver::class);
+        $customerPolicy = $customerPolicy ?? app(CustomerPawnPolicy::class);
         $request->validate([
             'customer_nic'        => 'required',
             'customer_name'       => 'required',
             'customer_address'    => 'required',
             'customer_contact_1'  => 'required',
             'receipt_date'        => 'required',
-            'amount'              => 'required',
+            'amount'              => 'required|numeric|gt:0',
             'total_amount'        => 'required',
             'inputs.*.category'   => 'required',
             'inputs.*.articles'   => 'required',
@@ -172,6 +174,15 @@ class PawnController extends Controller
             $maxInvoiceNo  = TPawnSum::where('BC', $branch_code)->lockForUpdate()->max('Invoice_Number');
             $nextInvoiceNo = ($maxInvoiceNo ?? 0) + 1;
 
+            $customerPolicy->assertNewPawn($request->customer_nic, (float) $request->amount);
+            $customer = $customerPolicy->customerForOperator($request->customer_nic, $branch_code,
+                auth()->user()->role === 'Admin');
+            if (!$customer) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'customer_nic' => 'This customer is not registered in the current branch.',
+                ]);
+            }
+
             // ============================================
             // STEP 1: Fetch receipt type data FIRST
             // ============================================
@@ -197,13 +208,13 @@ class PawnController extends Controller
             // STEP 2: Build TPawnSum
             // ============================================
             $PawnSum                   = new TPawnSum;
-            $PawnSum->Customer_NIC     = $request->customer_nic;
-            $PawnSum->Customer_Name    = $request->customer_name;
-            $PawnSum->First_name       = $request->first_name;
-            $PawnSum->Middle_name      = $request->middle_name;
-            $PawnSum->Last_name        = $request->last_name;
-            $PawnSum->Customer_Address = $request->customer_address;
-            $PawnSum->Customer_Phone   = $request->customer_contact_1;
+            $PawnSum->Customer_NIC     = $customer->NIC;
+            $PawnSum->Customer_Name    = $customer->Name ?: trim(implode(' ', array_filter([$customer->First_name, $customer->Middle_name, $customer->Last_name])));
+            $PawnSum->First_name       = $customer->First_name;
+            $PawnSum->Middle_name      = $customer->Middle_name;
+            $PawnSum->Last_name        = $customer->Last_name;
+            $PawnSum->Customer_Address = $customer->Address_1;
+            $PawnSum->Customer_Phone   = $customer->Contact_1;
             $PawnSum->Receipt_Type     = $Receipt_Type;
             $PawnSum->Receipt_Number   = $nextReceiptNo;
             $PawnSum->Invoice_Number   = $nextInvoiceNo;
@@ -385,6 +396,9 @@ class PawnController extends Controller
                 ->with('pdfLink2', $pdfUrl2)
                 ->with('generatedReceiptNo', $nextReceiptNo);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return back()->withErrors($e->errors())->withInput();
         } catch (\Illuminate\Database\QueryException $e) {
             DB::rollBack();
 
@@ -568,46 +582,24 @@ class PawnController extends Controller
         ]);
     }
 
-public function get(Request $request)
+public function get(Request $request, CustomerPawnPolicy $customerPolicy)
 {
-    $nic = $request->search_string;
+    $nic = trim((string) $request->search_string);
     $branch_code = auth()->user()->BC;
-
-    $customers = Customer::where('NIC', $nic)->get();
-
-    $pendingPawn = TPawnSum::where('Customer_NIC', $nic)
-        ->where('BC', $branch_code)
-        ->where('IsRedeemed', 0)
-        ->count();
-
-    $pendingPawnTotal = TPawnSum::where('Customer_NIC', $nic)
-        ->where('BC', $branch_code)
-        ->where('IsRedeemed', 0)
-        ->sum('Pawn_Amount');
-
-    $redeemedPawn = TPawnSum::where('Customer_NIC', $nic)
-        ->where('BC', $branch_code)
-        ->where('IsRedeemed', 1)
-        ->count();
-
-    $Limit_Amount =  Customer::where('NIC', $nic)
-        ->sum('Limit_Amount');
-
-
-    $Limit_Pawn_Count =  Customer::where('NIC', $nic)
-        ->sum('Limit_Pawn_Count');
-
-
-
-
-    if ($customers->count() > 0) {
+    $customer = $customerPolicy->customerForOperator($nic, $branch_code, auth()->user()->role === 'Admin');
+    if ($customer) {
+        $exposure = $customerPolicy->exposure($nic);
+        $policy = $customerPolicy->policy($customerPolicy->customers($nic));
+        $redeemedPawn = TPawnSum::where('Customer_NIC', $nic)
+            ->where('IsRedeemed', 1)->count();
         return view('pawning_search_customer', [
-            'customer_get'   => $customers,
-            'pending_count'  => $pendingPawn,
+            'customer_get'   => collect([$customer]),
+            'pending_count'  => $exposure['pawn_count'],
             'redeemed_count' => $redeemedPawn,
-            'pendingPawnTotal' => $pendingPawnTotal,
-            'Limit_Amount' => $Limit_Amount,
-            'Limit_Pawn_Count' => $Limit_Pawn_Count,
+            'pendingPawnTotal' => $exposure['pawn_amount'],
+            'Limit_Amount' => $policy['amount_limit'],
+            'Limit_Pawn_Count' => $policy['count_limit'],
+            'customerActive' => $policy['active'],
 
         ])->render();
     }

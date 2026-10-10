@@ -7,6 +7,7 @@
         <thead><tr>
             <th class="customer-view-cell">Details</th>
             <th>Code</th>
+            <th>Branch</th>
             <th>Customer</th>
             <th>NIC</th>
             <th>Telephone</th>
@@ -18,13 +19,14 @@
             <tr>
                 <td><button type="button" class="btn btn-sm btn-outline-primary customer-detail-toggle" data-target="{{ $detailId }}" aria-controls="{{ $detailId }}" aria-expanded="false"><i class="far fa-eye me-1"></i>View</button></td>
                 <td class="customer-code">{{ $data->Code }}</td>
+                <td class="customer-code">{{ $data->BC }}</td>
                 <td class="customer-name">{{ trim(implode(' ', array_filter([$data->Title, $data->First_name, $data->Middle_name, $data->Last_name]))) ?: ($data->Name ?: '—') }}</td>
                 <td class="customer-code">{{ $data->NIC ?: '—' }}</td>
                 <td class="customer-phone">{{ $data->Contact_1 ?: '—' }}</td>
-                <td><span class="customer-status {{ (int) $data->Status === 1 ? 'is-active' : 'is-blacklisted' }}">{{ (int) $data->Status === 1 ? 'Active' : 'Blacklisted' }}</span></td>
+                <td><span class="customer-status {{ (int) $data->effective_status === 1 ? 'is-active' : 'is-blacklisted' }}">{{ (int) $data->effective_status === 1 ? 'Active' : 'Inactive' }}</span></td>
             </tr>
             <tr id="{{ $detailId }}" class="customer-detail-row d-none">
-                <td colspan="6">
+                <td colspan="7">
                     <div class="customer-detail-panel">
                         <div class="customer-detail-grid">
                             <div><span class="customer-detail-label">Address</span><div>{{ $data->Address_1 ?: '—' }}@if($data->City_1), {{ $data->City_1 }}@endif</div></div>
@@ -35,6 +37,8 @@
                             <div><span class="customer-detail-label">Driving licence</span><div>{{ $data->Driving_license ?: '—' }}</div></div>
                             <div><span class="customer-detail-label">Passport</span><div>{{ $data->Passport ?: '—' }}</div></div>
                             <div><span class="customer-detail-label">Other identification</span><div>{{ $data->Other_identifications ?: '—' }}</div></div>
+                            <div><span class="customer-detail-label">Pawn amount limit</span><div>{{ $data->effective_amount_limit > 0 ? number_format($data->effective_amount_limit, 2) : 'No limit' }}</div></div>
+                            <div><span class="customer-detail-label">Active pawn count limit</span><div>{{ $data->effective_count_limit > 0 ? $data->effective_count_limit : 'No limit' }}</div></div>
                         </div>
                         <div class="customer-detail-actions">
                             <button type="button" class="btn btn-sm btn-success update_customer_form"
@@ -48,14 +52,18 @@
                                 data-contact2="{{ $data->Contact_2 }}" data-email="{{ $data->Email }}"
                                 data-nic="{{ $data->NIC }}" data-driving_license="{{ $data->Driving_license }}"
                                 data-passport="{{ $data->Passport }}" data-other_identifications="{{ $data->Other_identifications }}"
-                                data-status="{{ $data->Status }}"><i class="far fa-edit me-1"></i>Edit customer</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger delete_customer" data-id="{{ $data->id }}"><i class="far fa-trash-alt me-1"></i>Delete</button>
+                                data-status="{{ $data->effective_status }}"
+                                data-limit_amount="{{ $data->effective_amount_limit ?: '' }}"
+                                data-limit_pawn_count="{{ $data->effective_count_limit ?: '' }}"><i class="far fa-edit me-1"></i>Edit customer</button>
+                            @if($data->BC === auth()->user()->BC)
+                                <button type="button" class="btn btn-sm btn-outline-danger delete_customer" data-id="{{ $data->id }}"><i class="far fa-trash-alt me-1"></i>Delete</button>
+                            @endif
                         </div>
                     </div>
                 </td>
             </tr>
         @empty
-            <tr><td colspan="6" class="customer-empty">No customers match this search. Try a name, NIC, phone number or code.</td></tr>
+            <tr><td colspan="7" class="customer-empty">No customers match this search. Try a name, NIC, phone number or code.</td></tr>
         @endforelse
         </tbody>
     </table>

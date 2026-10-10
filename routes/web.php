@@ -70,11 +70,11 @@ Route::get('/show_select_user_ajax', [App\Http\Controllers\UserController::class
 Route::get('/suppliers', [App\Http\Controllers\SupplierController::class, 'showSuppliers'])->name('suppliers');
 Route::get('/add_supplier', [App\Http\Controllers\SupplierController::class, 'showAddSuppliers'])->name('add_supplier');
 
-Route::get('/pawning', [App\Http\Controllers\PawnController::class, 'showPawnReceipt'])->name('pawning');
+Route::get('/pawning', [App\Http\Controllers\PawnController::class, 'showPawnReceipt'])->middleware('auth')->name('pawning');
 Route::post('/storePawn', [App\Http\Controllers\PawnController::class, 'storePawn'])->name('storePawn');
-Route::post('/storePawnSum', [App\Http\Controllers\PawnController::class, 'storePawnSum'])->name('storePawnSum');
+Route::post('/storePawnSum', [App\Http\Controllers\PawnController::class, 'storePawnSum'])->middleware('auth')->name('storePawnSum');
 //get customer ajax
-Route::get('/get_customer_ajax', [App\Http\Controllers\PawnController::class, 'get'])->name('get_customer_ajax');
+Route::get('/get_customer_ajax', [App\Http\Controllers\PawnController::class, 'get'])->middleware('auth')->name('get_customer_ajax');
 //search and get pawn ajax
 Route::get('/search_pawn_ajax', [App\Http\Controllers\PawnController::class, 'search'])->name('search_pawn_ajax');
 //get article history ajax in redeem form
@@ -100,7 +100,7 @@ Route::get('/deleted_pawn_report', [App\Http\Controllers\DeletePawnReportControl
 
 Route::get('/pawning_opening', [App\Http\Controllers\OpeningPawnController::class, 'index'])->name('pawning_opening');
 // store Opening PawnSum
-Route::post('/storeOpeningPawnSum', [App\Http\Controllers\OpeningPawnController::class, 'storePawnSum'])->name('storeOpeningPawnSum');
+Route::post('/storeOpeningPawnSum', [App\Http\Controllers\OpeningPawnController::class, 'storePawnSum'])->middleware('auth')->name('storeOpeningPawnSum');
 // print_opening_receipt_ajax
 Route::get('/print_opening_receipt_ajax', [App\Http\Controllers\OpeningPawnController::class, 'printReceipt'])->name('print_opening_receipt_ajax');
 //get_customer_opening_receipt_no_ajax
@@ -149,7 +149,7 @@ Route::post('/addCustomer', [App\Http\Controllers\CustomerController::class, 'ad
 //Edit View Customer Route
 Route::get('/master_edit_customers/{id}', [App\Http\Controllers\CustomerController::class, 'indexEdit'])->name('master_edit_customers');
 //Show Customers view
-Route::get('/master_customers', [App\Http\Controllers\CustomerController::class, 'index'])->name('master_customers');
+Route::get('/master_customers', [App\Http\Controllers\CustomerController::class, 'index'])->middleware('auth')->name('master_customers');
 Route::get('/customer-next-code', [App\Http\Controllers\CustomerController::class, 'nextCode'])->middleware('auth')->name('customer.next-code');
 //Get Customer by Code
 Route::post('/getCustomer', [App\Http\Controllers\CustomerController::class, 'getByID'])->name('getCustomer');
@@ -159,15 +159,15 @@ Route::post('/update_customer/{id}', [App\Http\Controllers\CustomerController::c
 Route::get('/delete_customer/{id}', [App\Http\Controllers\CustomerController::class, 'destroy'])->name('delete_customer');
 
 //Add customer ajex
-Route::post('/add_customer_ajax', [App\Http\Controllers\CustomerController::class, 'create'])->name('add_customer_ajax');
+Route::post('/add_customer_ajax', [App\Http\Controllers\CustomerController::class, 'create'])->middleware('auth')->name('add_customer_ajax');
 //delete customer ajex
-Route::post('/delete_customer_ajax', [App\Http\Controllers\CustomerController::class, 'delete'])->name('delete_customer_ajax');
+Route::post('/delete_customer_ajax', [App\Http\Controllers\CustomerController::class, 'delete'])->middleware('auth')->name('delete_customer_ajax');
 //update customer ajex
-Route::post('/update_customer_ajax', [App\Http\Controllers\CustomerController::class, 'update'])->name('update_customer_ajax');
+Route::post('/update_customer_ajax', [App\Http\Controllers\CustomerController::class, 'update'])->middleware('auth')->name('update_customer_ajax');
 //pagination branch ajax
-Route::get('/customer_pagination', [App\Http\Controllers\CustomerController::class, 'pagination']);
+Route::get('/customer_pagination', [App\Http\Controllers\CustomerController::class, 'pagination'])->middleware('auth');
 //search customer ajax
-Route::get('/search_customer_ajax', [App\Http\Controllers\CustomerController::class, 'search'])->name('search_customer_ajax');
+Route::get('/search_customer_ajax', [App\Http\Controllers\CustomerController::class, 'search'])->middleware('auth')->name('search_customer_ajax');
 
 
 
@@ -418,7 +418,7 @@ Route::get('/forfeitReceipt_List', [App\Http\Controllers\ForfeitReceiptControlle
 Route::get('/view_dynamicCusDetailsView_details_ajax', [App\Http\Controllers\PawnController::class, 'getCustomerDetails'])->name('view_dynamicCusDetailsView_details_ajax');
 
 
-Route::post('/Store_RepawningSum', [App\Http\Controllers\RepawningController::class, 'StoreRepawningSum'])->name('Store_RepawningSum');
+Route::post('/Store_RepawningSum', [App\Http\Controllers\RepawningController::class, 'StoreRepawningSum'])->middleware('auth')->name('Store_RepawningSum');
 
 
 
@@ -509,15 +509,15 @@ Route::middleware(['auth'])->group(function () {
 
 
 
-Route::get('customerUpdatestatus', [CustomerUpdatestatusController::class, 'customerUpdatestatus'])->name('customerUpdatestatus');
+Route::get('customerUpdatestatus', [CustomerUpdatestatusController::class, 'customerUpdatestatus'])->middleware('auth')->name('customerUpdatestatus');
 // Add these routes to your routes/web.php file
 
 // Customer Status Management Routes
 Route::get('/customer-update-status', [CustomerUpdatestatusController::class, 'customerUpdatestatus'])
-    ->name('customer-update-status.view');
+    ->middleware('auth')->name('customer-update-status.view');
 
 Route::put('/customer-update-status/{id}', [CustomerUpdatestatusController::class, 'updateStatus'])
-    ->name('customerUpdatestatus.update');
+    ->middleware('auth')->name('customerUpdatestatus.update');
     
     
     Route::get('/search.stock', [StockNumberSearchController::class, 'index']) ->name('search.stock');

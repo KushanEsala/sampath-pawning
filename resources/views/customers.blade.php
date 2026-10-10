@@ -71,7 +71,7 @@
                                                     <div class="col-12">
                                                         <form method="get" action="{{ route('master_customers') }}" class="customer-tools" role="search">
                                                             <div class="customer-query"><label for="customerQuery">Find customer</label><input id="customerQuery" class="form-control" name="q" value="{{ request('q') }}" placeholder="Name, NIC, telephone or code"></div>
-                                                            <div class="customer-filter"><label for="customerStatus">Status</label><select id="customerStatus" name="status" class="form-select"><option value="">All statuses</option><option value="active" @selected(request('status') === 'active')>Active</option><option value="blacklisted" @selected(request('status') === 'blacklisted')>Blacklisted</option></select></div>
+                                                            <div class="customer-filter"><label for="customerStatus">Status</label><select id="customerStatus" name="status" class="form-select"><option value="">All statuses</option><option value="active" @selected(request('status') === 'active')>Active</option><option value="inactive" @selected(in_array(request('status'), ['inactive','blacklisted']))>Inactive</option></select></div>
                                                             <div class="customer-filter"><label for="customerPageSize">Rows</label><select id="customerPageSize" name="per_page" class="form-select">@foreach([10,25,50] as $size)<option value="{{ $size }}" @selected((int) request('per_page',25) === $size)>{{ $size }}</option>@endforeach</select></div>
                                                             <div class="customer-action"><button class="btn btn-primary" type="submit"><i class="fas fa-search me-1"></i>Search</button><a class="btn btn-outline-secondary" href="{{ route('master_customers') }}">Clear</a></div>
                                                         </form>
@@ -214,12 +214,12 @@
                                                                                                     <div class="col-md-6">
                                                                                                         <div class="row">
                                                                                                             <div class="col-md-11">
-                                                                                                                <label>Mark as Active or Blacklisted <span style="color:#FF0000; font-weight: bold; ">*</span> :</label>
+                                                                                                                <label>Customer status <span style="color:#FF0000; font-weight: bold; ">*</span> :</label>
                                                                                                                 <div class=" form-group">
                                                                                                                     <select class="select form-control" name="status" id="status" aria-hidden="true" required>
                                                                                                                         <option value="" >Please Select</option>
                                                                                                                         <option value="1" selected>Active</option>
-                                                                                                                        <option value="0">Blacklist</option>
+                                                                                                                        <option value="0">Inactive</option>
                                                                                                                     </select>
                                                                                                                 </div>
                                                                                                             </div>
@@ -229,6 +229,11 @@
 
 
 
+                                                                                        <p class="small text-muted mt-3 mb-0">Limits apply to the customer's active loans across all branches.</p>
+                                                                                        <div class="row mt-3">
+                                                                                            <div class="col-md-6"><label>Pawn amount limit (blank or 0 = no limit)</label><input type="number" min="0" step="0.01" id="limit_amount" class="form-control"></div>
+                                                                                            <div class="col-md-6"><label>Active pawn count limit (blank or 0 = no limit)</label><input type="number" min="0" step="1" id="limit_pawn_count" class="form-control"></div>
+                                                                                        </div>
                                                                                         <div class="text-center mt-4">
                                                                                             <button type="button" class="btn btn-success add_customer bg-success-light text-success me-2">Save</button>
                                                                                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
@@ -384,11 +389,11 @@
                                                                              <div class="col-md-6">
                                                                                  <div class="row">
                                                                                      <div class="col-md-11">
-                                                                                         <label>Mark as Active or Blacklisted <span style="color:#FF0000; font-weight: bold; ">*</span> </label>
+                                                                                         <label>Customer status <span style="color:#FF0000; font-weight: bold; ">*</span> </label>
                                                                                          <div class=" form-group">
                                                                                             <select class="select form-control" name="up_status" id="up_status" aria-hidden="true" required>
                                                                                                 <option value="1" >Active</option>
-                                                                                                <option value="0">Blacklist</option>
+                                                                                                <option value="0">Inactive</option>
                                                                                             </select>
                                                                                         </div>
                                                                                      </div>
@@ -396,6 +401,11 @@
                                                                              </div>
                                                                          </div>
 
+                                                                 <p class="small text-muted mt-3 mb-0">Limits apply to this NIC across all branches.</p>
+                                                                 <div class="row mt-3">
+                                                                     <div class="col-md-6"><label>Pawn amount limit (blank or 0 = no limit)</label><input type="number" min="0" step="0.01" id="up_limit_amount" class="form-control"></div>
+                                                                     <div class="col-md-6"><label>Active pawn count limit (blank or 0 = no limit)</label><input type="number" min="0" step="1" id="up_limit_pawn_count" class="form-control"></div>
+                                                                 </div>
                                                                  <div class="text-center mt-4">
                                                                      <button type="button" class="btn btn-success update_customer bg-success-light text-success me-2">Update</button>
                                                                      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" aria-label="Close">Close</button>
@@ -453,6 +463,8 @@
                 let passport = $('#passport').val();
                 let other_identifications = $('#other_identifications').val();
                 let status = $('#status').val();
+                let limit_amount = $('#limit_amount').val();
+                let limit_pawn_count = $('#limit_pawn_count').val();
 
                 $.ajax({
                     url:"{{ route('add_customer_ajax') }}",
@@ -476,7 +488,9 @@
                     driving_license:driving_license,
                     passport:passport,
                     other_identifications:other_identifications,
-                    status:status},
+                    status:status,
+                    limit_amount:limit_amount,
+                    limit_pawn_count:limit_pawn_count},
 
                     success:function(res){
                         if(res.status=='success'){
@@ -570,6 +584,8 @@
                 let passport = $(this).data('passport');
                 let other_identifications = $(this).data('other_identifications');
                 let status = $(this).data('status');
+                let limitAmount = $(this).data('limit_amount');
+                let limitPawnCount = $(this).data('limit_pawn_count');
 
                 $('#up_id').val(id);
                 $('#up_code').val(code);
@@ -590,6 +606,8 @@
                 $('#up_passport').val(passport);
                 $('#up_other_identifications').val(other_identifications);
                 $('#up_status').val(status);
+                $('#up_limit_amount').val(limitAmount);
+                $('#up_limit_pawn_count').val(limitPawnCount);
 
             });
 
@@ -615,6 +633,8 @@
                         let up_passport = $('#up_passport').val();
                         let up_other_identifications = $('#up_other_identifications').val();
                         let up_status = $('#up_status').val();
+                        let up_limit_amount = $('#up_limit_amount').val();
+                        let up_limit_pawn_count = $('#up_limit_pawn_count').val();
 
                         $.ajax({
                             url:"{{ route('update_customer_ajax') }}",
@@ -638,7 +658,9 @@
                             up_driving_license:up_driving_license,
                             up_passport:up_passport,
                             up_other_identifications:up_other_identifications,
-                            up_status:up_status},
+                            up_status:up_status,
+                            up_limit_amount:up_limit_amount,
+                            up_limit_pawn_count:up_limit_pawn_count},
 
                             success:function(res){
                                 if(res.status=='success'){

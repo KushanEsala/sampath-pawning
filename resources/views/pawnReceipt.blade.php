@@ -1989,9 +1989,20 @@ $(document).ready(function () {
         let entered = parseFloat($('#amount_display').val().replace(/,/g, '')) || 0;
         let pendingTotal = parseFloat($('#pendingPawnTotal').val()) || 0;
         let limit = parseFloat($('#limitAmount').val()) || 0;
+        let currentCount = parseInt($('#currentPawnCount').val(), 10) || 0;
+        let countLimit = parseInt($('#limitPawnCount').val(), 10) || 0;
 
         if ($('#limitAmount').length === 0) {
             return true; // no customer selected yet, skip check
+        }
+
+        if ($('#customerActive').val() === '0') {
+            if (showAlert) Swal.fire('Inactive customer', 'Activate this customer before pawning.', 'error');
+            return false;
+        }
+        if (countLimit > 0 && currentCount + 1 > countLimit) {
+            if (showAlert) Swal.fire('Pawn count limit exceeded', `This customer already has ${currentCount} active pawns; the limit is ${countLimit}.`, 'error');
+            return false;
         }
 
         let projectedTotal = pendingTotal + entered;

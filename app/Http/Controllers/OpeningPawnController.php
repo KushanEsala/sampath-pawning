@@ -21,6 +21,9 @@ use App\Models\Company;
 use App\Models\branchDel;
 use App\Models\TDeletePawnSum;
 use App\Models\TDeletePawnDetails;
+use App\Services\CustomerPawnPolicy;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OpeningPawnController extends Controller
 {
@@ -58,7 +61,7 @@ class OpeningPawnController extends Controller
     }
 
 
-    public function storePawnSum(Request $request){
+    public function storePawnSum(Request $request, CustomerPawnPolicy $customerPolicy){
         $request->validate([
             'customer_nic' => ' required',
             'customer_name' => ' required',
@@ -68,7 +71,7 @@ class OpeningPawnController extends Controller
             // 'receipt_no' => ' required | unique:t_opening_pawn_sums,Receipt_Number',
             // 'invoice_no' => 'required | unique:t_opening_pawn_sums,Invoice_Number',
             'receipt_date' => ' required',
-            'amount' => ' required',
+            'amount' => 'required|numeric|gt:0',
             'total_amount' => ' required',
             // 'oc' => ' required',
             // 'bc' => ' required'
@@ -101,14 +104,21 @@ class OpeningPawnController extends Controller
         }
         $to_date = Carbon::parse($Receipt_Date)->addDays($validPeriod)->toDateString();
 
+        DB::transaction(function () use ($request, $customerPolicy, $to_date) {
+        $customerPolicy->assertNewPawn($request->customer_nic, (float) $request->amount);
+        $customer = $customerPolicy->customerForOperator($request->customer_nic, auth()->user()->BC,
+            auth()->user()->role === 'Admin');
+        if (!$customer) {
+            throw ValidationException::withMessages(['customer_nic' => 'This customer is not registered in the current branch.']);
+        }
         $PawnSum = new TOpeningPawnSum;
-        $PawnSum->Customer_NIC = $request->customer_nic;
-        $PawnSum->Customer_Name = $request->customer_name;
-        $PawnSum->First_name = $request->first_name;
-        $PawnSum->Middle_name = $request->middle_name;
-        $PawnSum->Last_name = $request->last_name;
-        $PawnSum->Customer_Address = $request->customer_address;
-        $PawnSum->Customer_Phone = $request->customer_contact_1;
+        $PawnSum->Customer_NIC = $customer->NIC;
+        $PawnSum->Customer_Name = $customer->Name ?: trim(implode(' ', array_filter([$customer->First_name, $customer->Middle_name, $customer->Last_name])));
+        $PawnSum->First_name = $customer->First_name;
+        $PawnSum->Middle_name = $customer->Middle_name;
+        $PawnSum->Last_name = $customer->Last_name;
+        $PawnSum->Customer_Address = $customer->Address_1;
+        $PawnSum->Customer_Phone = $customer->Contact_1;
         $PawnSum->Receipt_Type = $request->receipt_type;
         $PawnSum->Valid_Period = $request->valid_period;
         $PawnSum->Receipt_Number = $request->receipt_no;
@@ -150,6 +160,7 @@ class OpeningPawnController extends Controller
         $PawnDetails->BC = auth()->user()->BC;
         $PawnDetails->save();
         }
+        });
 
         $receiptInput_no = $request->receipt_no;
         $branch_code = auth()->user()->BC;
