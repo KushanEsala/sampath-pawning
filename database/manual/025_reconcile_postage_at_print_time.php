@@ -111,6 +111,57 @@ echo json_encode([
 
 if (!$apply || !$plans) exit(0);
 
+// A complete, consistent production snapshot is required before changing
+// hundreds of posted letter amounts. Stream the dump into a private gzip
+// file; never place the password on the command line or echo it.
+$backupDir = '/home/kreethya/db-backups';
+if (!is_dir($backupDir) || !is_writable($backupDir)) {
+    throw new RuntimeException('Private database backup directory is unavailable; no changes made.');
+}
+$db = config('database.connections.mysql');
+$databaseName = (string) ($db['database'] ?? '');
+if ($databaseName === '') throw new RuntimeException('Database name unavailable; no changes made.');
+$fullBackup = $backupDir.'/letter_postage_print_time_pre_'.date('Ymd_His').'_'.bin2hex(random_bytes(3)).'.sql.gz';
+$partialBackup = $fullBackup.'.partial';
+$command = [
+    '/usr/local/apps/mariadb114/bin/mariadb-dump', '--no-defaults',
+    '--host='.(string) ($db['host'] ?? 'localhost'),
+    '--port='.(string) ($db['port'] ?? '3306'),
+    '--user='.(string) ($db['username'] ?? ''),
+    '--single-transaction', '--quick', '--skip-lock-tables',
+    '--default-character-set=utf8mb4', '--databases', $databaseName,
+];
+$pipes = [];
+$process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+    $pipes, null, array_merge(getenv(), ['MYSQL_PWD' => (string) ($db['password'] ?? '')]));
+if (!is_resource($process)) throw new RuntimeException('Could not start database backup; no changes made.');
+fclose($pipes[0]);
+$gzip = gzopen($partialBackup, 'wb1');
+if (!$gzip) {
+    proc_terminate($process);
+    throw new RuntimeException('Could not create database backup; no changes made.');
+}
+$sourceBytes = 0;
+while (!feof($pipes[1])) {
+    $chunk = fread($pipes[1], 65536);
+    if ($chunk === false) break;
+    $sourceBytes += strlen($chunk);
+    if ($chunk !== '' && gzwrite($gzip, $chunk) === false) break;
+}
+fclose($pipes[1]);
+gzclose($gzip);
+$dumpError = stream_get_contents($pipes[2]);
+fclose($pipes[2]);
+$exitCode = proc_close($process);
+if ($exitCode !== 0 || $sourceBytes < 1024 || !is_file($partialBackup)) {
+    if (is_file($partialBackup)) unlink($partialBackup);
+    throw new RuntimeException('Database backup failed (exit '.$exitCode.'); no changes made. '
+        .substr(trim($dumpError), 0, 250));
+}
+chmod($partialBackup, 0600);
+rename($partialBackup, $fullBackup);
+echo 'Full private database backup: '.$fullBackup.' SHA-256 '.hash_file('sha256', $fullBackup).PHP_EOL;
+
 $backup = storage_path('app/letter_postage_print_time_before_'.date('Ymd_His').'.json');
 if (file_put_contents($backup, json_encode(['plans' => $plans, 'skipped' => $skips], JSON_PRETTY_PRINT)) === false) {
     throw new RuntimeException('Could not save pre-change audit; no database changes made.');
