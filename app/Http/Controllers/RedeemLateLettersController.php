@@ -342,22 +342,6 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         $nics = $receipts->pluck('Customer_NIC')->filter()->unique();
         $customers = Customer::where('BC', $branchCode)->whereIn('NIC', $nics)->get()->keyBy('NIC');
 
-        // Batch load t_pawn_trans postage charges to prevent N+1 queries
-        $receiptNumbers = $receipts->pluck('Receipt_Number')->filter()->unique();
-        $transPostages = array_fill_keys($receiptNumbers->map(fn ($n) => (string) $n)->all(), 0.0);
-        $foundPostages = DB::table('t_pawn_trans')
-            ->whereIn('code', $receiptNumbers)
-            ->where('BC', $branchCode)
-            ->whereNotNull('Postage_charge')
-            ->where('Postage_charge', '>', 0)
-            ->orderByDesc('id')
-            ->get()
-            ->groupBy('code');
-        foreach ($foundPostages as $code => $rows) {
-            $transPostages[(string) $code] = (float) $rows->first()->Postage_charge;
-        }
-        $calculator->setPreloadedPostageCharges($transPostages);
-
         $receipts->each(function (TPawnSum $receipt) use ($calculator, $schedule, $customers, $tabLetter) {
             $this->applyCurrentCustomerContact($receipt, $customers->get($receipt->Customer_NIC));
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));

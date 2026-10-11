@@ -48,10 +48,12 @@ class ReceiptFinancialCalculator
         $interest = max(0, $grossInterest - $paidInterest + $carriedInterest);
         $serviceCharge = (float) $this->configuredValue($receipt, $config, 'service_charge', 0);
         $letterCharges = 0.0;
+        $letterChargeAmounts = [1 => 0.0, 2 => 0.0, 3 => 0.0];
         foreach ([1, 2, 3] as $letterNo) {
             $payField = ['letter_pay_one', 'letter_pay_two', 'letter_pay_three'][$letterNo - 1];
             if (!empty($receipt->{"letter_{$letterNo}_date"}) || (bool) $receipt->{"is_letter_{$letterNo}"} || (float) ($receipt->{$payField} ?? 0) > 0) {
-                $letterCharges += $this->resolveLetterCharge($receipt, $letterNo);
+                $letterChargeAmounts[$letterNo] = $this->resolveLetterCharge($receipt, $letterNo);
+                $letterCharges += $letterChargeAmounts[$letterNo];
             }
         }
         $arrearsTotal = $interest + $serviceCharge + $letterCharges;
@@ -65,20 +67,12 @@ class ReceiptFinancialCalculator
             'carried_interest' => round($carriedInterest, 2),
             'interest' => round($interest, 2),
             'service_charge' => round($serviceCharge, 2),
+            'postage_rate' => max($letterChargeAmounts),
+            'letter_charges' => $letterChargeAmounts,
             'letter_charge' => round($letterCharges, 2),
             'arrears_total' => round($arrearsTotal, 2),
             'redemption_total' => round($principal + $arrearsTotal, 2),
         ];
-    }
-
-    /**
-     * Optional preloaded map of Receipt_Number => Postage_charge
-     */
-    private array $preloadedPostageCharges = [];
-
-    public function setPreloadedPostageCharges(array $charges): void
-    {
-        $this->preloadedPostageCharges = $charges;
     }
 
     public function resolveLetterCharge(TPawnSum $receipt, int $letterNo): float
@@ -88,34 +82,10 @@ class ReceiptFinancialCalculator
             return round((float) $receipt->{$field}, 2);
         }
 
-        // Check if t_pawn_trans has recorded Postage_charge
-        if (array_key_exists((string) $receipt->Receipt_Number, $this->preloadedPostageCharges)) {
-            $transPostage = (float) $this->preloadedPostageCharges[(string) $receipt->Receipt_Number];
-        } else {
-            $transPostage = (float) \Illuminate\Support\Facades\DB::table('t_pawn_trans')
-                ->where('code', $receipt->Receipt_Number)
-                ->where('BC', $receipt->BC)
-                ->whereNotNull('Postage_charge')
-                ->where('Postage_charge', '>', 0)
-                ->orderByDesc('id')
-                ->value('Postage_charge');
-        }
-
-        $letterCount = 0;
-        foreach ([1, 2, 3] as $num) {
-            if (!empty($receipt->{"letter_{$num}_date"}) || (bool) $receipt->{"is_letter_{$num}"}) {
-                $letterCount++;
-            }
-        }
-
-        if ($transPostage > 0 && $letterCount > 0) {
-            return round($transPostage / $letterCount, 2);
-        }
-
-        if ((float) ($receipt->Postage_charge ?? 0) > 0) {
-            return round((float) $receipt->Postage_charge, 2);
-        }
-
+        // A pawn transaction may store cumulative/legacy postage, not a
+        // per-letter price. Never divide that aggregate among printed letters.
+        // For an unsaved legacy letter charge, use this receipt's own snapshot
+        // or the type version applicable to its pawn cycle.
         return $this->postageCharge($receipt);
     }
 

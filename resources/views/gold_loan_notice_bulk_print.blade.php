@@ -280,15 +280,15 @@
             // ──────────────────────────────────────────────
             // Grand Total: Interest + Postage + Service Charge
             // ──────────────────────────────────────────────
-            $letterPayOne   = (float) ($receipt->letter_pay_one   ?? 0);
-            $letterPayTwo   = (float) ($receipt->letter_pay_two   ?? 0);
-            $letterPayThree = (float) ($receipt->letter_pay_three ?? 0);
             $serviceCharge  = (float) ($receiptType?->service_charge ?? 0);
 
             // The backend calculator is the single source of truth. It uses the
             // receipt-type values captured for this pawn and includes service
             // and every issued letter's postage charge as interest/arrears.
             $financial      = $item['financial'];
+            $letterPayOne   = (float) ($financial['letter_charges'][1] ?? 0);
+            $letterPayTwo   = (float) ($financial['letter_charges'][2] ?? 0);
+            $letterPayThree = (float) ($financial['letter_charges'][3] ?? 0);
             $amount         = (float) $financial['principal'];
             $calcInterest   = (float) $financial['interest'];
             $serviceCharge  = (float) $financial['service_charge'];
@@ -459,7 +459,7 @@
                             <td>{{ $receiptType->period3 }}</td>
                             <td>{{ $receiptType->rate3 }}</td>
                             <td>{{ number_format($receiptType->pawn_amount, 2) }}</td>
-                            <td>{{ number_format($receiptType->Postage_charge, 2) }}</td>
+                            <td>{{ number_format($financial['postage_rate'], 2) }}</td>
                         @else
                             <td colspan="12" class="text-danger">No receipt type found</td>
                         @endif

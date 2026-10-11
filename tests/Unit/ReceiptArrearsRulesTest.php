@@ -68,6 +68,7 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertSame(100.0, $result['interest']);
         $this->assertSame(60.0, $result['service_charge']);
         $this->assertSame(250.0, $result['letter_charge']);
+        $this->assertSame([1 => 125.0, 2 => 125.0, 3 => 0.0], $result['letter_charges']);
         $this->assertSame(410.0, $result['arrears_total']);
         $this->assertSame(10410.0, $result['redemption_total']);
         Carbon::setTestNow();
@@ -88,9 +89,28 @@ class ReceiptArrearsRulesTest extends TestCase
             ->willReturn($version);
 
         $calculator = new ReceiptFinancialCalculator($resolver);
-        $calculator->setPreloadedPostageCharges(['2241' => 0]);
         $this->assertSame(125.0, $calculator->postageCharge($receipt));
         $this->assertSame(125.0, $calculator->resolveLetterCharge($receipt, 1));
+    }
+
+    public function test_missing_legacy_letter_amount_uses_receipt_type_rate_not_aggregate_transaction_postage(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Number' => 413, 'Receipt_Type' => 'SILVER', 'receiptname' => 'SILVER',
+            'Receipt_Date' => '2026-01-21', 'Pawn_Date' => '2026-06-23',
+            'Postage_charge' => 0, 'is_letter_1' => 1, 'letter_pay_one' => 0,
+            'period1' => 10, 'period2' => 15, 'period3' => 30,
+            'validPeriod' => 0, 'rate1' => 6, 'rate2' => 6, 'rate3' => 6,
+            'service_charge' => 0,
+        ]);
+        $resolver = $this->createMock(ReceiptTypeResolver::class);
+        $resolver->expects($this->exactly(2))->method('resolveByDate')
+            ->with('SILVER', $this->anything())
+            ->willReturn(new Recei_Add(['Postage_charge' => 125]));
+
+        $calculator = new ReceiptFinancialCalculator($resolver);
+        $this->assertSame(125.0, $calculator->resolveLetterCharge($receipt, 1));
+        $this->assertSame(125.0, $calculator->calculate($receipt, '2026-06-23')['letter_charges'][1]);
     }
 
     public function test_positive_receipt_postage_snapshot_is_preserved(): void
