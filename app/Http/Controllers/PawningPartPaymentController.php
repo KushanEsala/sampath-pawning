@@ -47,7 +47,7 @@ class PawningPartPaymentController extends Controller
         ->orderBy('Redeem_Number', 'desc')
         ->value('Redeem_Number');
 
-        $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
+        $maxRedeemNos = str_pad((string) ($maxRedeemNo ?? 0), 4, '0', STR_PAD_LEFT);
         $branchData = branchDel::all();
 
         return view('pawningPartPayment')
@@ -95,7 +95,7 @@ class PawningPartPaymentController extends Controller
             ->orderBy('Redeem_Number', 'desc')
             ->value('Redeem_Number');
 
-            $maxRedeemNos = str_pad($maxRedeemNo, 4, '0', STR_PAD_LEFT);
+            $maxRedeemNos = str_pad((string) ($maxRedeemNo ?? 0), 4, '0', STR_PAD_LEFT);
 
             $pawn_type = "Pawn";
 
