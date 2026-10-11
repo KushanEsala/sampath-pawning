@@ -20,24 +20,28 @@ class ReceiptPenaltyScheduleTest extends TestCase
 
     public function test_custom_intervals_and_zero_first_interval(): void
     {
-        $receipt = new TPawnSum(['Final_date'=>'2026-01-31', 'letter_1_days'=>0, 'letter_2_days'=>7, 'letter_3_days'=>14]);
+        $receipt = new TPawnSum([
+            'Final_date'=>'2026-01-31', 'letter_1_days'=>0, 'letter_2_days'=>7, 'letter_3_days'=>14,
+            'letter_1_date'=>'2026-01-31', 'letter_2_date'=>'2026-02-07',
+        ]);
         $schedule = new ReceiptPenaltySchedule();
         $this->assertSame('2026-01-31', $schedule->letterDueDate($receipt, 1)->toDateString());
         $this->assertSame('2026-02-07', $schedule->letterDueDate($receipt, 2)->toDateString());
         $this->assertSame('2026-02-21', $schedule->letterDueDate($receipt, 3)->toDateString());
     }
 
-    public function test_reminder_uses_scheduled_third_letter_date_even_if_printed_late(): void
+    public function test_reminder_uses_actual_third_letter_print_date(): void
     {
         $receipt = new TPawnSum(['Final_date'=>'2026-01-01', 'is_letter_3'=>1, 'letter_3_date'=>'2026-03-10']);
         $schedule = new ReceiptPenaltySchedule();
-        $this->assertFalse($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-04')));
-        $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-05')));
+        $this->assertFalse($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-30')));
+        $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-31')));
         $receipt->forfeit_reminder_days = 5;
-        $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-02-17')));
+        $this->assertFalse($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-14')));
+        $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-15')));
     }
 
-    public function test_late_printing_does_not_postpone_subsequent_letters(): void
+    public function test_late_printing_starts_each_following_interval(): void
     {
         $receipt = new TPawnSum([
             'Final_date' => '2026-01-01',
@@ -46,9 +50,29 @@ class ReceiptPenaltyScheduleTest extends TestCase
         ]);
         $schedule = new ReceiptPenaltySchedule();
         $this->assertSame('2026-01-01', $schedule->letterDueDate($receipt, 1)->toDateString());
-        $this->assertSame('2026-01-22', $schedule->letterDueDate($receipt, 2)->toDateString());
+        $this->assertSame('2026-03-03', $schedule->letterDueDate($receipt, 2)->toDateString());
         $receipt->letter_2_date = '2026-03-10';
-        $this->assertSame('2026-02-12', $schedule->letterDueDate($receipt, 3)->toDateString());
+        $this->assertSame('2026-03-31', $schedule->letterDueDate($receipt, 3)->toDateString());
+    }
+
+    public function test_receipt_481_waits_twenty_one_days_after_second_letter_print(): void
+    {
+        $receipt = new TPawnSum([
+            'Final_date' => '2026-08-23', 'letter_2_days' => 21, 'letter_3_days' => 21,
+            'is_letter_1' => 1, 'letter_1_date' => '2026-09-07',
+            'is_letter_2' => 1, 'letter_2_date' => '2026-10-08',
+        ]);
+        $schedule = new ReceiptPenaltySchedule();
+
+        $this->assertSame('2026-09-28', $schedule->letterDueDate($receipt, 2)->toDateString());
+        $this->assertSame('2026-10-29', $schedule->letterDueDate($receipt, 3)->toDateString());
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $resolve = new \ReflectionMethod($controller, 'currentLetterTab');
+        $resolve->setAccessible(true);
+        Carbon::setTestNow('2026-10-11');
+        $this->assertSame(2, $resolve->invoke($controller, $receipt, $schedule));
+        Carbon::setTestNow('2026-10-29');
+        $this->assertSame(3, $resolve->invoke($controller, $receipt, $schedule));
     }
 
     public function test_late_silver_first_letter_keeps_receipt_type_schedule(): void
@@ -63,7 +87,7 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $schedule = new ReceiptPenaltySchedule();
         $this->assertSame('2026-02-23', $schedule->expiryDate($receipt)->toDateString());
         $this->assertSame('2026-02-23', $schedule->letterDueDate($receipt, 1)->toDateString());
-        $this->assertSame('2026-03-16', $schedule->letterDueDate($receipt, 2)->toDateString());
+        $this->assertSame('2026-10-19', $schedule->letterDueDate($receipt, 2)->toDateString());
     }
 
     public function test_silver_receipt_uses_the_same_expiry_and_letter_intervals(): void
@@ -75,7 +99,7 @@ class ReceiptPenaltyScheduleTest extends TestCase
         ]);
         $schedule = new ReceiptPenaltySchedule();
         $this->assertSame('2026-09-01', $schedule->letterDueDate($receipt, 1)->toDateString());
-        $this->assertSame('2026-09-22', $schedule->letterDueDate($receipt, 2)->toDateString());
+        $this->assertNull($schedule->letterDueDate($receipt, 2));
     }
 
     public function test_stale_silver_to_date_uses_current_cycle_instead_of_old_expiry(): void
@@ -140,13 +164,13 @@ class ReceiptPenaltyScheduleTest extends TestCase
         }
     }
 
-    public function test_sql_schedule_does_not_depend_on_print_dates(): void
+    public function test_sql_schedule_uses_previous_print_dates(): void
     {
         \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
         $schedule = new ReceiptPenaltySchedule();
-        $this->assertStringNotContainsString('letter_1_date', $schedule->letterDueSql(2));
-        $this->assertStringNotContainsString('letter_2_date', $schedule->letterDueSql(3));
-        $this->assertStringNotContainsString('letter_3_date', $schedule->reminderDueSql());
+        $this->assertStringContainsString('letter_1_date', $schedule->letterDueSql(2));
+        $this->assertStringContainsString('letter_2_date', $schedule->letterDueSql(3));
+        $this->assertStringContainsString('letter_3_date', $schedule->reminderDueSql());
     }
 
     public function test_letter_list_uses_one_latest_cycle_join_and_stable_effective_expiry_order(): void
@@ -185,8 +209,10 @@ class ReceiptPenaltyScheduleTest extends TestCase
 
         $this->assertSame(1, $resolve->invoke($controller, $receipt, $schedule));
         $receipt->is_letter_1 = true;
+        $receipt->letter_1_date = '2026-02-10';
         $this->assertSame(2, $resolve->invoke($controller, $receipt, $schedule));
         $receipt->is_letter_2 = true;
+        $receipt->letter_2_date = '2026-02-15';
         $this->assertSame(3, $resolve->invoke($controller, $receipt, $schedule));
     }
 

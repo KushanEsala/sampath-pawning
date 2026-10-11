@@ -16,7 +16,7 @@ class ArrearsLetterService
         private ReceiptLifecycleService $lifecycle
     ) {}
 
-    public function dueDate(TPawnSum $receipt, int $letterNo): Carbon
+    public function dueDate(TPawnSum $receipt, int $letterNo): ?Carbon
     {
         return (new ReceiptPenaltySchedule())->letterDueDate($receipt, $letterNo);
     }
@@ -25,7 +25,8 @@ class ArrearsLetterService
     {
         $today = ($today ?: now())->copy()->startOfDay();
 
-        if ($receipt->IsRedeemed || $receipt->isForfeit || $today->lt($this->dueDate($receipt, $letterNo))) {
+        $dueDate = $this->dueDate($receipt, $letterNo);
+        if ($receipt->IsRedeemed || $receipt->isForfeit || !$dueDate || $today->lt($dueDate)) {
             return false;
         }
 

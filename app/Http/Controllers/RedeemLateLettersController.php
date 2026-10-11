@@ -362,10 +362,11 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
             $this->applyCurrentCustomerContact($receipt, $customers->get($receipt->Customer_NIC));
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));
             $receipt->setAttribute('next_letter_no', $tabLetter);
-            $receipt->setAttribute('next_letter_due_date', $schedule->letterDueDate($receipt, $tabLetter)->toDateString());
-            $receipt->setAttribute('letter_is_due', $schedule->letterDueDate($receipt, $tabLetter)->lte(today()));
+            $dueDate = $schedule->letterDueDate($receipt, $tabLetter);
+            $receipt->setAttribute('next_letter_due_date', $dueDate?->toDateString());
+            $receipt->setAttribute('letter_is_due', $dueDate?->lte(today()) ?? false);
             $receipt->setAttribute('next_stage_due_date', $tabLetter < 3
-                ? $schedule->letterDueDate($receipt, $tabLetter + 1)->toDateString()
+                ? $schedule->letterDueDate($receipt, $tabLetter + 1)?->toDateString()
                 : optional($schedule->reminderDueDate($receipt))->toDateString());
             $receipt->setAttribute('arrears_expiry_date', $schedule->expiryDate($receipt)->toDateString());
         });
@@ -402,8 +403,8 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     private function currentLetterTab(TPawnSum $receipt, \App\Services\ReceiptPenaltySchedule $schedule): int
     {
         if ($receipt->is_letter_3) return 3;
-        if ($receipt->is_letter_2 && $schedule->letterDueDate($receipt, 3)->lte(today())) return 3;
-        if ($receipt->is_letter_1 && $schedule->letterDueDate($receipt, 2)->lte(today())) return 2;
+        if ($receipt->is_letter_2 && ($schedule->letterDueDate($receipt, 3)?->lte(today()) ?? false)) return 3;
+        if ($receipt->is_letter_1 && ($schedule->letterDueDate($receipt, 2)?->lte(today()) ?? false)) return 2;
         return 1;
     }
 
@@ -423,13 +424,14 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         }
 
         // An issued letter remains visible, without a print action, until the
-        // next scheduled stage is due. Late printing never shifts that date.
+        // next stage is due, counting from this letter's actual print date.
         $nextDue = $letter < 3
             ? $schedule->letterDueSql($letter + 1, $latestCycleDateSql)
             : $schedule->reminderDueSql($latestCycleDateSql);
         return $query->where(function ($stage) use ($letter, $nextDue, $today) {
             $stage->whereNull('is_letter_'.$letter)->orWhere('is_letter_'.$letter, 0)
-                ->orWhereRaw($nextDue.' > ?', [$today]);
+                ->orWhereRaw($nextDue.' > ?', [$today])
+                ->orWhereRaw($nextDue.' IS NULL');
         });
     }
 
