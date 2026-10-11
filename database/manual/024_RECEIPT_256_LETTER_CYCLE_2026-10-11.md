@@ -19,3 +19,5 @@ The wider audit found 1,397 active receipts with at least one current letter fla
 ## Kreethya execution, 2026-10-11
 
 Code commit `6e82a664` was pushed to `origin/master` and fast-forwarded on Kreethya. The guard script printed the expected dry-run figures and was then run once with `--apply` against the live database. No Laravel migration or schema change was run. Live read-only verification showed capital Rs. 97,148.10, all three current-cycle flags false, expiry/first-letter due 2026-08-07, letter 1 eligible, cycle number 2, all three real historical print dates still in timeline, and one Rs. 600.00 aggregate postage debit in history. The payment's cash, paid interest, and paid-capital values were not changed. The ledger's current balance differs from the redemption quote by the Rs. 30.00 service charge, which is assessed on redemption rather than on part payment.
+
+Receipt Search and payment-history ledger also include the three original printed dates as non-financial rows (DR/CR zero); the aggregate Rs. 600.00 debit appears only once at the actual payment date. This displays known dates without inventing the unknown per-letter amounts.

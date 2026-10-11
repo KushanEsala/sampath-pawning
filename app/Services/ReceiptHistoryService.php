@@ -695,6 +695,7 @@ class ReceiptHistoryService
 
         $activities = $timeline->filter(function (array $event) use ($financialTypes) {
             $type = strtoupper((string) ($event['type'] ?? ''));
+            if (preg_match('/^LETTER [123] PRINTED$/', $type)) return true;
             return !in_array($type, $financialTypes, true) && !str_contains($type, 'LETTER');
         })->map(function (array $event) use ($ledger) {
             $date = substr((string) ($event['date'] ?? ''), 0, 10);

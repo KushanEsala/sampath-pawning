@@ -73,6 +73,23 @@ class ReceiptHistoryOperatorTest extends TestCase
         );
     }
 
+    public function test_unknown_legacy_letter_print_appears_as_nonfinancial_ledger_activity(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $method = new \ReflectionMethod(ReceiptHistoryService::class, 'mergeNonFinancialActivity');
+        $method->setAccessible(true);
+        $ledger = collect([['date'=>'2026-04-01', 'balance'=>1000.0, 'dr'=>1000.0, 'cr'=>0.0]]);
+        $timeline = collect([[
+            'date'=>'2026-04-20', 'type'=>'LETTER 1 PRINTED', 'details'=>['Operator'=>'Not recorded'],
+        ]]);
+
+        $rows = $method->invoke($service, $ledger, $timeline);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame('LETTER 1 PRINTED', $rows->last()['type']);
+        $this->assertSame(0.0, $rows->last()['dr']);
+    }
+
     public function test_event_displays_recorded_operator_and_profile_not_the_viewer(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
