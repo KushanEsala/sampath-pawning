@@ -48,4 +48,5 @@ The latest live source includes commit `fe8f9442`, which safely formats a missin
 - Receipt-search history, payment-history modal, and history print carry the exact customer-supplied ticket or stock search context; ledger rows show only that matching identifier to cashiers. Unsearched history and receipt-number/NIC searches show neither identifier. Admin still sees both.
 - Existing redemption report and redemption print paths were audited and already restrict Stock Number to Admin. The blocked-receipts management page is Admin-only. New pawn receipt prints remain exempt as requested.
 - Verification: 142 local tests passed; Blade view compilation and PHP syntax checks passed. No schema or data changes were made.
+- Deployment: commit `ca74c9b9` was pushed to `origin/master` and fast-forwarded on Kreethya at `/home/kreethya/public_html/sampath`; production Blade view compilation passed. Existing generated PDFs and cache-directory changes on the server were preserved.
 - No schema or data changes are required, and no Laravel migrations are to be run.
