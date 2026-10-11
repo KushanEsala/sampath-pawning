@@ -75,6 +75,10 @@ class PawningPartPaymentController extends Controller
                          ->where('BC',  $branch_code)
                         ->get();
 
+        if ($dataTPawnSum->first() && (bool) $dataTPawnSum->first()->is_blocked) {
+            return response()->json(['status' => 'blocked']);
+        }
+
         $data = $dataTPawnSum;
 
         if($data->count()>0){
@@ -138,6 +142,7 @@ class PawningPartPaymentController extends Controller
      try {
         $branch_code = auth()->user()->BC;
         $activeReceipt = \App\Services\ReceiptPaymentEligibility::lock('Pawn', $request->receipt_number, $branch_code);
+        \App\Services\ReceiptPaymentEligibility::assertPartPaymentAllowed($activeReceipt);
         $request->validate([
             'redeem_date' => 'required|date',
             'interest_Paid' => 'required|numeric|min:0.01',

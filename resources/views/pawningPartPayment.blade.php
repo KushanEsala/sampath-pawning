@@ -562,10 +562,11 @@
                     method: 'GET',
                     data: { search_receipt_no: search_receipt_no },
                     success: function (response) {
-                        if (response.status === 'not_found') {
-                            $('.dynamic-area').html('<span class="text-danger text-center">Receipt not found ...!</span>');
+                        if (response.status === 'not_found' || response.status === 'blocked') {
+                            $('.dynamic-area').html('<span class="text-danger text-center">' + (response.status === 'blocked' ? 'This receipt is blocked. An administrator must unblock it before part payment.' : 'Receipt not found ...!') + '</span>');
                             $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">No payment history found</td></tr>');
                             $('#articleDetails').html('');
+                            $('#paymentHistoryReceiptInfo').text('');
                             return;
                         }
 
@@ -608,10 +609,11 @@
                     method: 'GET',
                     data: { search_receipt_no: search_ticket_no },
                     success: function (response) {
-                        if (response.status === 'not_found') {
-                            $('.dynamic-area').html('<span class="text-danger text-center">Receipt not found ...!</span>');
+                        if (response.status === 'not_found' || response.status === 'blocked') {
+                            $('.dynamic-area').html('<span class="text-danger text-center">' + (response.status === 'blocked' ? 'This receipt is blocked. An administrator must unblock it before part payment.' : 'Receipt not found ...!') + '</span>');
                             $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">No payment history found</td></tr>');
                             $('#articleDetails').html('');
+                            $('#paymentHistoryReceiptInfo').text('');
                             return;
                         }
 
@@ -655,10 +657,11 @@
                     method: 'GET',
                     data: { search_invoice_no: search_invoice_no },
                     success: function (response) {
-                        if (response.status === 'not_found') {
-                            $('.dynamic-area').html('<span class="text-danger text-center">Receipt not found ...!</span>');
+                        if (response.status === 'not_found' || response.status === 'blocked') {
+                            $('.dynamic-area').html('<span class="text-danger text-center">' + (response.status === 'blocked' ? 'This receipt is blocked. An administrator must unblock it before part payment.' : 'Receipt not found ...!') + '</span>');
                             $('#CustomerDetails').html('<tr><td colspan="10" class="text-center">No payment history found</td></tr>');
                             $('#articleDetails').html('');
+                            $('#paymentHistoryReceiptInfo').text('');
                             return;
                         }
 

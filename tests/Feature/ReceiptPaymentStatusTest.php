@@ -55,7 +55,7 @@ class ReceiptPaymentStatusTest extends TestCase
         $response = match ($operation) {
             'redeem_receipt' => (new RedeemController())->search($request, $calculator),
             'redeem_ticket' => (new RedeemController())->searchTicket($request, $calculator),
-            'redeem_invoice' => (new RedeemController())->searchInvoice($request),
+            'redeem_invoice' => (new RedeemController())->searchInvoice($request, $calculator),
             'part_receipt' => (new PawningPartPaymentController())->PartpaymentSearch(Request::create('/', 'GET', ['search_receipt_no'=>100]), $calculator),
             'part_ticket' => (new PawningPartPaymentController())->PartpaymentTicketSearch(Request::create('/', 'GET', ['search_receipt_no'=>200]), $calculator),
             'part_invoice' => (new PawningPartPaymentController())->PartpaymentInvoiceSearch($request, $calculator),
@@ -70,6 +70,56 @@ class ReceiptPaymentStatusTest extends TestCase
             ['redeem_invoice','Invoice_Number','t_opening_pawn_sums'], ['part_receipt','Receipt_Number','t_pawn_sums'],
             ['part_ticket','Ticket_Number','t_pawn_sums'], ['part_invoice','Invoice_Number','t_pawn_sums'],
         ];
+    }
+
+    /** @dataProvider blockedPartPaymentLookups */
+    public function test_part_payment_lookup_reports_blocked_receipts(string $method, string $field): void
+    {
+        $connection = $this->connection();
+        $connection->shouldReceive('select')->once()->andReturnUsing(function ($sql) use ($field) {
+            $this->assertStringContainsString('`'.$field.'` = ?', $sql);
+            $this->assertStringContainsString('`BC` = ?', $sql);
+            return [(object) ['id' => 1, 'BC' => '001', 'Receipt_Number' => 100, 'is_blocked' => 1]];
+        });
+        $request = Request::create('/', 'GET', $method === 'PartpaymentInvoiceSearch'
+            ? ['search_invoice_no' => 300]
+            : ['search_receipt_no' => 100]);
+        $response = (new PawningPartPaymentController())->{$method}(
+            $request, Mockery::mock(ReceiptFinancialCalculator::class)
+        );
+
+        $this->assertSame('blocked', $response->getData(true)['status']);
+    }
+
+    public function blockedPartPaymentLookups(): array
+    {
+        return [
+            ['PartpaymentSearch', 'Receipt_Number'],
+            ['PartpaymentTicketSearch', 'Ticket_Number'],
+            ['PartpaymentInvoiceSearch', 'Invoice_Number'],
+        ];
+    }
+
+    public function test_blocked_part_payment_submission_rolls_back_before_saving(): void
+    {
+        $connection = $this->connection();
+        $connection->shouldReceive('beginTransaction')->once();
+        $connection->shouldReceive('rollBack')->once();
+        $connection->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
+            $this->assertStringContainsString('for update', $sql);
+            return [(object) ['id' => 1, 'BC' => '001', 'Receipt_Number' => 100, 'is_blocked' => 1]];
+        });
+        $connection->shouldNotReceive('insert');
+        $connection->shouldNotReceive('update');
+
+        $response = (new PawningPartPaymentController())->AddPartPayment(
+            Request::create('/', 'POST', ['receipt_number' => 100, 'pawn_receipt_type' => 'Pawn']),
+            Mockery::mock(ReceiptFinancialCalculator::class),
+            Mockery::mock(ReceiptLifecycleService::class)
+        );
+
+        $this->assertTrue($response->getSession()->has('errors'));
+        $this->assertStringContainsString('must unblock it before part payment', $response->getSession()->get('error'));
     }
 
     /** @dataProvider companions */
