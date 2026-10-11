@@ -25,4 +25,10 @@ The apply run writes a timestamped JSON backup of every intended before/after fi
 
 ## Production execution record
 
-Pending live dry-run, apply, and verification. Add counts, backup path, and any skipped cases here after execution.
+Deployed code commit `63d91e7e` to `origin/master` and fast-forwarded Kreethya at `/home/kreethya/public_html/sampath`. View cache compiled successfully. Local focused tests: 7 passed.
+
+Before the data update, saved a full production SQL backup at `/home/kreethya/db-backups/letter_postage_pre_repair_20261011.sql.gz` (SHA-256 `8589d2627cd254103d2f5cfead30eb0beed86aa42f94100a2a1612e4908a67dc`). The repair additionally saved its exact affected-row backup at `/home/kreethya/public_html/sampath/storage/app/letter_postage_backup_20261011_184825.json`.
+
+The live dry-run proposed **629** genuine issued-letter events and skipped **18**. The apply run updated those 629 events and their zero-valued current `letter_pay_*` fields in one transaction. Verification found 18 zero-charge events remaining out of 649 total; these are the skipped events, not newly created records. Branch 002 receipt 2241 (`t_pawn_sums.id=4400`, event 622) changed from zero to **Rs. 125** in both the issued-letter event and `letter_pay_one`. The live financial calculator now returns Rs. 125 for that letter. Its saved `Postage_charge` snapshot remains zero; the code resolves its May 2026 type-C version at Rs. 125 for future letters.
+
+Of the 18 skipped events, **13** have a later pawn/payment cycle and **5** belong to closed receipts. Their historical charge/payment state must be reviewed individually; the repair deliberately did not invent a rate or modify them. The separate branch 001 receipt numbered 2241 was not part of the event repair; it has legacy letter flags but no matching `arrears_letter_events` row. Its transaction-derived postage remains subject to a separate historical review.
