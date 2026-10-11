@@ -18,6 +18,8 @@ public function index(Request $request)
     $request->validate([
         'from_date' => 'nullable|date',
         'to_date' => 'nullable|date|after_or_equal:from_date',
+        'search_type' => 'nullable|in:receipt,ticket,stock',
+        'search_query' => 'nullable|string|max:80',
     ]);
 
     $branch_code = auth()->user()->BC;
@@ -29,6 +31,7 @@ public function index(Request $request)
         ->select([
             'rs.Receipt_Number',
             'rs.Invoice_Number',
+            'rs.Ticket_Number',
             'rs.Redeem_Date',
             'rs.Original_Pawn_Amount',
             'rs.Payable_Total',
@@ -43,6 +46,7 @@ public function index(Request $request)
         ->groupBy(
             'rs.Receipt_Number',
             'rs.Invoice_Number',
+            'rs.Ticket_Number',
             'rs.Redeem_Date',
             'rs.Original_Pawn_Amount',
             'rs.Payable_Total'
@@ -54,6 +58,11 @@ public function index(Request $request)
             $request->from_date,
             $request->to_date
         ]);
+    }
+
+    if ($request->filled('search_query')) {
+        $field = ['receipt' => 'Receipt_Number', 'ticket' => 'Ticket_Number', 'stock' => 'Invoice_Number'][$request->input('search_type', 'receipt')];
+        $query->where('rs.'.$field, trim((string) $request->input('search_query')));
     }
 
     // Get results ordered by date
@@ -71,6 +80,11 @@ public function index(Request $request)
       public function create(Request $request)
     {
 
+        $request->validate([
+            'search_type' => 'nullable|in:receipt,ticket,stock',
+            'search_query' => 'nullable|string|max:80',
+        ]);
+
         $branch_code = auth()->user()->BC;
 
         $query = DB::table('t_pawn_payments')->where('BC', $branch_code);
@@ -80,6 +94,11 @@ public function index(Request $request)
                 $request->from_date,
                 $request->to_date
             ]);
+        }
+
+        if ($request->filled('search_query')) {
+            $field = ['receipt' => 'Receipt_Number', 'ticket' => 'Ticket_Number', 'stock' => 'Invoice_Number'][$request->input('search_type', 'receipt')];
+            $query->where($field, trim((string) $request->input('search_query')));
         }
 
         $partPayments = $query->orderBy('Redeem_Date', 'desc')->get();

@@ -33,7 +33,8 @@
 
     <div class="card no-report-print"><div class="card-body">
         <form method="GET" action="{{ route('forfeitReceipt_List') }}" class="row g-2 align-items-end">
-            <div class="col-md-3"><label class="form-label" for="forfeit_search">Receipt Number</label><input class="form-control" id="forfeit_search" name="receipt_number" value="{{ request('receipt_number') }}"></div>
+            <div class="col-md-2"><label class="form-label" for="forfeit_search_type">Find by</label><select class="form-control" id="forfeit_search_type" name="search_type">@foreach(['receipt'=>'Receipt','ticket'=>'Ticket','stock'=>'Stock'] as $value=>$label)<option value="{{ $value }}" @selected(request('search_type','receipt') === $value)>{{ $label }}</option>@endforeach</select></div>
+            <div class="col-md-3"><label class="form-label" for="forfeit_search">Number provided</label><input class="form-control" id="forfeit_search" name="search_query" value="{{ request('search_query', request('receipt_number')) }}"></div>
             <div class="col-md-3"><label class="form-label" for="forfeit_status">Status</label><select class="form-control" id="forfeit_status" name="status" onchange="this.form.submit()">
                 @foreach(['all'=>'All', 'pending'=>'Awaiting final forfeiture', 'forfeited'=>'Forfeited'] as $value=>$label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach
             </select></div>
@@ -52,7 +53,7 @@
         <div class="forfeit-report-shell">
             <table class="table table-bordered table-hover align-middle forfeit-report">
                 <colgroup><col style="width:7%"><col style="width:13%"><col style="width:27%"><col style="width:12%"><col style="width:13%"><col style="width:14%"><col style="width:14%"></colgroup>
-                <thead><tr><th>View</th><th>Receipt / Stock</th><th>Customer</th><th>Expiry</th><th>Capital</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>View</th><th>{{ auth()->user()?->isAdmin() || request('search_type') === 'stock' ? 'Receipt / Stock' : 'Receipt' }}</th><th>Customer</th><th>Expiry</th><th>Capital</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                 @forelse($recipts as $receipt)
                     @php
@@ -69,7 +70,7 @@
                         <td class="text-center date-value">{{ optional($receipt->Final_date)->format('Y-m-d') }}</td>
                         <td class="text-end money">{{ number_format($financial['principal'],2) }}</td>
                         <td class="text-center"><span class="badge {{ $receipt->isForfeit ? 'bg-danger' : 'bg-warning text-dark' }}">{{ $receipt->isForfeit ? 'Forfeited' : 'Awaiting final' }}</span></td>
-                        <td><div class="forfeit-primary-actions"><a class="btn btn-outline-secondary btn-sm" target="_blank" href="{{ route('receipt.search.print', ['receipt_number'=>$receipt->Receipt_Number]) }}"><i class="fa fa-print"></i> History</a>@if(!$receipt->isForfeit)<a class="btn btn-danger btn-sm" href="{{ route('pawning_forfeit_receipt', ['receipt_number'=>$receipt->Receipt_Number]) }}">Process</a>@endif</div></td>
+                        <td><div class="forfeit-primary-actions"><a class="btn btn-outline-secondary btn-sm" target="_blank" href="{{ route('receipt.search.print', ['receipt_number'=>$receipt->Receipt_Number, 'search_type'=>request('search_type','receipt'), 'search_query'=>request('search_query','')]) }}"><i class="fa fa-print"></i> History</a>@if(!$receipt->isForfeit)<a class="btn btn-danger btn-sm" href="{{ route('pawning_forfeit_receipt', ['receipt_number'=>$receipt->Receipt_Number]) }}">Process</a>@endif</div></td>
                     </tr>
                     <tr id="{{ $detailId }}" class="detail-row" hidden><td colspan="7"><div class="forfeit-details">
                         <div class="forfeit-facts">

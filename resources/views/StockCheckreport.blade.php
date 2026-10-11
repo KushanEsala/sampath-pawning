@@ -352,7 +352,7 @@
                 <tbody>
                     @foreach ($recipts as $key => $receipt)
                         <tr class="{{ $receipt->checkbox_stock == 1 ? 'checked-row' : '' }}">
-                            <td>{{ $receipt->Invoice_Number }}</td>
+                            <td>{{ $receipt->Receipt_Number }}</td>
                             <td class="checkbox-cell">
                                 <input
                                     class="custom-checkbox save-checkbox"

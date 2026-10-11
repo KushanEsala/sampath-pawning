@@ -103,7 +103,12 @@ public function ForfeitArticleList(Request $request)
     }
 
     // Execute query and get results
-    if ($request->filled('receipt_number')) $query->where('Receipt_Number', $request->receipt_number);
+    $request->validate(['search_type' => 'nullable|in:receipt,ticket,stock', 'search_query' => 'nullable|string|max:80']);
+    $searchQuery = trim((string) ($request->input('search_query') ?? $request->input('receipt_number') ?? ''));
+    if ($searchQuery !== '') {
+        $field = ['receipt' => 'Receipt_Number', 'ticket' => 'Ticket_Number', 'stock' => 'Invoice_Number'][$request->input('search_type', 'receipt')];
+        $query->where($field, $searchQuery);
+    }
     $size = (int) $request->input('per_page', 25);
     $TForfitDetails = $query->orderByDesc('id')->paginate(in_array($size, [10,25,50,100], true) ? $size : 25)->withQueryString();
     $items = Item::where('BC', $branch_code)->whereIn('Receipt_Number', $TForfitDetails->pluck('Receipt_Number'))

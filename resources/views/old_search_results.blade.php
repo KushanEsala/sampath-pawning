@@ -409,10 +409,10 @@
                             <th>NAME</th>
                             <th>ADDRESS</th>
                             <th>PHONE</th>
-                            <th>Receipt Number</th>
                         @endif
+                        <th>Receipt Number</th>
                         <th>TYPE</th>
-                        <th>TICKET #</th>
+                        @if(auth()->user()->isAdmin())<th>STOCK #</th>@endif
                         <th>DATE</th>
                         <th>PAWN WT.</th>
                         <th>TOTAL WT.</th>
@@ -430,10 +430,10 @@
                             <td>{{ $receipts->Customer_Name }}</td>
                             <td>{{ $receipts->Customer_Address }}</td>
                             <td>{{ $receipts->Customer_Phone }}</td>
-                            <td>{{ $receipts->Receipt_Number }}</td>
                         @endif
+                        <td>{{ $receipts->Receipt_Number }}</td>
                         <td>{{ $receipts->Receipt_Type }}</td>
-                        <td class="ticket-cell">{{ $receipts->Invoice_Number }}</td>
+                        @if(auth()->user()->isAdmin())<td class="ticket-cell">{{ $receipts->Invoice_Number }}</td>@endif
                         <td>{{ $receipts->Receipt_Date }}</td>
                         <td class="weight-cell">{{ $receipts->Pawn_Weight }}</td>
                         <td class="weight-cell">{{ $receipts->Total_Weight }}</td>
@@ -449,7 +449,7 @@
                         @if(auth()->user()->role == 'Admin')
                             <td colspan="8" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
                         @else
-                            <td colspan="4" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
+                            <td colspan="3" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
                         @endif
                         <td class="weight-cell"><strong>{{ $pawnWeight }}</strong></td>
                         <td class="weight-cell"><strong>{{ $totalWeight }}</strong></td>

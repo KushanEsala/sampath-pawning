@@ -477,7 +477,7 @@
         $.ajax({
             url: "{{ route('view_dynamicCusDetailsView_details_ajax_partpayment') }}",
             method: 'GET',
-            data: { search_receipt_no: receiptNo },
+            data: { search_receipt_no: receiptNo, ...window.ReceiptHistoryLedger.searchContext() },
             success: function (response) {
                 if (response.status === 'success' && response.data && response.data.length > 0) {
                     const data = response.data;

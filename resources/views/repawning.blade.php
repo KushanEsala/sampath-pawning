@@ -429,7 +429,7 @@
             $.ajax({
                 url: "{{ route('view_dynamicCusDetailsView_details_ajax') }}",
                 method: 'GET',
-                data: { search_receipt_no: search_receipt_no },
+                data: { search_receipt_no: search_receipt_no, ...window.ReceiptHistoryLedger.searchContext() },
                 success: function (response) {
                     if (response.status === 'success' && response.data && response.data.length > 0) {
                         let data = response.data;

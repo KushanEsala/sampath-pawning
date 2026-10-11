@@ -95,18 +95,14 @@
                                                 name="ticket_number" id="search_ticket">
                                             </label>
                                         </div>
-                                                                                                           @if(auth()->user()->role === 'Admin')
     <div class="col-md-4 mb-1">
         <label>Stock Number :</label>
         <input class="form-control"
                type="text"
                name="invoice_number"
                id="search_invoice"
-               required placeholder="Type Stock Number:">
+               placeholder="Type Stock Number:">
     </div>
-@else
-    <input type="hidden" name="invoice_number" value="AUTO" id="search_invoice">
-@endif
 
 
                                         <div class="dynamic-area">
@@ -489,6 +485,52 @@
     });
 </script>
 
+{{-- Existing old-system receipts can be found by a customer-provided ticket or stock number. --}}
+<script>
+    $(function () {
+        $('#search_ticket, #search_invoice').on('keyup', function () {
+            const input = $(this);
+            clearTimeout(input.data('timer'));
+            input.data('timer', setTimeout(function () {
+                const isTicket = input.is('#search_ticket');
+                const supplied = input.val().trim();
+                $('#search_receipt').val('');
+                $(isTicket ? '#search_invoice' : '#search_ticket').val('');
+                if (!supplied) {
+                    $('.dynamic-area, #articleDetails, #CustomerDetails').empty();
+                    window.ReceiptHistoryLedger.updateTotals([]);
+                    window.ReceiptHistoryLedger.setPrintReceipt(null);
+                    return;
+                }
+                $.get("{{ route('search_old_receipt_ajax') }}", {
+                    [isTicket ? 'search_ticket_no' : 'search_invoice_no']: supplied
+                }, function (response) {
+                    if (response.status === 'not_found') {
+                        $('.dynamic-area').html('<span class="text-danger">Receipt not found</span>');
+                        return;
+                    }
+                    $('.dynamic-area').html(response);
+                    const receiptNo = $('#r_number').val();
+                    $('#search_receipt').val(receiptNo);
+                    window.loadOldRedeemPaymentHistory(receiptNo);
+                    $.get("{{ route('view_article_details_ajax_old') }}", {
+                        search_receipt_no: receiptNo, payment_workflow: 1
+                    }, function (articleResponse) {
+                        if (articleResponse.status !== 'success') return;
+                        const articleTable = $('#articleDetails').empty();
+                        articleResponse.data.forEach(function (record) {
+                            const row = $('<tr>');
+                            ['Category', 'Articles', 'Condition', 'Karatage', 'Weight', 'QTY', 'Value', 'Date']
+                                .forEach(function (key) { $('<td>').text(record[key] ?? '').appendTo(row); });
+                            articleTable.append(row);
+                        });
+                    });
+                });
+            }, 300));
+        });
+    });
+</script>
+
 <script>
     window.loadOldRedeemPaymentHistory = function (receiptNumber) {
         window.ReceiptHistoryLedger.setPrintReceipt(null);
@@ -502,7 +544,7 @@
         $.ajax({
             url: "{{ route('view_dynamicCusDetailsView_details_ajax') }}",
             method: 'GET',
-            data: { search_receipt_no: receiptNumber },
+            data: { search_receipt_no: receiptNumber, ...window.ReceiptHistoryLedger.searchContext() },
             success: function (response) {
                 const rows = response.status === 'success' ? response.data || [] : [];
                 window.ReceiptHistoryLedger.updateTotals(rows);

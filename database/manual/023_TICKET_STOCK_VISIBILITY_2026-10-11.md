@@ -37,3 +37,15 @@ No schema or database data correction is required. Do not run Laravel migrations
 ## Follow-up check on the part-payment 500
 
 The latest live source includes commit `fe8f9442`, which safely formats a missing previous payment number as `0000`. On 2026-10-11, the live controller and compiled part-payment page rendered successfully using an existing authenticated account. The current daily Laravel log showed no part-payment exception after that commit; later entries were from CLI diagnostic commands. No database or schema changes were made for this follow-up.
+
+## All history reports and receipt searches follow-up
+
+- Date-range receipt, stock, opening-pawn and article reports now display Receipt Number to cashiers instead of exposing Invoice/Stock Number under misleading Ticket or Receipt headings. Admin retains Stock Number.
+- Stock Number Search displays the matching Stock Number because it was supplied explicitly, with the true Receipt Number identified separately.
+- Part Payment and Repawning history reports now accept an exact Receipt, Ticket or Stock lookup. Date-only reports hide Ticket/Stock from cashiers; exact lookup repeats only the matching customer-supplied identifier. Admin sees both in those reports. On-screen exports/prints use the same conditional table.
+- Forfeit Receipt List and Forfeit Article List support the same exact lookup and carry visibility into the receipt-history print link. Forfeit article transfer print hides Ticket/Stock for non-admin users, since selecting a receipt does not prove the customer supplied either number.
+- Old-system redemption lookup fragments no longer auto-reveal Ticket/Stock after a receipt lookup. Their save uses identifiers from the locked receipt rather than the search fields. The regular forfeit-processing lookup follows the same rule.
+- Receipt-search history, payment-history modal, and history print carry the exact customer-supplied ticket or stock search context; ledger rows show only that matching identifier to cashiers. Unsearched history and receipt-number/NIC searches show neither identifier. Admin still sees both.
+- Existing redemption report and redemption print paths were audited and already restrict Stock Number to Admin. The blocked-receipts management page is Admin-only. New pawn receipt prints remain exempt as requested.
+- Verification: 142 local tests passed; Blade view compilation and PHP syntax checks passed. No schema or data changes were made.
+- No schema or data changes are required, and no Laravel migrations are to be run.

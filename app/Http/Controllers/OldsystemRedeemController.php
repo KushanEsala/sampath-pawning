@@ -46,10 +46,13 @@ class OldsystemRedeemController extends Controller
     // Receipt Search function
  public function searchOld(Request $request)
     {
-        $receiptNo = $request->search_receipt_no;
+        $field = $request->filled('search_ticket_no') ? 'Ticket_Number'
+            : ($request->filled('search_invoice_no') ? 'Invoice_Number' : 'old_Receipt_Number');
+        $receiptNo = $request->input($field === 'Ticket_Number' ? 'search_ticket_no'
+            : ($field === 'Invoice_Number' ? 'search_invoice_no' : 'search_receipt_no'));
         $branch_code = auth()->user()->BC;
 
-        $query = TPawnSum::where('old_Receipt_Number', $receiptNo)
+        $query = TPawnSum::where($field, $receiptNo)
                         ->where('BC', $branch_code)
                         ->where('IsRedeemed', 0)
                         ->where('isForfeit', 0)
@@ -58,6 +61,10 @@ class OldsystemRedeemController extends Controller
         $dataTPawnSum = $query->get();
 
         $data = $dataTPawnSum;
+
+        if ($data->isEmpty() && $field === 'Invoice_Number') {
+            return $this->searchInvoice($request);
+        }
 
         if ($data->count() > 0) {
             $branch_code = auth()->user()->BC;
@@ -70,7 +77,7 @@ class OldsystemRedeemController extends Controller
 
             $pawn_type = "Pawn";
 
-            $MPawnfeedback = MPawnfeedback::where('Receipt_Number', $receiptNo)
+            $MPawnfeedback = MPawnfeedback::where('Receipt_Number', $data->first()->Receipt_Number)
                 ->where('BC', $branch_code)
                 ->get();
 
@@ -181,6 +188,10 @@ class OldsystemRedeemController extends Controller
 
         try {
             $activeReceipt = \App\Services\ReceiptPaymentEligibility::lockForRedemption($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
+            $request->merge([
+                'invoice_number' => $activeReceipt->Invoice_Number,
+                'ticket_number' => $activeReceipt->Ticket_Number,
+            ]);
             $NewRedeem = new TRedeemSum;
             $NewRedeem->Receipt_Number      = $request->receipt_number;
             $NewRedeem->Invoice_Number      = $request->invoice_number;

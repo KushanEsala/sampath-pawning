@@ -32,6 +32,14 @@
                         <label class="form-label fw-medium">To Date</label>
                         <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
                     </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-medium">Find by</label>
+                        <select name="search_type" class="form-control">@foreach(['receipt'=>'Receipt','ticket'=>'Ticket','stock'=>'Stock'] as $value=>$label)<option value="{{ $value }}" @selected(request('search_type','receipt') === $value)>{{ $label }}</option>@endforeach</select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-medium">Number provided</label>
+                        <input name="search_query" class="form-control" value="{{ request('search_query') }}">
+                    </div>
                     <div class="col-md-3 align-self-end">
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-search me-1"></i> Search
@@ -57,9 +65,9 @@
                 <table id="paymentReport" class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
+                            <th class="text-center">Receipt No</th>
                             @if(auth()->check() && auth()->user()->isAdmin())
-                                <th class="text-center">Invoice No</th>
-                                <th class="text-center">Receipt No</th>
+                                <th class="text-center">Stock / Ticket</th>
                                 <th class="text-center">Customer NIC</th>
                                 <th>Customer Name</th>
                             @endif
@@ -74,9 +82,14 @@
                     <tbody>
                         @forelse($partPayments as $row)
                             <tr>
+                                <td class="text-center">{{ $row->Receipt_Number }}
+                                    @unless(auth()->user()?->isAdmin())
+                                        @if(\App\Services\ReceiptNumberVisibility::stock($row))<br><small>Stock: {{ $row->Invoice_Number }}</small>@endif
+                                        @if(\App\Services\ReceiptNumberVisibility::ticket($row))<br><small>Ticket: {{ $row->Ticket_Number }}</small>@endif
+                                    @endunless
+                                </td>
                                 @if(auth()->check() && auth()->user()->isAdmin())
-                                    <td class="text-center">{{ $row->Invoice_Number }}</td>
-                                    <td class="text-center">{{ $row->Receipt_Number }}</td>
+                                    <td class="text-center">Stock: {{ $row->Invoice_Number }}<br>Ticket: {{ $row->Ticket_Number }}</td>
                                     <td class="text-center">{{ $row->Customer_NIC }}</td>
                                     <td>{{ $row->Customer_Name }}</td>
                                 @endif
@@ -92,7 +105,7 @@
                                 @if(auth()->check() && auth()->user()->isAdmin())
                                     <td colspan="10" class="text-center py-5 text-muted">
                                 @else
-                                    <td colspan="6" class="text-center py-5 text-muted">
+                                    <td colspan="7" class="text-center py-5 text-muted">
                                 @endif
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     <p class="mb-0">No payment records found</p>
@@ -103,7 +116,7 @@
                     @if($partPayments->count() > 0)
                         <tfoot class="table-light">
                             <tr>
-                                @if(auth()->check() && auth()->user()->role === 'Admin')
+                                @if(auth()->check() && auth()->user()->isAdmin())
                                     <th colspan="5" class="text-end fw-bold">TOTAL:</th>
                                 @else
                                     <th colspan="2" class="text-end fw-bold">TOTAL:</th>
@@ -112,6 +125,7 @@
                                 <th class="text-end fw-bold">{{ number_format($partPayments->sum('Paid_Interest'), 2) }}</th>
                                 <th class="text-end fw-bold text-primary">{{ number_format($partPayments->sum('Payable_Total'), 2) }}</th>
                                 <th class="text-end fw-bold text-success">{{ number_format($partPayments->sum('Discount'), 2) }}</th>
+                                <th></th>
                             </tr>
                         </tfoot>
                     @endif
@@ -134,8 +148,8 @@
 
 <script>
     $(document).ready(function() {
-        const isAdmin = @json(auth()->check() && auth()->user()->role === 'Admin');
-        const sortColumnIndex = isAdmin ? 5 : 3;
+        const isAdmin = @json(auth()->check() && auth()->user()->isAdmin());
+        const sortColumnIndex = isAdmin ? 4 : 1;
 
         $('#paymentReport').DataTable({
             dom: '<"row mb-3"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 text-end"B>>rtip',

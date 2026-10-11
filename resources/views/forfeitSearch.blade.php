@@ -51,7 +51,7 @@
             @endforeach
 
             @foreach ($receiptData as $receipt)
-            <input type="hidden" id="i_number" name="i_number" value="{{ $receipt['Invoice_Number'] }}" required>
+            <input type="hidden" id="i_number" name="i_number" value="{{ \App\Services\ReceiptNumberVisibility::stock($receipt) ? $receipt['Invoice_Number'] : '' }}">
             <input type="hidden" id="total_weight" name="total_weight" value="{{ $receipt['Total_Weight'] }}" required>
             <input type="hidden" id="pawn_weight" name="pawn_weight" value="{{ $receipt['Pawn_Weight'] }}" required>
             @endforeach

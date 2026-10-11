@@ -93,7 +93,7 @@
                             <th>Customer_Phone</th>
                             <th>Receipt_Type</th>
                             <th>Receipt_Number</th>
-                            <th>Invoice_Number</th>
+                            @if(auth()->user()->isAdmin())<th>Invoice_Number</th>@endif
                             <th>Receipt_Date</th>
                             <th>Total Weight</th>
                             <th>Pawn Weight</th>
@@ -113,7 +113,7 @@
                                 <td>{{$receipts->Customer_Phone }}</td>
                                 <td>{{$receipts->Receipt_Type }}</td>
                                 <td>{{$receipts->Receipt_Number }}</td>
-                                <td>{{$receipts->Invoice_Number}}</td>
+                                @if(auth()->user()->isAdmin())<td>{{$receipts->Invoice_Number}}</td>@endif
                                 <td>{{$receipts->Receipt_Date}}</td>
                                 <td>{{$receipts->Total_Weight}}</td>
                                 <td>{{$receipts->Pawn_Weight}}</td>
@@ -128,7 +128,7 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="8">Total:</td>
+                                <td colspan="{{ auth()->user()->isAdmin() ? 8 : 7 }}">Total:</td>
                                 <td>{{$totalWeight}}</td>
                                 <td>{{$pawnWeight}}</td>
                                 <td>{{$totalAmount}}</td>

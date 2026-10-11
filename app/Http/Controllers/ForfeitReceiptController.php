@@ -51,7 +51,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle)
     // ✅ Step 1: Validate input
     $request->validate([
         'receipt_number'       => 'required',
-        'invoice_number'       => 'required',
+        'invoice_number'       => 'nullable|string',
         'pawn_receipt_type'    => 'required',
         'total_weight'         => 'required|numeric',
         'pawn_weight'          => 'required|numeric',
@@ -70,6 +70,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle)
         $candidateReceipt = TPawnSum::where('Receipt_Number', $request->receipt_number)
             ->where('BC', auth()->user()->BC)->where('IsRedeemed', 0)->where('isForfeit', 0)
             ->lockForUpdate()->firstOrFail();
+        $request->merge(['invoice_number' => $candidateReceipt->Invoice_Number]);
         if (TForfeitSum::where('Receipt_Number', $request->receipt_number)->where('BC', auth()->user()->BC)->exists()) {
             throw new \RuntimeException('This receipt has already been forfeited.');
         }
@@ -335,7 +336,7 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle)
 
 public function ForfeitReceiptList(Request $request, ReceiptHistoryService $history)
 {
-    $request->validate(['receipt_number' => 'nullable|string|max:80', 'status' => 'nullable|in:all,pending,forfeited', 'per_page' => 'nullable|in:10,25,50,100']);
+    $request->validate(['receipt_number' => 'nullable|string|max:80', 'search_type' => 'nullable|in:receipt,ticket,stock', 'search_query' => 'nullable|string|max:80', 'status' => 'nullable|in:all,pending,forfeited', 'per_page' => 'nullable|in:10,25,50,100']);
     $status = $request->input('status', 'all');
     $perPage = (int) $request->input('per_page', 25);
     $hasQueue = Schema::hasColumn('t_pawn_sums', 'forfeit_queued_at');
@@ -346,7 +347,11 @@ public function ForfeitReceiptList(Request $request, ReceiptHistoryService $hist
                 $query->orWhere(fn ($pending) => $pending->where('IsRedeemed', 0)->where('isForfeit', 0)->whereNotNull('forfeit_queued_at'));
             }
         });
-    if ($request->filled('receipt_number')) $query->where('Receipt_Number', trim((string) $request->input('receipt_number')));
+    $searchQuery = trim((string) ($request->input('search_query') ?? $request->input('receipt_number') ?? ''));
+    if ($searchQuery !== '') {
+        $field = ['receipt' => 'Receipt_Number', 'ticket' => 'Ticket_Number', 'stock' => 'Invoice_Number'][$request->input('search_type', 'receipt')];
+        $query->where($field, $searchQuery);
+    }
     if ($status === 'pending') {
         $query->where('isForfeit', 0);
         $hasQueue ? $query->whereNotNull('forfeit_queued_at') : $query->whereRaw('1 = 0');

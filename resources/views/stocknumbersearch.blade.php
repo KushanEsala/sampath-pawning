@@ -97,7 +97,7 @@
 
                 <div class="row align-items-end">
                     <div class="col-md-4">
-                        <label class="form-label">Stock / Receipt Number</label>
+                        <label class="form-label">Stock Number</label>
                         <input
                             type="text"
                             name="Stock_Number"
@@ -147,7 +147,7 @@
                         <tbody>
                             @foreach($results as $row)
                                 <tr>
-                                    <td>{{ $row->Invoice_Number }}</td>
+                                    <td>{{ $row->Receipt_Number }}@if(\App\Services\ReceiptNumberVisibility::stock($row))<br><small>Stock: {{ $row->Invoice_Number }}</small>@endif</td>
                                     <td>{{ $row->Customer_Name ?? '-' }}</td>
                                     <td>{{ $row->Receipt_Date }}</td>
                                     <td class="text-end">{{ $row->Pawn_Weight }}</td>
@@ -355,7 +355,7 @@ $(document).ready(function() {
                         <p>Customer Name:  ${item.Customer_Name}
                         <input type="hidden" value="${item.Customer_Name} " name="Customer_Name" id="Customer_Name">
                         </p>
-                        <p>Tictet No: ${item.Receipt_Number }</p>
+                        <p>Receipt No: ${item.Receipt_Number }</p>
                         <p>Tictet Date: ${item.Receipt_Date}</p>
                         <input type="hidden" value="${item.Receipt_Date} " name="Receipt_Date" id="Receipt_Date">
                          <p>Final Date: ${item.Final_date}</p>

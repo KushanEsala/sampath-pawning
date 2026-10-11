@@ -99,6 +99,14 @@ window.ReceiptHistoryLedger = window.ReceiptHistoryLedger || {
             balanceCell.classList.toggle('ledger-balance-negative', currentBalance < 0);
         }
     },
+    searchContext() {
+        const ticket = document.getElementById('search_ticket')?.value.trim() || '';
+        const stock = document.getElementById('search_invoice')?.value.trim() || '';
+        // Search handlers clear the other field. If both are present, disclose neither.
+        if (ticket && !stock) return { search_type: 'ticket', search_query: ticket };
+        if (stock && !ticket) return { search_type: 'stock', search_query: stock };
+        return {};
+    },
     setPrintReceipt(receiptNumber) {
         document.querySelectorAll('[data-payment-history-print]').forEach(link => {
             link.classList.toggle('d-none', !receiptNumber);
@@ -108,6 +116,11 @@ window.ReceiptHistoryLedger = window.ReceiptHistoryLedger || {
             }
             const url = new URL(@json(route('receipt.search.print')), window.location.origin);
             url.searchParams.set('receipt_number', receiptNumber);
+            const context = this.searchContext();
+            if (context.search_type) {
+                url.searchParams.set('search_type', context.search_type);
+                url.searchParams.set('search_query', context.search_query);
+            }
             link.href = url.toString();
         });
     }

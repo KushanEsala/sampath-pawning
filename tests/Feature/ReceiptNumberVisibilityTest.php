@@ -121,6 +121,64 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringContainsString('INV888', $adminHtml);
     }
 
+    public function test_date_range_receipt_report_uses_receipt_number_without_exposing_stock(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Number' => 100,
+            'Invoice_Number' => 'INV100',
+            'Receipt_Type' => 'A',
+            'Receipt_Date' => '2026-10-11',
+            'Pawn_Weight' => 1,
+            'Total_Weight' => 1,
+            'Amount' => 5000,
+        ]);
+        $data = [
+            'recipts' => collect([$receipt]),
+            'pawnWeight' => '1.00',
+            'totalWeight' => '1.00',
+            'totalAmount' => '5,000.00',
+        ];
+
+        $this->actingAs($this->makeUser('Cashier'));
+        $cashierHtml = view('search_results', $data)->render();
+        $this->assertStringContainsString('<td>100</td>', $cashierHtml);
+        $this->assertStringNotContainsString('INV100', $cashierHtml);
+
+        $this->actingAs($this->makeUser('Admin'));
+        $adminHtml = view('search_results', $data)->render();
+        $this->assertStringContainsString('INV100', $adminHtml);
+    }
+
+    public function test_stock_number_search_reveals_only_the_exact_supplied_stock_number(): void
+    {
+        $results = collect([(object) [
+            'Receipt_Number' => 100,
+            'Invoice_Number' => 'INV100',
+            'Customer_Name' => 'Test',
+            'Receipt_Date' => '2026-10-11',
+            'Pawn_Weight' => 1,
+            'Total_Weight' => 1,
+            'Amount' => 5000,
+            'Interest' => 100,
+            'IsRedeemed' => 0,
+            'Final_date' => '2026-11-11',
+        ]]);
+        $data = [
+            'results' => $results,
+            'results_Details' => collect(),
+            'results_transtion' => collect(),
+            'Receipt_Type' => collect(),
+        ];
+        $this->actingAs($this->makeUser('Cashier'));
+        app()->instance('request', Request::create('/stock-search'));
+        $defaultHtml = view('stocknumbersearch', $data)->render();
+        $this->assertStringNotContainsString('Stock: INV100', $defaultHtml);
+
+        app()->instance('request', Request::create('/stock-search', 'POST', ['Stock_Number' => 'INV100']));
+        $exactHtml = view('stocknumbersearch', $data)->render();
+        $this->assertStringContainsString('Stock: INV100', $exactHtml);
+    }
+
     public function test_forfeit_list_hides_stock_and_ticket_from_cashier(): void
     {
         $receipt = new TPawnSum([
@@ -148,6 +206,11 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringNotContainsString('Stock (Invoice): INV666', $cashierHtml);
         $this->assertStringNotContainsString('Ticket: TK777', $cashierHtml);
 
+        app()->instance('request', Request::create('/forfeitReceipt_List', 'GET', ['search_type' => 'stock', 'search_query' => 'INV666']));
+        $stockHtml = view('forfeitReceipt_List', compact('recipts', 'status'))->render();
+        $this->assertStringContainsString('Stock: INV666', $stockHtml);
+        $this->assertStringNotContainsString('Ticket: TK777', $stockHtml);
+
         // Admin view
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('forfeitReceipt_List', compact('recipts', 'status'))->render();
@@ -173,6 +236,11 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringNotContainsString('INV555', $cashierHtml);
         $this->assertStringNotContainsString('TK444', $cashierHtml);
 
+        app()->instance('request', Request::create('/forfeit_article_receipt', 'GET', ['search_type' => 'ticket', 'search_query' => 'TK444']));
+        $ticketHtml = view('forfeit_article_receipt', compact('recipts'))->render();
+        $this->assertStringContainsString('Ticket Number: TK444', $ticketHtml);
+        $this->assertStringNotContainsString('INV555', $ticketHtml);
+
         // Admin view
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('forfeit_article_receipt', compact('recipts'))->render();
@@ -184,6 +252,7 @@ class ReceiptNumberVisibilityTest extends TestCase
     {
         $row = (object) [
             'Invoice_Number' => 'INV333',
+            'Ticket_Number' => 'TK333',
             'Receipt_Number' => 100,
             'Customer_NIC' => '123456789V',
             'Customer_Name' => 'Test Customer',
@@ -200,6 +269,13 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('PartpaymentHistortyReport', compact('partPayments'))->render();
         $this->assertStringNotContainsString('INV333', $cashierHtml);
+        $this->assertStringNotContainsString('TK333', $cashierHtml);
+
+        // An exact stock lookup may repeat only the number the customer supplied.
+        app()->instance('request', Request::create('/part-payment-history', 'GET', ['search_type' => 'stock', 'search_query' => 'INV333']));
+        $stockHtml = view('PartpaymentHistortyReport', compact('partPayments'))->render();
+        $this->assertStringContainsString('Stock: INV333', $stockHtml);
+        $this->assertStringNotContainsString('TK333', $stockHtml);
 
         // Admin view
         $this->actingAs($this->makeUser('Admin'));
@@ -211,6 +287,8 @@ class ReceiptNumberVisibilityTest extends TestCase
     {
         $row = (object) [
             'Invoice_Number' => 'INV222',
+            'Ticket_Number' => 'TK222',
+            'Receipt_Number' => 100,
             'Pawn_Date' => '2026-09-01',
             'Customer_NIC' => '123456789V',
             'Customer_Name' => 'Test Customer',
@@ -225,6 +303,12 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('repawningHistortyReport', compact('repawnings'))->render();
         $this->assertStringNotContainsString('INV222', $cashierHtml);
+        $this->assertStringNotContainsString('TK222', $cashierHtml);
+
+        app()->instance('request', Request::create('/repawning-history', 'GET', ['search_type' => 'ticket', 'search_query' => 'TK222']));
+        $ticketHtml = view('repawningHistortyReport', compact('repawnings'))->render();
+        $this->assertStringContainsString('Ticket: TK222', $ticketHtml);
+        $this->assertStringNotContainsString('INV222', $ticketHtml);
 
         // Admin view
         $this->actingAs($this->makeUser('Admin'));

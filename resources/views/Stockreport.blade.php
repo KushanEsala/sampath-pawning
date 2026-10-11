@@ -85,7 +85,7 @@ $('#t_pawn_sums').DataTable()
                         <th>Customer_Phone</th>
                         <th>Receipt_Type</th>
                         <th>Receipt_Number</th>
-                        <th>Invoice_Number</th>
+                        @if(auth()->user()->isAdmin())<th>Invoice_Number</th>@endif
                         <th>Receipt_Date</th>
                         <th>IsRedeemed</th>
                         <th>Amount</th>
@@ -102,7 +102,7 @@ $('#t_pawn_sums').DataTable()
                         <td>{{$receipts->Customer_Phone }}</td>
                         <td>{{$receipts->Receipt_Type }}</td>
                         <td>{{$receipts->Receipt_Number }}</td>
-                        <td>{{$receipts->Invoice_Number}}</td>
+                        @if(auth()->user()->isAdmin())<td>{{$receipts->Invoice_Number}}</td>@endif
                         <td>{{$receipts->Receipt_Date}}</td>
                         <td>{{$receipts->IsRedeemed}}</td>
                         <td>{{$receipts->Amount}}</td>
@@ -117,7 +117,7 @@ $('#t_pawn_sums').DataTable()
                 <tfoot>
                     <tr>
                         <td colspan="2"><b>Total Pawn Count = {{$pawnCount}} </td>
-                        <td colspan="7"> <center> <b>Total: </b></center></td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? 7 : 6 }}"> <center> <b>Total: </b></center></td>
                         <td><b>{{$amount}}</b></td>
                         <td><b>{{$Interest}}</b></td>
                     </tr>

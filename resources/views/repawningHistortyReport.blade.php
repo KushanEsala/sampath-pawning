@@ -150,12 +150,20 @@
             <div class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold text-muted small">FROM DATE</label>
-                    <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}" required>
+                    <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}">
                 </div>
 
                 <div class="col-md-3">
                     <label class="form-label fw-bold text-muted small">TO DATE</label>
-                    <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}" required>
+                    <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold text-muted small">FIND BY</label>
+                    <select name="search_type" class="form-control">@foreach(['receipt'=>'Receipt','ticket'=>'Ticket','stock'=>'Stock'] as $value=>$label)<option value="{{ $value }}" @selected(request('search_type','receipt') === $value)>{{ $label }}</option>@endforeach</select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold text-muted small">NUMBER PROVIDED</label>
+                    <input name="search_query" class="form-control" value="{{ request('search_query') }}">
                 </div>
 
                 <div class="col-md-6 d-flex gap-2">
@@ -192,9 +200,9 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th class="ps-3">#</th>
+                        <th class="ps-3">Receipt No</th>
                         @if(auth()->user()?->isAdmin())
-                        <th>Invoice No</th>
+                        <th>Stock / Ticket</th>
                         @endif
                         <th>Pawn Date</th>
                         @if(auth()->user()?->isAdmin())
@@ -210,9 +218,14 @@
                 <tbody>
                     @forelse($repawnings as $index => $row)
                     <tr>
-                        <td class="ps-3 text-muted">{{ $index + 1 }}</td>
+                        <td class="ps-3 text-muted">{{ $row->Receipt_Number }}
+                            @unless(auth()->user()?->isAdmin())
+                                @if(\App\Services\ReceiptNumberVisibility::stock($row))<br><small>Stock: {{ $row->Invoice_Number }}</small>@endif
+                                @if(\App\Services\ReceiptNumberVisibility::ticket($row))<br><small>Ticket: {{ $row->Ticket_Number }}</small>@endif
+                            @endunless
+                        </td>
                         @if(auth()->user()?->isAdmin())
-                        <td>{{ $row->Invoice_Number }}</td>
+                        <td>Stock: {{ $row->Invoice_Number }}<br>Ticket: {{ $row->Ticket_Number ?? '—' }}</td>
                         @endif
                         <td>
                             @if($row->Pawn_Date)
@@ -240,7 +253,7 @@
                             <div class="text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
                                 <h5 class="mb-2">No Records Found</h5>
-                                @if(!request('from_date') || !request('to_date'))
+                                @if((!request('from_date') || !request('to_date')) && !request('search_query'))
                                     <p class="mb-0 small">Please select a date range to generate the report.</p>
                                 @else
                                     <p class="mb-0 small">No transactions found for the selected period.</p>
@@ -253,7 +266,7 @@
                 @if(count($repawnings) > 0)
                 <tfoot>
                     <tr class="table-dark fw-bold">
-                        <td colspan="{{ auth()->user()->role === 'Admin' ? '7' : '4' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '7' : '3' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
                         <td class="text-end">Rs. {{ number_format($repawnings->sum('Original_Pawn_Amount'), 2) }}</td>
                         <td class="text-end text-warning">Rs. {{ number_format($repawnings->sum('Payable_Total'), 2) }}</td>
                     </tr>

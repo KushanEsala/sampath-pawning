@@ -38,7 +38,7 @@ document.getElementById('viewPaymentHistoryModel').addEventListener('show.bs.mod
     $.ajax({
         url: "{{ route('view_dynamicCusDetailsView_details_ajax') }}",
         method: 'GET',
-        data: { search_receipt_no: receiptNumber },
+        data: { search_receipt_no: receiptNumber, ...ledger.searchContext() },
         success: function (response) {
             const rows = response.status === 'success' ? response.data || [] : [];
             ledger.updateTotals(rows);

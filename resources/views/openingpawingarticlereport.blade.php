@@ -69,7 +69,7 @@
                         style="background-color: transparent; border:1px solid rgb(193, 26, 26); margin-top:15px;">
                         <tr style="background-color:hsl(204, 71%, 70%);">
                             <th>Receipt_Number</th>
-                            <th>Invoice_Number</th>
+                            @if(auth()->user()->isAdmin())<th>Invoice_Number</th>@endif
                             <th>Receipt_Type</th>
                             <th>Category</th>
                             <th>Articles</th>
@@ -85,7 +85,7 @@
                             @foreach ( $redeem as $key=>$redeem)
                             <tr>
                                 <td>{{$redeem->Receipt_Number }}</td>
-                                <td>{{$redeem->Invoice_Number}}</td>
+                                @if(auth()->user()->isAdmin())<td>{{$redeem->Invoice_Number}}</td>@endif
                                 <td>{{$redeem->Receipt_Type }}</td>
                                 <td>{{$redeem->Category}}</td>
                                 <td>{{$redeem->Articles}}</td>
@@ -101,7 +101,7 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th colspan="3">Total</th>
+                                <th colspan="{{ auth()->user()->isAdmin() ? 3 : 2 }}">Total</th>
                                 <th></th>
                                 <th></th>
                                 <th></th>

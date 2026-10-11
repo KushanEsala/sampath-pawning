@@ -9,13 +9,15 @@
 </style>
 <div class="main-wrapper"><div class="page-wrapper"><div class="content container-fluid">
 <h4>Forfeit Article List</h4>
+@php($showStockColumn = auth()->user()?->isAdmin() || (request('search_type') === 'stock' && request()->filled('search_query')))
 <p class="text-muted">Select forfeited receipts to move all their available articles into sale stock. Completed receipts disappear from this working list; their history is retained.</p>
 @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
 @if($errors->any())<div class="alert alert-danger">{{ $errors->first() }}</div>@endif
 @if(session('forfeit_print_ids'))<div class="alert alert-info">Transfer completed. <a id="transfer-print" target="_blank" href="{{ route('forfeit.articles.transfer.print', ['events'=>session('forfeit_print_ids')]) }}">Print selected receipts</a></div>@endif
 <div class="card"><div class="card-body">
 <form method="GET" action="{{ route('forfeit_article_receipt') }}" class="row g-2 align-items-end">
-<div class="col-md-4"><label for="article_receipt">Receipt Number</label><input id="article_receipt" name="receipt_number" class="form-control" value="{{ request('receipt_number') }}"></div>
+<div class="col-md-2"><label for="article_search_type">Find by</label><select id="article_search_type" name="search_type" class="form-control">@foreach(['receipt'=>'Receipt','ticket'=>'Ticket','stock'=>'Stock'] as $value=>$label)<option value="{{ $value }}" @selected(request('search_type','receipt') === $value)>{{ $label }}</option>@endforeach</select></div>
+<div class="col-md-4"><label for="article_receipt">Number provided</label><input id="article_receipt" name="search_query" class="form-control" value="{{ request('search_query', request('receipt_number')) }}"></div>
 <div class="col-auto"><label for="article_page_size">Rows per page</label><select id="article_page_size" name="per_page" class="form-control">@foreach([10,25,50,100] as $size)<option value="{{ $size }}" @selected((int) request('per_page',25) === $size)>{{ $size }}</option>@endforeach</select></div>
 <div class="col-auto"><button class="btn btn-primary">Search</button> <a class="btn btn-outline-secondary" href="{{ route('forfeit_article_receipt') }}">Clear</a></div>
 </form></div></div>
@@ -24,15 +26,15 @@
 @csrf
 <div class="d-flex flex-wrap align-items-center gap-3 mb-3"><label><input type="checkbox" id="select-all-receipts"> Select this page</label><button class="btn btn-danger" type="submit">Forfeit selected &amp; print</button><span class="text-muted small">This transfers stock; it does not record a customer payment.</span></div>
 <table class="table table-bordered article-receipts">
-<colgroup><col style="width:7%"><col style="width:10%"><col style="width:14%">@if(auth()->user()?->isAdmin())<col style="width:15%">@endif<col style="width:{{ auth()->user()?->isAdmin() ? '32%' : '47%' }}"><col style="width:10%"><col style="width:12%"></colgroup>
-<thead><tr><th>Select</th><th>View</th><th>Receipt No</th>@if(auth()->user()?->isAdmin())<th>Stock No<br><small>Invoice No</small></th>@endif<th>Customer / NIC</th><th>Articles</th><th>Weight</th></tr></thead><tbody>
+<colgroup><col style="width:7%"><col style="width:10%"><col style="width:14%">@if($showStockColumn)<col style="width:15%">@endif<col style="width:{{ $showStockColumn ? '32%' : '47%' }}"><col style="width:10%"><col style="width:12%"></colgroup>
+<thead><tr><th>Select</th><th>View</th><th>Receipt No</th>@if($showStockColumn)<th>Stock No<br><small>Invoice No</small></th>@endif<th>Customer / NIC</th><th>Articles</th><th>Weight</th></tr></thead><tbody>
 @forelse($recipts as $receipt)
-<tr><td><input type="checkbox" name="selected_receipts[]" value="{{ $receipt->id }}" aria-label="Select receipt {{ $receipt->Receipt_Number }}"></td><td><button type="button" class="btn btn-success btn-sm" data-article-details="articles-{{ $receipt->id }}" aria-expanded="false" aria-controls="articles-{{ $receipt->id }}">View</button></td><td>{{ $receipt->Receipt_Number }}</td>@if(auth()->user()?->isAdmin())<td>{{ $receipt->Invoice_Number ?: '—' }}</td>@endif<td>{{ $receipt->current_customer_name }}<br><small>{{ $receipt->Customer_NIC }}</small></td><td>{{ $receipt->available_articles->sum('QTY') }}</td><td>{{ number_format($receipt->available_articles->sum('Weight'),3) }}</td></tr>
-<tr class="article-detail" id="articles-{{ $receipt->id }}" hidden><td colspan="{{ auth()->user()?->isAdmin() ? 7 : 6 }}">@if(auth()->user()?->isAdmin())<p>Ticket Number: {{ $receipt->Ticket_Number ?: '—' }}</p>@endif
+<tr><td><input type="checkbox" name="selected_receipts[]" value="{{ $receipt->id }}" aria-label="Select receipt {{ $receipt->Receipt_Number }}"></td><td><button type="button" class="btn btn-success btn-sm" data-article-details="articles-{{ $receipt->id }}" aria-expanded="false" aria-controls="articles-{{ $receipt->id }}">View</button></td><td>{{ $receipt->Receipt_Number }}</td>@if($showStockColumn)<td>{{ \App\Services\ReceiptNumberVisibility::stock($receipt) ? ($receipt->Invoice_Number ?: '—') : '—' }}</td>@endif<td>{{ $receipt->current_customer_name }}<br><small>{{ $receipt->Customer_NIC }}</small></td><td>{{ $receipt->available_articles->sum('QTY') }}</td><td>{{ number_format($receipt->available_articles->sum('Weight'),3) }}</td></tr>
+<tr class="article-detail" id="articles-{{ $receipt->id }}" hidden><td colspan="{{ $showStockColumn ? 7 : 6 }}">@if(\App\Services\ReceiptNumberVisibility::ticket($receipt))<p>Ticket Number: {{ $receipt->Ticket_Number ?: '—' }}</p>@endif
 <table class="table table-sm table-bordered"><thead><tr><th>Category / Article</th><th>Condition</th><th>Karatage</th><th>Weight</th><th>Quantity</th><th>Value</th></tr></thead><tbody>
 @foreach($receipt->available_articles as $article)<tr><td>{{ $article->category }} / {{ $article->Item_description }}</td><td>{{ $article->Brand }}</td><td>{{ $article->Make }}</td><td>{{ $article->Weight }}</td><td>{{ $article->QTY }}</td><td>{{ number_format($article->purchasePrice,2) }}</td></tr>@endforeach
 </tbody></table></td></tr>
-@empty<tr><td colspan="7" class="text-center text-muted">No forfeited receipts have articles awaiting transfer.</td></tr>@endforelse
+@empty<tr><td colspan="{{ $showStockColumn ? 7 : 6 }}" class="text-center text-muted">No forfeited receipts have articles awaiting transfer.</td></tr>@endforelse
 </tbody></table></form>
 @include('partials.report-pagination', ['paginator'=>$recipts])
 </div></div></div></div></div>

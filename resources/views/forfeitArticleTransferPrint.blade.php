@@ -52,8 +52,10 @@
         <thead>
             <tr>
                 <th class="text-center" style="width: 60px;">#</th>
-                <th>Ticket Number</th>
-                <th>Stock Number (Invoice Number)</th>
+                @if(auth()->user()?->isAdmin())
+                    <th>Ticket Number</th>
+                    <th>Stock Number (Invoice Number)</th>
+                @endif
                 <th class="text-end">Capital</th>
                 <th class="text-end">Interest</th>
                 <th class="text-center">Article Count</th>
@@ -106,8 +108,10 @@
                 @endphp
                 <tr>
                     <td class="text-center">{{ $index + 1 }}</td>
-                    <td><strong>{{ $data['ticket_number'] ?? '—' }}</strong></td>
-                    <td>{{ $data['stock_number'] ?? '—' }}</td>
+                    @if(auth()->user()?->isAdmin())
+                        <td><strong>{{ $data['ticket_number'] ?? '—' }}</strong></td>
+                        <td>{{ $data['stock_number'] ?? '—' }}</td>
+                    @endif
                     <td class="text-end">{{ number_format($capital, 2) }}</td>
                     <td class="text-end">
                         {{ number_format($interest, 2) }}
@@ -120,14 +124,14 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="text-center">No records found.</td>
+                    <td colspan="{{ auth()->user()?->isAdmin() ? 7 : 5 }}" class="text-center">No records found.</td>
                 </tr>
             @endforelse
         </tbody>
         @if(count($events) > 0)
         <tfoot>
             <tr>
-                <td colspan="3" class="text-end">Total:</td>
+                <td colspan="{{ auth()->user()?->isAdmin() ? 3 : 1 }}" class="text-end">Total:</td>
                 <td class="text-end">{{ number_format($totalCapital, 2) }}</td>
                 <td class="text-end">{{ number_format($totalInterest, 2) }}</td>
                 <td class="text-center">{{ $totalArticles }}</td>

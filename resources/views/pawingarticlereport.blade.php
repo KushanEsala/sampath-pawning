@@ -513,10 +513,8 @@
             <table class="table table-bordered table-striped display nowrap" id="receiptTable">
                 <thead class="table-dark text-center">
                     <tr>
-                        @if(auth()->user()->role == 'Admin')
-                            <th>Receipt Number</th>
-                        @endif
-                        <th>Invoice Number</th>
+                        <th>Receipt Number</th>
+                        @if(auth()->user()->isAdmin())<th>Invoice Number</th>@endif
                         <th>Receipt Type</th>
                         <th>Category</th>
                         <th>Articles</th>
@@ -533,10 +531,8 @@
                 <tbody>
                     @foreach ($receipts as $item)
                         <tr>
-                            @if(auth()->user()->role == 'Admin')
-                                <td>{{ $item->Receipt_Number }}</td>
-                            @endif
-                            <td>{{ $item->Invoice_Number }}</td>
+                            <td>{{ $item->Receipt_Number }}</td>
+                            @if(auth()->user()->isAdmin())<td>{{ $item->Invoice_Number }}</td>@endif
                             <td>{{ $item->Receipt_Type }}</td>
                             <td>{{ $item->Category }}</td>
                             <td>{{ $item->Articles }}</td>
@@ -553,7 +549,7 @@
 
                 <tfoot>
                     <tr class="table-secondary text-center">
-                        @if(auth()->user()->role == 'Admin')
+                        @if(auth()->user()->isAdmin())
                             <th colspan="7">Total</th>
                         @else
                             <th colspan="6">Total</th>

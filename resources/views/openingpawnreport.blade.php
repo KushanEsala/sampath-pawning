@@ -87,7 +87,7 @@ $('#t_redeem_sums').DataTable()
                     <th>Customer_Phone</th>
                     <th>Receipt_Type</th>
                     <th>Receipt_Number</th>
-                    <th>Invoice_Number</th>
+                    @if(auth()->user()?->isAdmin())<th>Invoice_Number</th>@endif
                     <th>Receipt_Date</th>
                     <th>Amount</th>
                     <th>Total_Amount</th>
@@ -105,7 +105,7 @@ $('#t_redeem_sums').DataTable()
                         <td>{{$open->Customer_Phone }}</td>
                         <td>{{$open->Receipt_Type }}</td>
                         <td>{{$open->Receipt_Number }}</td>
-                        <td>{{$open->Invoice_Number}}</td>
+                        @if(auth()->user()?->isAdmin())<td>{{$open->Invoice_Number}}</td>@endif
                         <td>{{$open->Receipt_Date}}</td>
                         <td>{{$open->Amount}}</td>
                         <td>{{$open->Total_Amount}}</td>
@@ -124,7 +124,9 @@ $('#t_redeem_sums').DataTable()
                         <th>Total</th>
                         <th></th>
                         <th></th>
+                        @if(auth()->user()?->isAdmin())
                         <th></th>
+                        @endif
                         <th></th>
                         <th></th>
                         <th></th>

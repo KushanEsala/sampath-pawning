@@ -83,7 +83,7 @@
                                             <div class="col-md-4 mb-1">
                                                 <label for="invoice_no">Invoice Number :
                                                     <input class="form-control" type="text" placeholder="Type Invoice Number:"
-                                                    name="invoice_number" id="search_invoice" required>
+                                                    name="invoice_number" id="search_invoice">
                                                 </label>
                                             </div>
 
