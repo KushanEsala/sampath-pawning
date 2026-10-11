@@ -49,11 +49,14 @@ class ForfeitReportRenderingTest extends TestCase
         $html = view('partpaymentReceiptPrint', [
             'pawnSumData'=>collect([$pawn]), 'pawnDetailsData'=>collect(),
             'redeemdata'=>collect([$payment]), 'companyData'=>collect(),
-            'branchDetails'=>collect(), 'interestDays'=>13, 'capitalizedInterest'=>50,
+            'branchDetails'=>collect(), 'interestDays'=>13,
+            'capitalizedInterest'=>50, 'capitalizedCharges'=>125,
         ])->render();
 
         $this->assertStringContainsString('Interest Added to Capital', $html);
         $this->assertStringContainsString('Rs. 50.00', $html);
+        $this->assertStringContainsString('Postage / Charges Added to Capital', $html);
+        $this->assertStringContainsString('Rs. 125.00', $html);
         $this->assertStringContainsString('Rs. 5,050.00', $html);
     }
 

@@ -27,7 +27,31 @@ class ReceiptHistoryOperatorTest extends TestCase
         $method->setAccessible(true);
         $missing = $method->invoke(new ReceiptHistoryService(new ReceiptFinancialCalculator()), $receipt, $events);
 
-        $this->assertSame([[1, '2026-09-07']], $missing);
+        $this->assertSame([[1, '2026-09-07', 125.0, null]], $missing);
+    }
+
+    public function test_payment_snapshot_keeps_legacy_letter_in_history_after_flags_are_cleared(): void
+    {
+        $receipt = new \App\Models\TPawnSum([
+            'letter_1_date' => null, 'letter_2_date' => null,
+            'letter_pay_one' => 0, 'letter_pay_two' => 0,
+        ]);
+        $letters = collect([new \App\Models\ArrearsLetterEvent([
+            'letter_no' => 2, 'issued_at' => '2026-10-08 14:07:53', 'postage_charge' => 125,
+        ])]);
+        $allocations = collect([(object) [
+            'event_type' => 'PART_PAYMENT_ALLOCATION',
+            'event_data' => json_encode(['cleared_letter_snapshots' => [
+                ['letter_no'=>1, 'printed_at'=>'2026-09-07', 'postage_charge'=>125],
+                ['letter_no'=>2, 'printed_at'=>'2026-10-08', 'postage_charge'=>125],
+            ]]),
+        ]]);
+
+        $method = new \ReflectionMethod(ReceiptHistoryService::class, 'savedLettersWithoutEvents');
+        $method->setAccessible(true);
+        $missing = $method->invoke(new ReceiptHistoryService(new ReceiptFinancialCalculator()), $receipt, $letters, $allocations);
+
+        $this->assertSame([[1, '2026-09-07', 125.0, null]], $missing);
     }
 
     public function test_event_displays_recorded_operator_and_profile_not_the_viewer(): void

@@ -228,6 +228,13 @@
         </tr>
         @endif
 
+        @if(($capitalizedCharges ?? 0) > 0)
+        <tr>
+            <td>Postage / Charges Added to Capital</td>
+            <td>Rs. {{ number_format($capitalizedCharges, 2) }}</td>
+        </tr>
+        @endif
+
         <tr>
             <td>Total Amount</td>
             <td>Rs. {{ number_format($redeem['paid_cap_amount'], 2) }}</td>

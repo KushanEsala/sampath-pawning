@@ -21,9 +21,12 @@ class PartPaymentCalculator
         $interestAfterDiscount = max(0, $interest - min($interest, $discount));
         $paidInterest = min($interestAfterDiscount, $paidCharges);
         $capitalizedInterest = max(0, $interestAfterDiscount - $paidInterest);
+        // Once the interest portion is accounted for, any unpaid postage or
+        // other due charge joins the new capital. Do not also carry it in
+        // BalanceInterest, or the next cycle will charge it twice.
+        $capitalizedCharges = max(0, $chargesDue - $paidCharges - $capitalizedInterest);
         $principalPaid = min($principal, max(0, $paymentReceived - $chargesDue));
-        $newPrincipal = max(0, $principal - $principalPaid + $capitalizedInterest);
-        $unpaidCharges = max(0, $chargesDue - $paidCharges - $capitalizedInterest);
+        $newPrincipal = max(0, $principal - $principalPaid + $capitalizedInterest + $capitalizedCharges);
 
         return [
             'charges_due' => round($chargesDue, 2),
@@ -34,7 +37,8 @@ class PartPaymentCalculator
             'principal_paid' => round($principalPaid, 2),
             'new_principal' => round($newPrincipal, 2),
             'capitalized_interest' => round($capitalizedInterest, 2),
-            'unpaid_charges' => round($unpaidCharges, 2),
+            'capitalized_charges' => round($capitalizedCharges, 2),
+            'unpaid_charges' => 0.0,
         ];
     }
 }

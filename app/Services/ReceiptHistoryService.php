@@ -133,6 +133,7 @@ class ReceiptHistoryService
             $allocation = $allocations->get((int) ($row->id ?? 0));
             if (!$allocation) return;
             $row->capitalized_interest = max(0, (float) ($allocation['capitalized_interest'] ?? 0));
+            $row->capitalized_charges = max(0, (float) ($allocation['capitalized_charges'] ?? 0));
             $row->allocation_interest_due = max(0, (float) ($allocation['interest_due'] ?? 0));
             $row->allocation_discount = max(0, (float) ($allocation['discount'] ?? 0));
         });
@@ -294,6 +295,10 @@ class ReceiptHistoryService
         if (Schema::hasTable('arrears_letter_events')) {
             $letterEvents = ArrearsLetterEvent::where('pawn_sum_id', $receipt->id)->get();
         }
+        $allocationEvents = Schema::hasTable('receipt_lifecycle_events')
+            ? ReceiptLifecycleEvent::where('pawn_sum_id', $receipt->id)
+                ->where('event_type', 'PART_PAYMENT_ALLOCATION')->get(['event_type', 'event_data'])
+            : collect();
 
         foreach ($letterEvents as $letter) {
             $charge = (float) $letter->postage_charge;
@@ -308,8 +313,7 @@ class ReceiptHistoryService
                 'OC' => $letter->issued_by,
             ]));
         }
-        foreach ($this->savedLettersWithoutEvents($receipt, $letterEvents) as [$letterNo, $dateStr]) {
-            $charge = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+        foreach ($this->savedLettersWithoutEvents($receipt, $letterEvents, $allocationEvents) as [$letterNo, $dateStr, $charge, $operator]) {
             $chargeRows->push((object) array_merge($base, [
                 'dDate' => $dateStr,
                 'trans_type' => 'LETTER '.$letterNo.' CHARGE',
@@ -317,7 +321,7 @@ class ReceiptHistoryService
                 'Postage_charge' => $charge,
                 'letter_sent' => $this->ordinal($letterNo).' Letter',
                 'letter_charge' => $charge,
-                'OC' => $receipt->OC,
+                'OC' => $operator,
             ]));
         }
 
@@ -326,24 +330,41 @@ class ReceiptHistoryService
         })->values();
     }
 
-    /** Display saved legacy print dates alongside event-backed letters without duplicating either. */
-    private function savedLettersWithoutEvents(TPawnSum $receipt, Collection $events): array
+    /** Preserve recorded legacy print dates and payment snapshots without inventing letter events. */
+    private function savedLettersWithoutEvents(TPawnSum $receipt, Collection $events, ?Collection $allocations = null): array
     {
-        $missing = [];
+        $candidates = [];
+        foreach ($allocations ?? collect() as $allocation) {
+            if (($allocation->event_type ?? 'PART_PAYMENT_ALLOCATION') !== 'PART_PAYMENT_ALLOCATION') {
+                continue;
+            }
+            $data = json_decode((string) ($allocation->event_data ?? ''), true) ?: [];
+            foreach ($data['cleared_letter_snapshots'] ?? [] as $saved) {
+                $letterNo = (int) ($saved['letter_no'] ?? 0);
+                $dateStr = (string) ($saved['printed_at'] ?? '');
+                if ($letterNo < 1 || $letterNo > 3 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+                    continue;
+                }
+                $candidates[$letterNo.'|'.$dateStr] = [
+                    $letterNo, $dateStr, max(0, (float) ($saved['postage_charge'] ?? 0)), null,
+                ];
+            }
+        }
         foreach ([1, 2, 3] as $letterNo) {
             $date = $receipt->{"letter_{$letterNo}_date"};
             if (!$date) {
                 continue;
             }
             $dateStr = $this->letterDate($date);
-            $recorded = $events->contains(fn ($event) => (int) $event->letter_no === $letterNo
-                && $this->letterDate($event->issued_at) === $dateStr);
-            if (!$recorded) {
-                $missing[] = [$letterNo, $dateStr];
-            }
+            $candidates[$letterNo.'|'.$dateStr] = [
+                $letterNo, $dateStr, $this->calculator->resolveLetterCharge($receipt, $letterNo), $receipt->OC,
+            ];
         }
 
-        return $missing;
+        return array_values(array_filter($candidates, fn ($saved) => !$events->contains(
+            fn ($event) => (int) $event->letter_no === $saved[0]
+                && $this->letterDate($event->issued_at) === $saved[1]
+        )));
     }
 
     private function letterDate(mixed $date): string
@@ -558,7 +579,8 @@ class ReceiptHistoryService
             return collect($details)
                 ->filter(fn ($detail) => str_starts_with($detail, 'Paid capital:')
                     || str_starts_with($detail, 'Paid interest:')
-                    || str_starts_with($detail, 'Interest added to capital:'))
+                    || str_starts_with($detail, 'Interest added to capital:')
+                    || str_starts_with($detail, 'Charges added to capital:'))
                 ->implode(' • ');
         }
 
@@ -601,6 +623,11 @@ class ReceiptHistoryService
             $details[] = 'Paid interest: Rs. '.number_format((float) ($row->Paided_Interest ?? 0), 2);
             if ((float) ($row->capitalized_interest ?? 0) > 0) {
                 $details[] = 'Interest added to capital: Rs. '.number_format((float) $row->capitalized_interest, 2);
+            }
+            if ((float) ($row->capitalized_charges ?? 0) > 0) {
+                $details[] = 'Charges added to capital: Rs. '.number_format((float) $row->capitalized_charges, 2);
+            }
+            if ((float) ($row->capitalized_interest ?? 0) > 0 || (float) ($row->capitalized_charges ?? 0) > 0) {
                 $details[] = 'New capital: Rs. '.number_format((float) ($row->remaining_capital ?? 0), 2);
             }
         } elseif ($type === 'REPAWNING') {
@@ -678,7 +705,7 @@ class ReceiptHistoryService
     ): Collection {
         $events = collect();
 
-        $savedLetters = $this->savedLettersWithoutEvents($receipt, $letters);
+        $savedLetters = $this->savedLettersWithoutEvents($receipt, $letters, $lifecycle);
         $extraNames = collect();
         foreach ($savedLetters as [$letterNo, $dateStr]) {
             $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
@@ -730,8 +757,7 @@ class ReceiptHistoryService
                 'Issued by' => $letter->issued_by,
             ], $letter->id, $letter->issued_by, $receipt->BC));
         }
-        foreach ($savedLetters as [$letterNo, $dateStr]) {
-            $amount = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+        foreach ($savedLetters as [$letterNo, $dateStr, $amount]) {
             $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
             $events->push($this->event(
                 $dateStr,
@@ -766,6 +792,7 @@ class ReceiptHistoryService
             if ($row->event_type === 'PART_PAYMENT_ALLOCATION') {
                 $details['Paid interest'] = $data['paid_interest'] ?? null;
                 $details['Interest added to capital'] = $data['capitalized_interest'] ?? null;
+                $details['Charges added to capital'] = $data['capitalized_charges'] ?? null;
                 $details['New capital'] = $data['new_capital'] ?? null;
             }
             $eventDate = $row->event_type === 'PART_PAYMENT_ALLOCATION'

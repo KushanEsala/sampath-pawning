@@ -1,5 +1,7 @@
 # Part-payment interest capitalization — 2026-10-07
 
+**Update 2026-10-11:** The letter-arrears restriction and separate unpaid-postage carry below are superseded for new payments by `022_PART_PAYMENT_AFTER_LETTERS_2026-10-11.md`. Historical payments are unchanged.
+
 This release changes **new** part payments only. It does not recalculate or rewrite existing production payments. No Laravel migration, SQL schema change, seeder, or SQL data update is required.
 
 For all receipt types, a payment below the accrued interest is allocated to interest first. Unpaid interest is added to capital for the next cycle. Example: old capital Rs. 5,000.00 + interest due Rs. 200.00 − cash interest paid Rs. 150.00 = new capital Rs. 5,050.00. Unpaid postage or other non-interest charges are not added to capital. The next cycle starts after the payment date and does not also carry this capitalized interest in `BalanceInterest`.

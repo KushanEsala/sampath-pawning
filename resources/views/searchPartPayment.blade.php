@@ -495,6 +495,14 @@
                 </p>
             </td>
         </tr>
+        <tr>
+            <th>Unpaid Interest Added to Capital</th>
+            <td><input class="form-control text-center" id="capitalized_interest" type="text" value="0.00" readonly></td>
+        </tr>
+        <tr>
+            <th>Unpaid Postage Added to Capital</th>
+            <td><input class="form-control text-center" id="capitalized_charges" type="text" value="0.00" readonly></td>
+        </tr>
 
 
         <tr>
@@ -712,21 +720,23 @@
     let interestAfterDiscount = Math.max(0, interest_to_pay - Math.min(interest_to_pay, discount));
     let paidInterest = Math.min(interestAfterDiscount, paidCharges);
     let capitalizedInterest = Math.max(0, interestAfterDiscount - paidInterest);
+    let capitalizedCharges = Math.max(0, chargesDue - paidCharges - capitalizedInterest);
     let totalPay = amount + chargesDue;
 
     if (totalPay < 0) totalPay = 0;
 
     $('#redeem_total').val(totalPay.toFixed(2));
     $('#total').val(amount.toFixed(2));
-    $('#BalanceInterest').val(Math.max(0, chargesDue - paidCharges - capitalizedInterest).toFixed(2));
+    $('#BalanceInterest').val('0.00');
     $('#Postage_interest').val((interest_to_pay + Postage_Charges).toFixed(2));
 
     let advancePayment = Math.min(amount, Math.max(0, paymentReceived - chargesDue));
     $('#advance_payment').val(advancePayment > 0 ? advancePayment.toFixed(2) : '0.00');
 
-    let pawningPayment = amount - advancePayment + capitalizedInterest;
+    let pawningPayment = amount - advancePayment + capitalizedInterest + capitalizedCharges;
     $('#pawning_payment').val(pawningPayment > 0 ? pawningPayment.toFixed(2) : '0.00');
     $('#capitalized_interest').val(capitalizedInterest.toFixed(2));
+    $('#capitalized_charges').val(capitalizedCharges.toFixed(2));
     $('#new_capital').val(pawningPayment.toFixed(2));
 
     $('#payable_total').val(paymentReceived.toFixed(2));

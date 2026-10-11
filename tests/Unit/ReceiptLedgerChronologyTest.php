@@ -110,6 +110,32 @@ class ReceiptLedgerChronologyTest extends TestCase
         $this->assertSame(5050.0, $ledger->last()['balance']);
     }
 
+    public function test_partial_payment_after_letters_reconciles_postage_and_new_capital(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $receipt = new TPawnSum(['Receipt_Number' => 5542, 'Invoice_Number' => 5542, 'BC' => '002']);
+        $rows = collect([
+            (object) ['id'=>1, 'dDate'=>'2026-02-01', 'trans_type'=>'PAWN', 'OC'=>null,
+                'remaining_capital'=>35308, 'Cr_amount'=>35308, 'trans_amount'=>35308],
+            (object) ['id'=>2, 'dDate'=>'2026-09-07', 'trans_type'=>'LETTER 1 CHARGE', 'OC'=>null,
+                'trans_amount'=>125, 'Postage_charge'=>125],
+            (object) ['id'=>3, 'dDate'=>'2026-10-08', 'trans_type'=>'LETTER 2 CHARGE', 'OC'=>null,
+                'trans_amount'=>125, 'Postage_charge'=>125],
+            (object) ['id'=>4, 'dDate'=>'2026-10-11', 'trans_type'=>'PART_PAYMENT', 'OC'=>null,
+                'Paided_Interest'=>150, 'allocation_interest_due'=>7502.95,
+                'capitalized_interest'=>7352.95, 'capitalized_charges'=>250,
+                'Paided_Captional'=>0, 'remaining_capital'=>42910.95,
+                'payable_total'=>150, 'Dr_amount'=>150],
+        ]);
+
+        $format = new \ReflectionMethod($service, 'formatLedgerRows');
+        $ledger = $format->invoke($service, $rows, $receipt);
+
+        $this->assertSame(42910.95, $ledger->last()['balance']);
+        $this->assertStringContainsString('Charges added to capital: Rs. 250.00', $ledger->last()['summary']);
+        $this->assertContains('New capital: Rs. 42,910.95', $ledger->last()['details']);
+    }
+
     public function test_only_explicit_allocation_event_marks_a_part_payment_as_capitalized(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
@@ -119,7 +145,7 @@ class ReceiptLedgerChronologyTest extends TestCase
         ]);
         $event = (object) ['event_data'=>json_encode([
             'transaction_id'=>2, 'interest_due'=>200,
-            'capitalized_interest'=>50, 'discount'=>0,
+            'capitalized_interest'=>50, 'capitalized_charges'=>125, 'discount'=>0,
         ])];
 
         $apply = new \ReflectionMethod($service, 'applyPartPaymentAllocations');
@@ -127,6 +153,7 @@ class ReceiptLedgerChronologyTest extends TestCase
 
         $this->assertFalse(property_exists($rows[0], 'capitalized_interest'));
         $this->assertSame(50.0, $rows[1]->capitalized_interest);
+        $this->assertSame(125.0, $rows[1]->capitalized_charges);
         $this->assertSame(200.0, $rows[1]->allocation_interest_due);
     }
 

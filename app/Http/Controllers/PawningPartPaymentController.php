@@ -147,6 +147,19 @@ class PawningPartPaymentController extends Controller
         $hasArrearsLetters = (bool) ($activeReceipt->is_letter_1 || $activeReceipt->is_letter_2 || $activeReceipt->is_letter_3);
         $calculationReceipt = $resolver->receiptForCalculation($activeReceipt);
         $financial = $calculator->calculate($calculationReceipt, $request->redeem_date);
+        $clearedLetterSnapshots = [];
+        if ($hasArrearsLetters) {
+            foreach ([1, 2, 3] as $letterNo) {
+                $printedAt = $activeReceipt->{"letter_{$letterNo}_date"};
+                if ($printedAt) {
+                    $clearedLetterSnapshots[] = [
+                        'letter_no' => $letterNo,
+                        'printed_at' => Carbon::parse($printedAt)->toDateString(),
+                        'postage_charge' => (float) ($financial['letter_charges'][$letterNo] ?? 0),
+                    ];
+                }
+            }
+        }
         // Capture the period before part payment advances the interest start date.
         $interestDays = $financial['days'];
         $currentType = $resolver->resolveForCurrentCycle($activeReceipt);
@@ -175,6 +188,7 @@ class PawningPartPaymentController extends Controller
         $principalPaid = $allocation['principal_paid'];
         $newPrincipal = $allocation['new_principal'];
         $capitalizedInterest = $allocation['capitalized_interest'];
+        $capitalizedCharges = $allocation['capitalized_charges'];
         $unpaidCharges = $allocation['unpaid_charges'];
 
         if ($paymentReceived + 0.01 >= $redemptionTotal) {
@@ -204,14 +218,6 @@ class PawningPartPaymentController extends Controller
             'original_pawn_amount' => $currentPrincipal,
             'PayTotalAmount' => $paidCharges,
         ]);
-        $requiredArrears = $hasArrearsLetters ? $interestDue + $letterCharge : 0;
-        $receivedAmount = $paymentReceived;
-        if ($hasArrearsLetters && $receivedAmount + 0.01 < $requiredArrears) {
-            throw ValidationException::withMessages([
-                'payable_total' => 'Full arrears payment of Rs. '.number_format($requiredArrears, 2).' is required to reactivate this receipt.',
-            ]);
-        }
-
         $NewRedeem = new TPawnPayment;
             $NewRedeem->Receipt_Number = $request->receipt_number;
             $NewRedeem->Invoice_Number = $activeReceipt->Invoice_Number;
@@ -252,9 +258,8 @@ class PawningPartPaymentController extends Controller
         $pawndate = Carbon::parse($request->redeem_date)->addDay();
         $isSilver = strtoupper((string) ($activeReceipt->receiptname ?: $activeReceipt->Receipt_Type)) === 'SILVER';
         $final_date_string = Carbon::parse($request->redeem_date)->addMonths(max(1, $validyed_type))->toDateString();
-        // Capitalized interest is already inside the new principal. Only
-        // non-capitalized charges may carry as BalanceInterest; otherwise the
-        // next interest calculation would charge the same amount twice.
+        // All unpaid interest and postage are already in the new principal;
+        // nothing may also carry as BalanceInterest into the new cycle.
         $interest_Balance = $unpaidCharges;
 
         // Create a new Part Payment transaction
@@ -332,8 +337,8 @@ class PawningPartPaymentController extends Controller
             'Pawn_Amount' => $newPrincipal,
             'RePawning_amount' => $newPrincipal,
             'Advance_Payment' => $receipt_advanceAmount,
-            // The old interest period ends at this payment. Only genuinely
-            // unpaid charges carry into the next period.
+            // The old interest period ends at this payment. Unpaid arrears
+            // are included once in the new capital, not carried again here.
             'interest_Paid' => 0,
             'BalanceInterest' => $unpaidCharges,
             'Pawn_Date' => $pawndate,
@@ -374,18 +379,23 @@ class PawningPartPaymentController extends Controller
             ->where('BC', $branch_code)
             ->update($updateData);
 
-        if ($capitalizedInterest > 0 || $discount > 0) {
+        if ($hasArrearsLetters || $capitalizedInterest > 0 || $capitalizedCharges > 0 || $discount > 0) {
             $lifecycle->record(
                 $activeReceipt->fresh(),
                 'PART_PAYMENT_ALLOCATION',
-                $capitalizedInterest,
-                'Part payment allocation recorded; unpaid interest added to capital when applicable.',
+                $capitalizedInterest + $capitalizedCharges,
+                'Part payment allocation recorded; unpaid interest and charges added to capital when applicable.',
                 [
                     'transaction_id' => $TPawnTrans->id,
                     'payment_date' => $paymentDate,
                     'interest_due' => round($interestDue, 2),
                     'paid_interest' => $paidInterest,
                     'capitalized_interest' => $capitalizedInterest,
+                    'capitalized_charges' => $capitalizedCharges,
+                    'letter_charges_due' => $letterCharge,
+                    'letter_charges_added_to_capital' => $capitalizedCharges,
+                    'cleared_letter_snapshots' => $clearedLetterSnapshots,
+                    'charges_due' => $chargesDue,
                     'paid_capital' => $principalPaid,
                     'new_capital' => $newPrincipal,
                     'discount' => $discount,
@@ -396,8 +406,8 @@ class PawningPartPaymentController extends Controller
         if ($hasArrearsLetters) {
             $lifecycle->reactivate(
                 TPawnSum::where('id', $activeReceipt->id)->firstOrFail(),
-                $receivedAmount,
-                'Full arrears paid through part payment; default month-based expiry applied.'
+                $paymentReceived,
+                'Part payment received; unpaid arrears added to capital and default month-based expiry applied.'
             );
         }
 
@@ -423,6 +433,7 @@ class PawningPartPaymentController extends Controller
             'branchDetails' => $branchData,
             'companyData' => $companyData,
             'capitalizedInterest' => $capitalizedInterest,
+            'capitalizedCharges' => $capitalizedCharges,
         ]);
 
         $pdfPath = public_path('assets/pdf/Redeem_receipt' . $branch_code . '.pdf');

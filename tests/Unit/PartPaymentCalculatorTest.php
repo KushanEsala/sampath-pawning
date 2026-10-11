@@ -37,7 +37,7 @@ class PartPaymentCalculatorTest extends TestCase
         $this->assertSame(5200.0, $result['redemption_total']);
     }
 
-    public function test_non_interest_charges_remain_separate_from_capitalized_interest(): void
+    public function test_unpaid_postage_and_interest_are_each_added_to_capital_once(): void
     {
         $result = (new PartPaymentCalculator())->calculate(
             principal: 14000,
@@ -49,9 +49,32 @@ class PartPaymentCalculatorTest extends TestCase
         );
 
         $this->assertSame(0.0, $result['principal_paid']);
-        $this->assertSame(14050.0, $result['new_principal']);
+        $this->assertSame(14235.0, $result['new_principal']);
         $this->assertSame(50.0, $result['capitalized_interest']);
-        $this->assertSame(185.0, $result['unpaid_charges']);
+        $this->assertSame(185.0, $result['capitalized_charges']);
+        $this->assertSame(0.0, $result['unpaid_charges']);
+    }
+
+    public function test_rathnapura_receipt_5542_accepts_payment_below_letter_arrears(): void
+    {
+        $result = (new PartPaymentCalculator())->calculate(35308, 7502.95, 0, 250, 0, 150);
+
+        $this->assertSame(150.0, $result['payment_received']);
+        $this->assertSame(7352.95, $result['capitalized_interest']);
+        $this->assertSame(250.0, $result['capitalized_charges']);
+        $this->assertSame(42910.95, $result['new_principal']);
+        $this->assertSame(0.0, $result['unpaid_charges']);
+    }
+
+    public function test_payment_covering_interest_but_not_all_postage_capitalizes_only_postage_remainder(): void
+    {
+        $result = (new PartPaymentCalculator())->calculate(5000, 200, 0, 125, 0, 250);
+
+        $this->assertSame(200.0, $result['paid_interest']);
+        $this->assertSame(0.0, $result['capitalized_interest']);
+        $this->assertSame(75.0, $result['capitalized_charges']);
+        $this->assertSame(5075.0, $result['new_principal']);
+        $this->assertSame(0.0, $result['unpaid_charges']);
     }
 
     public function test_discounted_interest_is_not_capitalized_again(): void
