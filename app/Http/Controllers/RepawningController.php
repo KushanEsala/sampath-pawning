@@ -215,8 +215,8 @@ public function StoreRepawningSum(Request $request, ?ReceiptFinancialCalculator 
 
     $request->validate([
         'receipt_number'        => 'required|string',
-        'invoice_number'        => 'required|string',
-        'ticket_number'         => 'required|string',
+        'invoice_number'        => 'nullable|string',
+        'ticket_number'         => 'nullable|string',
         'pawn_receipt_type'     => 'required|string',
         'redeem_date'           => 'required|date',
         'redeem_no'             => 'required|string',

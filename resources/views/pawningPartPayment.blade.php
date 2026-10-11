@@ -106,18 +106,13 @@
                                         </div>
 
                                        
-                                                                                                                  @if(auth()->user()->role === 'Admin')
     <div class="col-md-4 mb-1">
-        <label>Invoice Number :</label>
+        <label>Stock / Invoice Number :</label>
         <input class="form-control"
                type="text"
                name="invoice_number"
-               id="search_invoice"
-               required>
+               id="search_invoice">
     </div>
-@else
-    <input type="hidden" name="invoice_number" value="AUTO" id="search_invoice">
-@endif
 
                                     </div>
                                     <br>

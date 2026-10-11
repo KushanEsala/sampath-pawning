@@ -27,7 +27,13 @@ No schema or database data correction is required. Do not run Laravel migrations
      - `resources/views/repawningHistortyReport.blade.php`: hides Invoice (Stock) No from non-admin users.
      - `resources/views/redeem_report.blade.php`: shows Stock No (Invoice Number) for Admin users only.
    - Updated `App\Models\User::isAdmin()` to be case-insensitive to safely match both 'Admin' and 'admin'.
+   - Existing receipt payment screens now leave Ticket and Stock search fields blank unless that exact identifier was used for lookup. Cashiers can enter a customer-provided Stock/Invoice Number to search; the number is no longer automatically exposed after a Receipt Number lookup. AJAX detail fragments omit both identifiers unless separately authorized by the lookup.
+   - Redemption saves Ticket and Stock identifiers from the locked database receipt, not client-side search fields. Repawning no longer requires those search fields in the request; it already writes identifiers from the locked receipt. Redeem prints hide Stock Number from non-admin users.
 
 3. **Verification**:
    - Automated test suite `ReceiptNumberVisibilityTest` with 10 assertions covering Admin vs Cashier behavior across searches, forfeit lists, and reports (including redeem report).
    - Full test suite passed (138 passed, 0 failed).
+
+## Follow-up check on the part-payment 500
+
+The latest live source includes commit `fe8f9442`, which safely formats a missing previous payment number as `0000`. On 2026-10-11, the live controller and compiled part-payment page rendered successfully using an existing authenticated account. The current daily Laravel log showed no part-payment exception after that commit; later entries were from CLI diagnostic commands. No database or schema changes were made for this follow-up.

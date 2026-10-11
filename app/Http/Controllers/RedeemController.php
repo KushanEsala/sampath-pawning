@@ -218,6 +218,11 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
 
     try {
         $activeReceipt = \App\Services\ReceiptPaymentEligibility::lockForRedemption($request->pawn_receipt_type, $request->receipt_number, auth()->user()->BC);
+        // Identifier search fields are optional for cashiers; the locked receipt is authoritative.
+        $request->merge([
+            'invoice_number' => $activeReceipt->Invoice_Number,
+            'ticket_number' => $activeReceipt->Ticket_Number,
+        ]);
         if ($request->pawn_receipt_type === 'Pawn') {
             $financial = $calculator->calculate(
                 $resolver->receiptForCalculation($activeReceipt),

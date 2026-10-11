@@ -50,8 +50,8 @@
 
             @foreach ($receiptData as $receipt)
             <input type="hidden" id="r_number" name="r_number" value="{{ $receipt['Receipt_Number'] }}" required>
-            <input type="hidden" id="i_number" name="i_number" value="{{ $receipt['Invoice_Number'] }}">
-            <input type="hidden" id="t_number" name="t_number" value="{{ $receipt['Ticket_Number'] }}">
+            <input type="hidden" id="i_number" name="i_number" value="{{ \App\Services\ReceiptNumberVisibility::stock($receipt) ? $receipt['Invoice_Number'] : '' }}">
+            <input type="hidden" id="t_number" name="t_number" value="{{ \App\Services\ReceiptNumberVisibility::ticket($receipt) ? $receipt['Ticket_Number'] : '' }}">
 
             <input type="hidden" id="sum_total_weight" name="sum_total_weight" value="{{ $receipt['Total_Weight'] }}">
             <input type="hidden" id="sum_pawn_weight" name="sum_pawn_weight" value="{{ $receipt['Pawn_Weight'] }}">
