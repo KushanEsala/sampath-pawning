@@ -25,8 +25,9 @@ No schema or database data correction is required. Do not run Laravel migrations
      - `resources/views/forfeit_article_receipt.blade.php`: hides Stock and Ticket numbers from non-admin users.
      - `resources/views/PartpaymentHistortyReport.blade.php`: hides Invoice (Stock) No from non-admin users.
      - `resources/views/repawningHistortyReport.blade.php`: hides Invoice (Stock) No from non-admin users.
+     - `resources/views/redeem_report.blade.php`: shows Stock No (Invoice Number) for Admin users only.
    - Updated `App\Models\User::isAdmin()` to be case-insensitive to safely match both 'Admin' and 'admin'.
 
 3. **Verification**:
-   - Automated test suite `ReceiptNumberVisibilityTest` with 9 assertions covering Admin vs Cashier behavior across searches, forfeit lists, and reports.
-   - Full test suite passed (137 passed, 0 failed).
+   - Automated test suite `ReceiptNumberVisibilityTest` with 10 assertions covering Admin vs Cashier behavior across searches, forfeit lists, and reports (including redeem report).
+   - Full test suite passed (138 passed, 0 failed).

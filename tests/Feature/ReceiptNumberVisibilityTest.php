@@ -231,4 +231,48 @@ class ReceiptNumberVisibilityTest extends TestCase
         $adminHtml = view('repawningHistortyReport', compact('repawnings'))->render();
         $this->assertStringContainsString('INV222', $adminHtml);
     }
+
+    public function test_redeem_report_shows_stock_number_for_admin_only(): void
+    {
+        $row = (object) [
+            'Invoice_Number' => 'STK777',
+            'Receipt_Number' => 500,
+            'Redeem_Date' => '2026-10-11',
+            'Redeem_Number' => 12,
+            'Total_Weight' => 10.5,
+            'Pawn_Weight' => 9.5,
+            'Original_Pawn_Amount' => 50000,
+            'Payable_Pawn_Amount' => 50000,
+            'Paid_Interest' => 1500,
+            'Payable_Interest' => 1500,
+            'Stamp_Fee' => 25,
+            'Document_Charges' => 0,
+            'Advance_Balance' => 0,
+            'Discount' => 0,
+            'Payable_Total' => 51525,
+            'OC' => 'cashier',
+            'BC' => '001',
+        ];
+        $redeem = collect([$row]);
+        $data = [
+            'redeem' => $redeem,
+            'recipts' => $redeem,
+            'totalAmount' => '51,525.00',
+            'totalWeight' => '10.50',
+            'pawnWeight' => '9.50',
+            'Interest' => '1,500.00',
+        ];
+
+        // Cashier view
+        $this->actingAs($this->makeUser('Cashier'));
+        $cashierHtml = view('redeem_report', $data)->render();
+        $this->assertStringNotContainsString('<th>Stock No</th>', $cashierHtml);
+        $this->assertStringNotContainsString('STK777', $cashierHtml);
+
+        // Admin view
+        $this->actingAs($this->makeUser('Admin'));
+        $adminHtml = view('redeem_report', $data)->render();
+        $this->assertStringContainsString('<th>Stock No</th>', $adminHtml);
+        $this->assertStringContainsString('STK777', $adminHtml);
+    }
 }
