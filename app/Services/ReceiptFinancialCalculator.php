@@ -47,6 +47,13 @@ class ReceiptFinancialCalculator
         $carriedInterest = (float) ($receipt->BalanceInterest ?? 0);
         $interest = max(0, $grossInterest - $paidInterest + $carriedInterest);
         $serviceCharge = (float) $this->configuredValue($receipt, $config, 'service_charge', 0);
+        if ($receipt->exists) {
+            $typeName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
+            $terms = $typeName !== '' ? $this->resolver->resolveByDate($typeName, $asOf) : null;
+            if ($terms) {
+                $serviceCharge = (float) $terms->service_charge;
+            }
+        }
         $letterCharges = 0.0;
         $letterChargeAmounts = [1 => 0.0, 2 => 0.0, 3 => 0.0];
         foreach ([1, 2, 3] as $letterNo) {
@@ -83,14 +90,28 @@ class ReceiptFinancialCalculator
         }
 
         // A pawn transaction may store cumulative/legacy postage, not a
-        // per-letter price. Never divide that aggregate among printed letters.
-        // For an unsaved legacy letter charge, use this receipt's own snapshot
-        // or the type version applicable to its pawn cycle.
+        // per-letter price. For an unsaved legacy letter, resolve the version
+        // applicable when it was printed, never the current forward rate.
+        $printedAt = $receipt->{"letter_{$letterNo}_date"} ?? null;
+        $typeName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
+        if ($receipt->exists && $printedAt && $typeName !== '') {
+            $historical = $this->resolver->resolveByDate($typeName, $printedAt);
+            if ($historical) {
+                return round((float) $historical->Postage_charge, 2);
+            }
+        }
         return $this->postageCharge($receipt);
     }
 
-    public function postageCharge(TPawnSum $receipt): float
+    public function postageCharge(TPawnSum $receipt, Carbon|string|null $actionDate = null): float
     {
+        $receiptName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
+        if ($receipt->exists && $receiptName !== '') {
+            $current = $this->resolver->resolveByDate($receiptName, $actionDate);
+            if ($current) {
+                return round((float) $current->Postage_charge, 2);
+            }
+        }
         if ($receipt->Postage_charge !== null && (float) $receipt->Postage_charge > 0) {
             return round((float) $receipt->Postage_charge, 2);
         }
@@ -98,7 +119,6 @@ class ReceiptFinancialCalculator
         // Imported receipts can have a zero postage snapshot even though the
         // receipt type in force for their current pawn cycle charged postage.
         // Resolve that version by the cycle date, never by today's active rate.
-        $receiptName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
         $cycleDate = $receipt->Pawn_Date ?: $receipt->Receipt_Date ?: $receipt->Date;
         if ($receiptName !== '' && $cycleDate) {
             $historical = $this->resolver->resolveByDate($receiptName, $cycleDate);

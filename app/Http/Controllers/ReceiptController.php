@@ -210,6 +210,12 @@ class ReceiptController extends Controller
                 if ($current->is_active === false || $current->effective_to) {
                     throw ValidationException::withMessages(['up_id' => 'This receipt type has already changed. Reload before editing.']);
                 }
+                if ($current->receiptname !== $request->up_receiptname
+                    && app(\App\Services\ReceiptTypeForwardTerms::class)->openReceipts($current->receiptname)->exists()) {
+                    throw ValidationException::withMessages([
+                        'up_receiptname' => 'This type has open receipts. Keep its name so their historical interest and future charges retain the correct type.',
+                    ]);
+                }
                 $closingDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
                 $oldStart = $current->effective_from?->toDateString();
                 if ($oldStart && $closingDate < $oldStart) {
@@ -234,6 +240,7 @@ class ReceiptController extends Controller
                     'effective_from' => $effectiveFrom, 'effective_to' => null, 'is_active' => 1,
                 ] + $intervals);
                 $new->save();
+                app(\App\Services\ReceiptTypeForwardTerms::class)->sync($new, $current->receiptname);
             });
 
             return response()->json([
