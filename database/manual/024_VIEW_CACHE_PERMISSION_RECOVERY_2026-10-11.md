@@ -17,7 +17,7 @@ For future deployments, run all cache-generation Artisan commands as `kreethya`,
 
 ## Read-only production verification
 
-- Authenticated Laravel GET checks, executed as the application account, returned HTTP 200 for 34 active sidebar operational/report routes under a Cashier account and 35 under an Admin account. This included pawning, part payment, redemption, repawning, letters, Receipt Search, forfeit pages, customer/master pages, vouchers, sales, and reports. The Admin-only blocked-receipts page returned 200 for Admin.
+- Authenticated Laravel GET checks, executed as the application account, returned HTTP 200 for 50 active sidebar routes under a Cashier account and 51 under an Admin account. This included user management, company/branch setup, all Master and Accounts entries, pawning, part payment, redemption, repawning, letters, Receipt Search, forfeit pages, vouchers, sales, and reports. The Admin-only blocked-receipts page returned 200 for Admin.
 - A Branch 001 active receipt returned HTTP 200 from the part-payment, redemption, and repawning receipt-search AJAX endpoints. Its stock number was absent from each Cashier response. Receipt Search and history print returned HTTP 200 and did not display that stock number when queried by receipt number. A search using the exact customer-supplied stock number found the receipt and displayed that supplied number.
 - A Branch 002 Cashier also received HTTP 200 on the part-payment, redemption, repawning, and Receipt Search pages and on an active-receipt part-payment lookup.
 - Payment save code still derives Ticket/Stock identifiers from the locked receipt record; redacting them in the cashier's page does not discard them from saved transactions.
