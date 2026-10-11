@@ -8,7 +8,7 @@ Never run Laravel migrations. No schema change is needed.
 - From a receipt-type edit onward, its service charge, postage, service-charge band values, and letter/reminder intervals apply to **all open receipts of that type**, regardless of when those receipts were pawned. Already posted service charges and positive `letter_pay_*`/`arrears_letter_events.postage_charge` amounts remain unchanged.
 - First letter remains printable on expiry (`letter_1_days = 0`). Later dates are calculated from the prior **print date** plus the current type interval. A type edit may therefore move an unprinted next-stage due date, but it never edits the recorded prior print date.
 - A printed legacy letter with no positive saved amount resolves postage from the type version effective on its saved print date, not from the newly updated receipt snapshot. Same-day legacy print rows without a time or charge cannot distinguish two edits on that day; do not fabricate a historical event or amount.
-- Closed (redeemed or forfeited) receipts are not rewritten. A type with open receipts cannot be renamed, because that would break their historical-rate lineage.
+- Closed (redeemed or forfeited) receipts are not rewritten, and their saved service/postage values remain the basis for historical calculations. A type with open receipts cannot be renamed, because that would break their historical-rate lineage.
 
 ## Live type-version evidence before correction
 
@@ -39,4 +39,8 @@ Future receipt-type edits synchronize these same non-interest columns to open re
 
 ## Production execution
 
-Pending deployment, backup, apply and verification. Record exact commit, backup path/hash, audit path, per-type update counts and spot checks here after execution.
+Code commit `9b885971` was pushed to `origin/master` and fast-forward deployed to Kreethya. The production backup was created **before** the data correction at `/home/kreethya/db-backups/receipt_terms_pre_sync_20261011.sql.gz`; `gzip -t` passed and SHA-256 is `96ae5759d7ec51dcd70ff3eb6435f2ab79a01f830e25587060df26bbf970b5f4`. The initial dump attempt failed authentication and produced only a zero-byte uncompressed file; the successful backup used `mariadb-dump --no-defaults` with the same Laravel database connection. No Laravel migration was run.
+
+The production dry-run found **8,782** mismatched open receipts: A 6,392, B 1,086, C 968, Silver 336. The apply run saved the exact pre-change rows and eight term fields at `/home/kreethya/public_html/sampath/storage/app/receipt_type_forward_terms_before_20261011_193108.json`, then updated those same per-type counts. A repeat dry-run found **zero** mismatches in every type. Open receipt count was 9,172; the correction deliberately did not touch the 390 open receipts already matching the active type terms.
+
+Spot checks: branch 002 receipt 5542 (`t_pawn_sums.id=13822`, type A) has Rs. 60 service charge, Rs. 150 postage and 14-day later-letter/reminder intervals, with its saved interest rates still 1%, 2%, 2.5%. An older printed A receipt, branch 002 receipt 2 (`id=4`), retains a June 14 historical letter charge of Rs. 125 by print date while a future letter resolves to Rs. 150. The issued-letter event table still has 649 events, of which the same 18 ambiguous/closed events have zero postage; this change did not edit events. `php artisan view:cache` and production PHP syntax checks passed. Local focused unit tests passed (9 arrears rules, 20 penalty-schedule rules); the local DB-dependent history-operator test could not complete because local MySQL was unavailable. The production checkout has no PHPUnit binary, so no production PHPUnit run was attempted.

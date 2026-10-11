@@ -154,6 +154,25 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertSame(30.0, $calculator->calculate($receipt, '2026-10-01')['service_charge']);
     }
 
+    public function test_closed_receipt_keeps_its_saved_service_and_postage(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type' => 'A', 'receiptname' => 'A',
+            'Pawn_Date' => '2026-09-01', 'Pawn_Amount' => 10000,
+            'rate1' => 1, 'rate2' => 2, 'rate3' => 2.5,
+            'period1' => 10, 'period2' => 15, 'period3' => 30,
+            'validPeriod' => 90, 'service_charge' => 30,
+            'Postage_charge' => 125, 'IsRedeemed' => 1,
+        ]);
+        $receipt->exists = true;
+        $resolver = $this->createMock(ReceiptTypeResolver::class);
+        $resolver->expects($this->never())->method('resolveByDate');
+        $calculator = new ReceiptFinancialCalculator($resolver);
+
+        $this->assertSame(30.0, $calculator->calculate($receipt, '2026-10-11')['service_charge']);
+        $this->assertSame(125.0, $calculator->postageCharge($receipt, '2026-10-11'));
+    }
+
     public function test_same_day_after_paid_interest_has_no_new_interest_even_if_type_has_service_charge(): void
     {
         $receipt = new TPawnSum([

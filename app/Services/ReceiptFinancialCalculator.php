@@ -47,7 +47,7 @@ class ReceiptFinancialCalculator
         $carriedInterest = (float) ($receipt->BalanceInterest ?? 0);
         $interest = max(0, $grossInterest - $paidInterest + $carriedInterest);
         $serviceCharge = (float) $this->configuredValue($receipt, $config, 'service_charge', 0);
-        if ($receipt->exists) {
+        if ($receipt->exists && !$receipt->IsRedeemed && !$receipt->isForfeit) {
             $typeName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
             $terms = $typeName !== '' ? $this->resolver->resolveByDate($typeName, $asOf) : null;
             if ($terms) {
@@ -106,7 +106,7 @@ class ReceiptFinancialCalculator
     public function postageCharge(TPawnSum $receipt, Carbon|string|null $actionDate = null): float
     {
         $receiptName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
-        if ($receipt->exists && $receiptName !== '') {
+        if ($receipt->exists && !$receipt->IsRedeemed && !$receipt->isForfeit && $receiptName !== '') {
             $current = $this->resolver->resolveByDate($receiptName, $actionDate);
             if ($current) {
                 return round((float) $current->Postage_charge, 2);
