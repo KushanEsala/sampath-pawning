@@ -125,6 +125,18 @@ class ReceiptFinancialCalculator
             return round((float) $receipt->Postage_charge, 2);
         }
 
+        // Imported receipts can have a zero postage snapshot even though the
+        // receipt type in force for their current pawn cycle charged postage.
+        // Resolve that version by the cycle date, never by today's active rate.
+        $receiptName = (string) ($receipt->receiptname ?: $receipt->Receipt_Type);
+        $cycleDate = $receipt->Pawn_Date ?: $receipt->Receipt_Date ?: $receipt->Date;
+        if ($receiptName !== '' && $cycleDate) {
+            $historical = $this->resolver->resolveByDate($receiptName, $cycleDate);
+            if ($historical && (float) $historical->Postage_charge > 0) {
+                return round((float) $historical->Postage_charge, 2);
+            }
+        }
+
         $config = $this->resolver->resolveForReceipt($receipt);
         return round((float) ($config->Postage_charge ?? 0), 2);
     }

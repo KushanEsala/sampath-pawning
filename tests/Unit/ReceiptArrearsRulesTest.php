@@ -3,9 +3,11 @@
 namespace Tests\Unit;
 
 use App\Models\TPawnSum;
+use App\Models\Recei_Add;
 use App\Services\ArrearsLetterService;
 use App\Services\ReceiptFinancialCalculator;
 use App\Services\ReceiptLifecycleService;
+use App\Services\ReceiptTypeResolver;
 use Carbon\Carbon;
 use Tests\TestCase;
 
@@ -64,6 +66,37 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertSame(410.0, $result['arrears_total']);
         $this->assertSame(10410.0, $result['redemption_total']);
         Carbon::setTestNow();
+    }
+
+    public function test_zero_imported_postage_uses_the_receipt_type_version_from_the_pawn_cycle(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type' => 'C', 'receiptname' => 'C',
+            'Receipt_Number' => 2241,
+            'Receipt_Date' => '2026-03-15', 'Pawn_Date' => '2026-05-21',
+            'Postage_charge' => 0, 'is_letter_1' => 1, 'letter_pay_one' => 0,
+        ]);
+        $version = new Recei_Add(['Postage_charge' => 125]);
+        $resolver = $this->createMock(ReceiptTypeResolver::class);
+        $resolver->expects($this->exactly(2))->method('resolveByDate')
+            ->with('C', $this->callback(fn ($date) => Carbon::parse($date)->toDateString() === '2026-05-21'))
+            ->willReturn($version);
+
+        $calculator = new ReceiptFinancialCalculator($resolver);
+        $calculator->setPreloadedPostageCharges(['2241' => 0]);
+        $this->assertSame(125.0, $calculator->postageCharge($receipt));
+        $this->assertSame(125.0, $calculator->resolveLetterCharge($receipt, 1));
+    }
+
+    public function test_positive_receipt_postage_snapshot_is_preserved(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type' => 'A', 'Pawn_Date' => '2026-05-21', 'Postage_charge' => 75,
+        ]);
+        $resolver = $this->createMock(ReceiptTypeResolver::class);
+        $resolver->expects($this->never())->method('resolveByDate');
+
+        $this->assertSame(75.0, (new ReceiptFinancialCalculator($resolver))->postageCharge($receipt));
     }
 
     public function test_same_day_after_paid_interest_has_no_new_interest_even_if_type_has_service_charge(): void
