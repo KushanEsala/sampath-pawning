@@ -193,9 +193,11 @@
                 <thead>
                     <tr>
                         <th class="ps-3">#</th>
+                        @if(auth()->user()?->isAdmin())
                         <th>Invoice No</th>
+                        @endif
                         <th>Pawn Date</th>
-                        @if(auth()->user()->role === 'Admin')
+                        @if(auth()->user()?->isAdmin())
                         <th>Customer NIC</th>
                         <th>Customer Name</th>
                         <th>Phone</th>
@@ -209,7 +211,9 @@
                     @forelse($repawnings as $index => $row)
                     <tr>
                         <td class="ps-3 text-muted">{{ $index + 1 }}</td>
+                        @if(auth()->user()?->isAdmin())
                         <td>{{ $row->Invoice_Number }}</td>
+                        @endif
                         <td>
                             @if($row->Pawn_Date)
                                 {{ \Carbon\Carbon::parse($row->Pawn_Date)->format('d M Y') }}
@@ -217,7 +221,7 @@
                                 <span class="text-muted">-</span>
                             @endif
                         </td>
-                        @if(auth()->user()->role === 'Admin')
+                        @if(auth()->user()?->isAdmin())
                         <td>{{ $row->Customer_NIC }}</td>
                         <td>{{ $row->Customer_Name }}</td>
                         <td>{{ $row->Customer_Phone ?? 'N/A' }}</td>
@@ -232,7 +236,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ auth()->user()->role === 'Admin' ? '11' : '8' }}" class="text-center py-5">
+                        <td colspan="{{ auth()->user()?->isAdmin() ? '9' : '5' }}" class="text-center py-5">
                             <div class="text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
                                 <h5 class="mb-2">No Records Found</h5>

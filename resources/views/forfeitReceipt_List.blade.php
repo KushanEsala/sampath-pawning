@@ -64,7 +64,7 @@
                     @endphp
                     <tr class="receipt-summary-row">
                         <td class="text-center"><button type="button" class="btn btn-success btn-sm" data-row-details="{{ $detailId }}" aria-controls="{{ $detailId }}" aria-expanded="false"><i class="fa fa-eye"></i> <span>View</span></button></td>
-                        <td class="text-center"><strong>{{ $receipt->Receipt_Number }}</strong><br><small>Stock: {{ $receipt->Invoice_Number ?: '—' }}</small></td>
+                        <td class="text-center"><strong>{{ $receipt->Receipt_Number }}</strong>@if(\App\Services\ReceiptNumberVisibility::stock($receipt))<br><small>Stock: {{ $receipt->Invoice_Number ?: '—' }}</small>@endif</td>
                         <td><strong>{{ optional($customer)->Name ?: $receipt->Customer_Name }}</strong><br><small>{{ $receipt->Customer_NIC }} · {{ optional($customer)->Contact_1 ?? $receipt->Customer_Phone }}</small></td>
                         <td class="text-center date-value">{{ optional($receipt->Final_date)->format('Y-m-d') }}</td>
                         <td class="text-end money">{{ number_format($financial['principal'],2) }}</td>
@@ -73,7 +73,7 @@
                     </tr>
                     <tr id="{{ $detailId }}" class="detail-row" hidden><td colspan="7"><div class="forfeit-details">
                         <div class="forfeit-facts">
-                            <div class="forfeit-fact"><strong>Customer and receipt</strong><br>Address: {{ optional($customer)->Address_1 ?? $receipt->Customer_Address }}<br>Stock (Invoice): {{ $receipt->Invoice_Number }}<br>Ticket: {{ $receipt->Ticket_Number }}<br>Receipt type: {{ $receipt->Receipt_Type }}</div>
+                            <div class="forfeit-fact"><strong>Customer and receipt</strong><br>Address: {{ optional($customer)->Address_1 ?? $receipt->Customer_Address }}@if(\App\Services\ReceiptNumberVisibility::stock($receipt))<br>Stock (Invoice): {{ $receipt->Invoice_Number }}@endif @if(\App\Services\ReceiptNumberVisibility::ticket($receipt))<br>Ticket: {{ $receipt->Ticket_Number }}@endif<br>Receipt type: {{ $receipt->Receipt_Type }}</div>
                             <div class="forfeit-fact"><strong>Receipt movement</strong><br>Receipt date/time: {{ optional($receipt->Receipt_Date)->format('Y-m-d') }} {{ optional($receipt->created_at)->format('H:i:s') }}<br>Moved to Forfeit List: {{ $receipt->forfeit_queued_at ?? 'Legacy record' }}</div>
                             <div class="forfeit-fact"><strong>Forfeit record</strong><br>Number: {{ optional($forfeit)->Forfeit_Number ?? 'Pending' }}<br>Date: {{ optional($forfeit)->Forfeit_Date ?? 'Pending' }}<br>Recorded amount: {{ $forfeit ? number_format($forfeit->Payable_Total,2) : 'Pending' }}</div>
                         </div>

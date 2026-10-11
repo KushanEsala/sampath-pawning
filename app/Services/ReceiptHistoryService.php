@@ -389,7 +389,10 @@ class ReceiptHistoryService
 
         $balance = 0.0;
         $ledger = collect();
-        $receiptReference = 'Receipt #'.$receipt->Receipt_Number.' / Stock #'.($receipt->Invoice_Number ?: '—');
+        $receiptReference = 'Receipt #'.$receipt->Receipt_Number;
+        if (ReceiptNumberVisibility::stock($receipt)) {
+            $receiptReference .= ' / Stock #'.($receipt->Invoice_Number ?: '—');
+        }
         $latestLoanRow = $chronological->last(function ($row) {
             $type = strtoupper(trim((string) ($row->trans_type ?? '')));
             return !str_contains($type, 'CHARGE');
@@ -656,7 +659,11 @@ class ReceiptHistoryService
             }
         }
 
-        $details[] = 'Receipt #'.$receipt->Receipt_Number.' / Stock #'.($receipt->Invoice_Number ?: '—');
+        $receiptReference = 'Receipt #'.$receipt->Receipt_Number;
+        if (ReceiptNumberVisibility::stock($receipt)) {
+            $receiptReference .= ' / Stock #'.($receipt->Invoice_Number ?: '—');
+        }
+        $details[] = $receiptReference;
 
         return [$description, $details];
     }

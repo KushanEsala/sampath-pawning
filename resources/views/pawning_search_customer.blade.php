@@ -97,8 +97,8 @@
 
                 <!-- Hidden Customer ID -->
                 <input type="hidden" name="customer_id" value="{{ $customer->id }}">
-                <input type="hidden" id="customerActive" value="{{ $customerActive ? 1 : 0 }}">
-                @unless($customerActive)
+                <input type="hidden" id="customerActive" value="{{ ($customerActive ?? true) ? 1 : 0 }}">
+                @unless($customerActive ?? true)
                     <div class="col-12"><div class="alert alert-danger mb-0">This customer is inactive. New pawns and repawns are not allowed.</div></div>
                 @endunless
 

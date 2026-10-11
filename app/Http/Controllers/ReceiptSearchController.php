@@ -15,7 +15,10 @@ class ReceiptSearchController extends Controller
         $tickets = null;
         $customer = null;
 
-        $searchType = $request->input('search_type', 'ticket');
+        $searchType = $request->input('search_type', 'receipt');
+        if (!in_array($searchType, ['receipt', 'ticket', 'stock', 'nic'], true)) {
+            $searchType = 'receipt';
+        }
         $searchQuery = trim((string) ($request->input('search_query') ?? $request->input('receipt_number') ?? ''));
 
         if ($searchQuery !== '') {
@@ -35,12 +38,8 @@ class ReceiptSearchController extends Controller
                     ->orderByRaw('BC IS NULL')
                     ->first();
             } else {
-                // Search by Ticket Number, Receipt Number, or Stock (Invoice) Number
-                $receipt = TPawnSum::where(function ($q) use ($searchQuery) {
-                        $q->where('Ticket_Number', $searchQuery)
-                          ->orWhere('Receipt_Number', $searchQuery)
-                          ->orWhere('Invoice_Number', $searchQuery);
-                    })
+                $field = ['receipt' => 'Receipt_Number', 'ticket' => 'Ticket_Number', 'stock' => 'Invoice_Number'][$searchType];
+                $receipt = TPawnSum::where($field, $searchQuery)
                     ->where('BC', $branchCode)
                     ->first();
 

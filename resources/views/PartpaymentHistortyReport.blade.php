@@ -57,10 +57,9 @@
                 <table id="paymentReport" class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
-
-                            <th class="text-center">Invoice No</th>
-                            @if(auth()->check() && auth()->user()->role === 'Admin')
-                             <th class="text-center">Receipt No</th>
+                            @if(auth()->check() && auth()->user()->isAdmin())
+                                <th class="text-center">Invoice No</th>
+                                <th class="text-center">Receipt No</th>
                                 <th class="text-center">Customer NIC</th>
                                 <th>Customer Name</th>
                             @endif
@@ -75,10 +74,9 @@
                     <tbody>
                         @forelse($partPayments as $row)
                             <tr>
-
-                                <td class="text-center">{{ $row->Invoice_Number }}</td>
-                                @if(auth()->check() && auth()->user()->role === 'Admin')
-                                <td class="text-center">{{ $row->Receipt_Number }}</td>
+                                @if(auth()->check() && auth()->user()->isAdmin())
+                                    <td class="text-center">{{ $row->Invoice_Number }}</td>
+                                    <td class="text-center">{{ $row->Receipt_Number }}</td>
                                     <td class="text-center">{{ $row->Customer_NIC }}</td>
                                     <td>{{ $row->Customer_Name }}</td>
                                 @endif
@@ -91,10 +89,10 @@
                             </tr>
                         @empty
                             <tr>
-                                @if(auth()->check() && auth()->user()->role === 'Admin')
+                                @if(auth()->check() && auth()->user()->isAdmin())
                                     <td colspan="10" class="text-center py-5 text-muted">
                                 @else
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="6" class="text-center py-5 text-muted">
                                 @endif
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     <p class="mb-0">No payment records found</p>

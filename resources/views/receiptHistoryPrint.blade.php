@@ -35,7 +35,7 @@
 <button class="print" onclick="window.print()">Print</button>
 <h1>Receipt History</h1>
 <div class="grid">
-    <div class="box"><strong>Receipt No:</strong> {{ $receipt->Receipt_Number }}<br><strong>Stock No (Invoice No):</strong> {{ $receipt->Invoice_Number }}<br><strong>Ticket No:</strong> {{ $receipt->Ticket_Number }}</div>
+    <div class="box"><strong>Receipt No:</strong> {{ $receipt->Receipt_Number }}@if(\App\Services\ReceiptNumberVisibility::stock($receipt))<br><strong>Stock No (Invoice No):</strong> {{ $receipt->Invoice_Number }}@endif @if(\App\Services\ReceiptNumberVisibility::ticket($receipt))<br><strong>Ticket No:</strong> {{ $receipt->Ticket_Number }}@endif</div>
     <div class="box"><strong>Customer:</strong> {{ $customer ? trim($customer->First_name.' '.$customer->Middle_name.' '.$customer->Last_name) : $receipt->Customer_Name }}<br><strong>Address:</strong> {{ optional($customer)->Address_1 ?? $receipt->Customer_Address }}<br><strong>Telephone:</strong> {{ optional($customer)->Contact_1 ?? $receipt->Customer_Phone }}</div>
     <div class="box"><strong>Receipt Date:</strong> {{ optional($receipt->Receipt_Date)->format('Y-m-d') }}<br><strong>Expiry Date:</strong> {{ optional($receipt->Final_date)->format('Y-m-d') }}<br><strong>Printed:</strong> {{ now()->format('Y-m-d H:i') }}</div>
 </div>

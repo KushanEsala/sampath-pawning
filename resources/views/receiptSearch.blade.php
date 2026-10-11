@@ -13,13 +13,15 @@
                         <div class="col-md-3">
                             <label class="form-label fw-bold" for="search_type">Search By</label>
                             <select class="form-select" id="search_type" name="search_type" onchange="updateSearchPlaceholder()">
-                                <option value="ticket" {{ ($searchType ?? 'ticket') === 'ticket' ? 'selected' : '' }}>Ticket / Receipt Number</option>
+                                <option value="receipt" {{ ($searchType ?? 'receipt') === 'receipt' ? 'selected' : '' }}>Receipt Number</option>
+                                <option value="ticket" {{ ($searchType ?? '') === 'ticket' ? 'selected' : '' }}>Ticket Number</option>
+                                <option value="stock" {{ ($searchType ?? '') === 'stock' ? 'selected' : '' }}>Stock Number</option>
                                 <option value="nic" {{ ($searchType ?? '') === 'nic' ? 'selected' : '' }}>Customer NIC</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold" for="search_query" id="search_query_label">Ticket / Receipt Number</label>
-                            <input class="form-control" id="search_query" name="search_query" value="{{ $searchQuery ?? '' }}" placeholder="Enter Ticket or Receipt Number" required>
+                            <label class="form-label fw-bold" for="search_query" id="search_query_label">Receipt Number</label>
+                            <input class="form-control" id="search_query" name="search_query" value="{{ $searchQuery ?? '' }}" placeholder="Enter Receipt Number" required>
                         </div>
                         <div class="col-auto">
                             <button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Search</button>
@@ -36,12 +38,12 @@
                     <div class="card mb-3">
                         <div class="card-header bg-light d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
-                                Available Tickets for NIC: <strong>{{ $searchQuery }}</strong>
+                                Receipts for NIC: <strong>{{ $searchQuery }}</strong>
                                 @if($customer)
                                     <span class="text-muted ms-2">({{ trim($customer->First_name.' '.$customer->Middle_name.' '.$customer->Last_name) ?: $customer->Name }})</span>
                                 @endif
                             </h5>
-                            <span class="badge bg-info text-dark">{{ $tickets->count() }} ticket(s) found</span>
+                            <span class="badge bg-info text-dark">{{ $tickets->count() }} receipt(s) found</span>
                         </div>
                         @if($customer)
                             <div class="card-body pb-0">
@@ -56,8 +58,7 @@
                             <table class="table table-bordered table-hover align-middle">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Ticket No</th>
-                                        <th>Stock No (Invoice)</th>
+                                        @if(auth()->user()->isAdmin())<th>Ticket No</th><th>Stock No (Invoice)</th>@endif
                                         <th>Receipt No</th>
                                         <th>Receipt Date</th>
                                         <th>Expiry Date</th>
@@ -79,15 +80,14 @@
                                             }
                                         @endphp
                                         <tr>
-                                            <td><strong>{{ $t->Ticket_Number ?? '—' }}</strong></td>
-                                            <td>{{ $t->Invoice_Number ?? '—' }}</td>
+                                            @if(auth()->user()->isAdmin())<td><strong>{{ $t->Ticket_Number ?? '—' }}</strong></td><td>{{ $t->Invoice_Number ?? '—' }}</td>@endif
                                             <td>{{ $t->Receipt_Number }}</td>
                                             <td>{{ optional($t->Receipt_Date)->format('Y-m-d') }}</td>
                                             <td>{{ optional($t->Final_date)->format('Y-m-d') }}</td>
                                             <td class="text-end">{{ number_format($t->Pawn_Amount ?: $t->Amount, 2) }}</td>
                                             <td class="text-center">{!! $statusBadge !!}</td>
                                             <td class="text-center">
-                                                <a class="btn btn-sm btn-primary" href="{{ route('receipt.search', ['search_type' => 'ticket', 'search_query' => $t->Ticket_Number ?: $t->Receipt_Number]) }}">
+                                                <a class="btn btn-sm btn-primary" href="{{ route('receipt.search', ['search_type' => 'receipt', 'search_query' => $t->Receipt_Number]) }}">
                                                     <i class="fa fa-eye"></i> View Full Details
                                                 </a>
                                             </td>
@@ -101,8 +101,8 @@
             @endif
 
             {{-- ── Ticket Search Not Found ────────────────────────────────── --}}
-            @if(($searchType ?? 'ticket') === 'ticket' && !empty($searchQuery) && !$history)
-                <div class="alert alert-warning">No receipt was found for Ticket / Receipt Number: <strong>{{ $searchQuery }}</strong> in your branch.</div>
+            @if(in_array(($searchType ?? 'receipt'), ['receipt', 'ticket', 'stock'], true) && !empty($searchQuery) && !$history)
+                <div class="alert alert-warning">No receipt was found for the supplied number: <strong>{{ $searchQuery }}</strong> in your branch.</div>
             @endif
 
             {{-- ── Full Receipt Details View ─────────────────────────────── --}}
@@ -113,21 +113,21 @@
                     $financial = $history['financial'];
                 @endphp
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5 class="mb-0">Receipt {{ $receipt->Receipt_Number }} (Ticket: {{ $receipt->Ticket_Number }}) @if($receipt->is_blocked)<span class="badge bg-danger">Blocked — redemption disabled</span>@endif</h5>
+                    <h5 class="mb-0">Receipt {{ $receipt->Receipt_Number }} @if(\App\Services\ReceiptNumberVisibility::ticket($receipt))(Ticket: {{ $receipt->Ticket_Number }})@endif @if($receipt->is_blocked)<span class="badge bg-danger">Blocked — redemption disabled</span>@endif</h5>
                     <div>
                         @if(($searchType ?? '') === 'nic' || request()->has('search_type'))
                             <a class="btn btn-outline-secondary me-2" href="{{ route('receipt.search', ['search_type' => 'nic', 'search_query' => $receipt->Customer_NIC]) }}">
                                 <i class="fa fa-arrow-left"></i> Back to NIC Tickets
                             </a>
                         @endif
-                        <a class="btn btn-outline-dark" target="_blank" href="{{ route('receipt.search.print', ['receipt_number' => $receipt->Receipt_Number]) }}"><i class="fa fa-print"></i> Print History</a>
+                        <a class="btn btn-outline-dark" target="_blank" href="{{ route('receipt.search.print', ['receipt_number' => $receipt->Receipt_Number, 'search_type' => $searchType, 'search_query' => $searchQuery]) }}"><i class="fa fa-print"></i> Print History</a>
                     </div>
                 </div>
 
                 <div class="card mb-3"><div class="card-body">
                     <div class="row">
-                        <div class="col-md-3"><strong>Ticket No</strong><br>{{ $receipt->Ticket_Number }}</div>
-                        <div class="col-md-3"><strong>Stock No (Invoice No)</strong><br>{{ $receipt->Invoice_Number }}</div>
+                        @if(\App\Services\ReceiptNumberVisibility::ticket($receipt))<div class="col-md-3"><strong>Ticket No</strong><br>{{ $receipt->Ticket_Number }}</div>@endif
+                        @if(\App\Services\ReceiptNumberVisibility::stock($receipt))<div class="col-md-3"><strong>Stock No (Invoice No)</strong><br>{{ $receipt->Invoice_Number }}</div>@endif
                         <div class="col-md-3"><strong>Receipt Date</strong><br>{{ optional($receipt->Receipt_Date)->format('Y-m-d') }}</div>
                         <div class="col-md-3"><strong>Expiry Date</strong><br>{{ optional($receipt->Final_date)->format('Y-m-d') }}</div>
                     </div><hr>
@@ -181,13 +181,9 @@
         const type = document.getElementById('search_type').value;
         const input = document.getElementById('search_query');
         const label = document.getElementById('search_query_label');
-        if (type === 'nic') {
-            label.innerText = 'Customer NIC';
-            input.placeholder = 'Enter Customer NIC';
-        } else {
-            label.innerText = 'Ticket / Receipt Number';
-            input.placeholder = 'Enter Ticket or Receipt Number';
-        }
+        const names = { nic: 'Customer NIC', receipt: 'Receipt Number', ticket: 'Ticket Number', stock: 'Stock Number' };
+        label.innerText = names[type] || 'Receipt Number';
+        input.placeholder = 'Enter ' + label.innerText;
     }
     // Initialize label on load
     document.addEventListener('DOMContentLoaded', updateSearchPlaceholder);

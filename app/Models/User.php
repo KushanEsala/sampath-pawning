@@ -53,7 +53,7 @@ class User extends Authenticatable
      */
     public function isAdmin()
     {
-        return $this->role === 'Admin';
+        return strcasecmp((string) $this->role, 'admin') === 0;
     }
 
     /**
