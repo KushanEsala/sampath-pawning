@@ -9,6 +9,27 @@ use Tests\TestCase;
 
 class ReceiptHistoryOperatorTest extends TestCase
 {
+    public function test_saved_legacy_letter_is_not_hidden_by_a_newer_letter_event(): void
+    {
+        $receipt = new \App\Models\TPawnSum([
+            'letter_1_date' => '2026-09-07',
+            'letter_2_date' => '2026-10-08',
+            'letter_pay_one' => 125,
+            'letter_pay_two' => 125,
+        ]);
+        $events = collect([new \App\Models\ArrearsLetterEvent([
+            'letter_no' => 2,
+            'issued_at' => '2026-10-08 14:07:53',
+            'postage_charge' => 125,
+        ])]);
+
+        $method = new \ReflectionMethod(ReceiptHistoryService::class, 'savedLettersWithoutEvents');
+        $method->setAccessible(true);
+        $missing = $method->invoke(new ReceiptHistoryService(new ReceiptFinancialCalculator()), $receipt, $events);
+
+        $this->assertSame([[1, '2026-09-07']], $missing);
+    }
+
     public function test_event_displays_recorded_operator_and_profile_not_the_viewer(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());

@@ -295,42 +295,60 @@ class ReceiptHistoryService
             $letterEvents = ArrearsLetterEvent::where('pawn_sum_id', $receipt->id)->get();
         }
 
-        if ($letterEvents->isNotEmpty()) {
-            foreach ($letterEvents as $letter) {
-                $charge = (float) $letter->postage_charge;
-                $dateStr = $letter->issued_at instanceof \Carbon\Carbon ? $letter->issued_at->toDateString() : substr((string) $letter->issued_at, 0, 10);
-                $chargeRows->push((object) array_merge($base, [
-                    'dDate' => $dateStr,
-                    'trans_type' => 'LETTER '.$letter->letter_no.' CHARGE',
-                    'trans_amount' => $charge,
-                    'Postage_charge' => $charge,
-                    'letter_sent' => $this->ordinal($letter->letter_no).' Letter',
-                    'letter_charge' => $charge,
-                    'OC' => $letter->issued_by,
-                ]));
-            }
-        } else {
-            foreach ([1, 2, 3] as $letterNo) {
-                $date = $receipt->{"letter_{$letterNo}_date"};
-                if ($date) {
-                    $charge = $this->calculator->resolveLetterCharge($receipt, $letterNo);
-                    $dateStr = $date instanceof \Carbon\Carbon ? $date->toDateString() : substr((string) $date, 0, 10);
-                    $chargeRows->push((object) array_merge($base, [
-                        'dDate' => $dateStr,
-                        'trans_type' => 'LETTER '.$letterNo.' CHARGE',
-                        'trans_amount' => $charge,
-                        'Postage_charge' => $charge,
-                        'letter_sent' => $this->ordinal($letterNo).' Letter',
-                        'letter_charge' => $charge,
-                        'OC' => $receipt->OC,
-                    ]));
-                }
-            }
+        foreach ($letterEvents as $letter) {
+            $charge = (float) $letter->postage_charge;
+            $dateStr = $this->letterDate($letter->issued_at);
+            $chargeRows->push((object) array_merge($base, [
+                'dDate' => $dateStr,
+                'trans_type' => 'LETTER '.$letter->letter_no.' CHARGE',
+                'trans_amount' => $charge,
+                'Postage_charge' => $charge,
+                'letter_sent' => $this->ordinal($letter->letter_no).' Letter',
+                'letter_charge' => $charge,
+                'OC' => $letter->issued_by,
+            ]));
+        }
+        foreach ($this->savedLettersWithoutEvents($receipt, $letterEvents) as [$letterNo, $dateStr]) {
+            $charge = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+            $chargeRows->push((object) array_merge($base, [
+                'dDate' => $dateStr,
+                'trans_type' => 'LETTER '.$letterNo.' CHARGE',
+                'trans_amount' => $charge,
+                'Postage_charge' => $charge,
+                'letter_sent' => $this->ordinal($letterNo).' Letter',
+                'letter_charge' => $charge,
+                'OC' => $receipt->OC,
+            ]));
         }
 
         return $rows->concat($chargeRows)->sortByDesc(function ($row) {
             return sprintf('%s-%010d', (string) ($row->dDate ?? ''), (int) ($row->id ?? 0));
         })->values();
+    }
+
+    /** Display saved legacy print dates alongside event-backed letters without duplicating either. */
+    private function savedLettersWithoutEvents(TPawnSum $receipt, Collection $events): array
+    {
+        $missing = [];
+        foreach ([1, 2, 3] as $letterNo) {
+            $date = $receipt->{"letter_{$letterNo}_date"};
+            if (!$date) {
+                continue;
+            }
+            $dateStr = $this->letterDate($date);
+            $recorded = $events->contains(fn ($event) => (int) $event->letter_no === $letterNo
+                && $this->letterDate($event->issued_at) === $dateStr);
+            if (!$recorded) {
+                $missing[] = [$letterNo, $dateStr];
+            }
+        }
+
+        return $missing;
+    }
+
+    private function letterDate(mixed $date): string
+    {
+        return $date instanceof \Carbon\CarbonInterface ? $date->toDateString() : substr((string) $date, 0, 10);
     }
 
     private function formatLedgerRows(Collection $rows, TPawnSum $receipt): Collection
@@ -660,16 +678,12 @@ class ReceiptHistoryService
     ): Collection {
         $events = collect();
 
+        $savedLetters = $this->savedLettersWithoutEvents($receipt, $letters);
         $extraNames = collect();
-        if ($letters->isEmpty()) {
-            foreach ([1, 2, 3] as $letterNo) {
-                $date = $receipt->{"letter_{$letterNo}_date"};
-                if ($date) {
-                    $op = $this->resolveLetterOperator($receipt, $letterNo, $date, $feedbacks);
-                    if ($op) {
-                        $extraNames->push($op);
-                    }
-                }
+        foreach ($savedLetters as [$letterNo, $dateStr]) {
+            $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
+            if ($op) {
+                $extraNames->push($op);
             }
         }
 
@@ -709,34 +723,27 @@ class ReceiptHistoryService
             }
         }
 
-        if ($letters->isNotEmpty()) {
-            foreach ($letters as $letter) {
-                $events->push($this->event($letter->issued_at, "LETTER {$letter->letter_no} CHARGE", (float) $letter->postage_charge, [
-                    'Letter' => $this->ordinal($letter->letter_no).' Letter',
-                    'Due date' => optional($letter->due_date)->toDateString(),
-                    'Issued by' => $letter->issued_by,
-                ], $letter->id, $letter->issued_by, $receipt->BC));
-            }
-        } else {
-            foreach ([1, 2, 3] as $letterNo) {
-                $date = $receipt->{"letter_{$letterNo}_date"};
-                if ($date) {
-                    $amount = $this->calculator->resolveLetterCharge($receipt, $letterNo);
-                    $dateStr = $date instanceof \Carbon\Carbon ? $date->toDateString() : substr((string) $date, 0, 10);
-                    $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
-                    $events->push($this->event(
-                        $dateStr,
-                        "LETTER {$letterNo} CHARGE",
-                        $amount,
-                        [
-                            'Letter' => $this->ordinal($letterNo).' Letter',
-                        ],
-                        0,
-                        $op,
-                        $receipt->BC
-                    ));
-                }
-            }
+        foreach ($letters as $letter) {
+            $events->push($this->event($letter->issued_at, "LETTER {$letter->letter_no} CHARGE", (float) $letter->postage_charge, [
+                'Letter' => $this->ordinal($letter->letter_no).' Letter',
+                'Due date' => optional($letter->due_date)->toDateString(),
+                'Issued by' => $letter->issued_by,
+            ], $letter->id, $letter->issued_by, $receipt->BC));
+        }
+        foreach ($savedLetters as [$letterNo, $dateStr]) {
+            $amount = $this->calculator->resolveLetterCharge($receipt, $letterNo);
+            $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
+            $events->push($this->event(
+                $dateStr,
+                "LETTER {$letterNo} CHARGE",
+                $amount,
+                [
+                    'Letter' => $this->ordinal($letterNo).' Letter',
+                ],
+                0,
+                $op,
+                $receipt->BC
+            ));
         }
 
         foreach ($promises as $promise) {
