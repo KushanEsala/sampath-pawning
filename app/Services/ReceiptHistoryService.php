@@ -297,8 +297,25 @@ class ReceiptHistoryService
         }
         $allocationEvents = Schema::hasTable('receipt_lifecycle_events')
             ? ReceiptLifecycleEvent::where('pawn_sum_id', $receipt->id)
-                ->where('event_type', 'PART_PAYMENT_ALLOCATION')->get(['event_type', 'event_data'])
+                ->where('event_type', 'PART_PAYMENT_ALLOCATION')->get(['event_type', 'event_data', 'created_by'])
             : collect();
+
+        // Some imported payments record only a total postage charge, not a
+        // trustworthy amount for each earlier printed letter. Record that
+        // actual total once at the payment date; never invent three rates.
+        foreach ($allocationEvents as $allocationEvent) {
+            $data = json_decode((string) ($allocationEvent->event_data ?? ''), true) ?: [];
+            $charge = (float) ($data['recorded_postage_charge_total'] ?? 0);
+            $date = (string) ($data['payment_date'] ?? '');
+            if ($charge <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+            $chargeRows->push((object) array_merge($base, [
+                'dDate' => $date,
+                'trans_type' => 'LETTER POSTAGE CHARGE',
+                'trans_amount' => $charge,
+                'Postage_charge' => $charge,
+                'OC' => $data['payment_operator'] ?? $allocationEvent->created_by,
+            ]));
+        }
 
         foreach ($letterEvents as $letter) {
             $charge = (float) $letter->postage_charge;
@@ -314,6 +331,7 @@ class ReceiptHistoryService
             ]));
         }
         foreach ($this->savedLettersWithoutEvents($receipt, $letterEvents, $allocationEvents) as [$letterNo, $dateStr, $charge, $operator]) {
+            if ($charge === null) continue; // Actual print date, charge not separately recorded.
             $chargeRows->push((object) array_merge($base, [
                 'dDate' => $dateStr,
                 'trans_type' => 'LETTER '.$letterNo.' CHARGE',
@@ -346,7 +364,10 @@ class ReceiptHistoryService
                     continue;
                 }
                 $candidates[$letterNo.'|'.$dateStr] = [
-                    $letterNo, $dateStr, max(0, (float) ($saved['postage_charge'] ?? 0)), null,
+                    $letterNo, $dateStr,
+                    array_key_exists('postage_charge', $saved) && $saved['postage_charge'] !== null
+                        ? max(0, (float) $saved['postage_charge']) : null,
+                    null,
                 ];
             }
         }
@@ -768,7 +789,7 @@ class ReceiptHistoryService
             $op = $this->resolveLetterOperator($receipt, $letterNo, $dateStr, $feedbacks);
             $events->push($this->event(
                 $dateStr,
-                "LETTER {$letterNo} CHARGE",
+                $amount === null ? "LETTER {$letterNo} PRINTED" : "LETTER {$letterNo} CHARGE",
                 $amount,
                 [
                     'Letter' => $this->ordinal($letterNo).' Letter',

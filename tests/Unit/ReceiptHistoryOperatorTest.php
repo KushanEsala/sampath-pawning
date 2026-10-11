@@ -54,6 +54,25 @@ class ReceiptHistoryOperatorTest extends TestCase
         $this->assertSame([[1, '2026-09-07', 125.0, null]], $missing);
     }
 
+    public function test_historical_payment_can_preserve_print_dates_without_inventing_per_letter_charges(): void
+    {
+        $receipt = new \App\Models\TPawnSum(['letter_1_date' => null]);
+        $allocation = (object) [
+            'event_type' => 'PART_PAYMENT_ALLOCATION',
+            'event_data' => json_encode(['cleared_letter_snapshots' => [
+                ['letter_no' => 1, 'printed_at' => '2026-04-20', 'postage_charge' => null],
+            ]]),
+        ];
+
+        $method = new \ReflectionMethod(ReceiptHistoryService::class, 'savedLettersWithoutEvents');
+        $method->setAccessible(true);
+
+        $this->assertSame(
+            [[1, '2026-04-20', null, null]],
+            $method->invoke(new ReceiptHistoryService(new ReceiptFinancialCalculator()), $receipt, collect(), collect([$allocation]))
+        );
+    }
+
     public function test_event_displays_recorded_operator_and_profile_not_the_viewer(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
