@@ -48,8 +48,9 @@
         <table id="t_redeem_sums" class="table table-bordered table-striped display nowrap w-100">
             <thead class="table-dark">
                 <tr>
-                    @if(auth()->check() && auth()->user()->isAdmin())
                     <th>Stock No</th>
+                    @if(auth()->check() && auth()->user()->isAdmin())
+                    <th>Ticket No</th>
                     @endif
                     <th>Receipt No</th>
                     <th>Redeem Date</th>
@@ -72,8 +73,9 @@
             <tbody>
                 @foreach($redeem as $row)
                 <tr>
-                    @if(auth()->check() && auth()->user()->isAdmin())
                     <td>{{ $row->Invoice_Number ?: '—' }}</td>
+                    @if(auth()->check() && auth()->user()->isAdmin())
+                    <td>{{ $row->Ticket_Number ?: '—' }}</td>
                     @endif
                     <td>{{ $row->Receipt_Number }}</td>
                     <td>{{ $row->Redeem_Date }}</td>
@@ -96,7 +98,7 @@
             </tbody>
             <tfoot>
              <tr class="table-secondary text-center">
-                    <th colspan="{{ auth()->check() && auth()->user()->isAdmin() ? 4 : 3 }}">Total</th>
+                    <th colspan="{{ auth()->check() && auth()->user()->isAdmin() ? 5 : 4 }}">Total</th>
                     <th>{{ $totalWeight }}</th>
                     <th>{{ $pawnWeight }}</th>
                     <th colspan="2"></th>

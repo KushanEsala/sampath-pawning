@@ -307,7 +307,7 @@
             <p>Professional Receipt Tracking System</p>
         </div>
 
-        @if(auth()->check() && auth()->user()->is_admin)
+        @if(auth()->check() && auth()->user()->isAdmin())
         <div class="admin-notice">
             <strong>🔒 Admin View</strong> - Customer records visible
         </div>
@@ -337,8 +337,12 @@
                 <thead>
                     <tr>
                         <th>Receipt Number</th>
+                        <th>Stock Number</th>
+                        @if(auth()->user()->isAdmin())
+                        <th>Ticket Number</th>
+                        @endif
                         <th>Check</th>
-                        @if(auth()->user()->role == 'Admin')
+                        @if(auth()->user()->isAdmin())
                         <th>Customer NIC</th>
                         <th>Customer Name</th>
                         <th>Customer Address</th>
@@ -353,6 +357,10 @@
                     @foreach ($recipts as $key => $receipt)
                         <tr class="{{ $receipt->checkbox_stock == 1 ? 'checked-row' : '' }}">
                             <td>{{ $receipt->Receipt_Number }}</td>
+                            <td>{{ $receipt->Invoice_Number ?: '—' }}</td>
+                            @if(auth()->user()->isAdmin())
+                            <td>{{ $receipt->Ticket_Number ?: '—' }}</td>
+                            @endif
                             <td class="checkbox-cell">
                                 <input
                                     class="custom-checkbox save-checkbox"
@@ -362,7 +370,7 @@
                                     {{ $receipt->checkbox_stock == 1 ? 'checked' : '' }}
                                 >
                             </td>
-                            @if(auth()->user()->role == 'Admin')
+                            @if(auth()->user()->isAdmin())
                             <td>{{ $receipt->Customer_NIC }}</td>
                             <td>{{ $receipt->Customer_Name }}</td>
                             <td>{{ $receipt->Customer_Address }}</td>
@@ -377,8 +385,8 @@
 
                 <tfoot>
                     <tr>
-                        <td colspan="2"><strong>📋 Total Count: {{ $pawnCount }}</strong></td>
-                        <td colspan="{{ auth()->user()->role == 'Admin' ? '6' : '2' }}" style="text-align: right;"><strong>Grand Total:</strong></td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '4' : '3' }}"><strong>📋 Total Count: {{ $pawnCount }}</strong></td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '6' : '2' }}" style="text-align: right;"><strong>Grand Total:</strong></td>
                         <td><strong>{{ $amount }}</strong></td>
                     </tr>
                 </tfoot>

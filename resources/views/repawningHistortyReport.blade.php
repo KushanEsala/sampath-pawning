@@ -201,8 +201,9 @@
                 <thead>
                     <tr>
                         <th class="ps-3">Receipt No</th>
+                        <th>Stock No</th>
                         @if(auth()->user()?->isAdmin())
-                        <th>Stock / Ticket</th>
+                        <th>Ticket No</th>
                         @endif
                         <th>Pawn Date</th>
                         @if(auth()->user()?->isAdmin())
@@ -218,14 +219,10 @@
                 <tbody>
                     @forelse($repawnings as $index => $row)
                     <tr>
-                        <td class="ps-3 text-muted">{{ $row->Receipt_Number }}
-                            @unless(auth()->user()?->isAdmin())
-                                @if(\App\Services\ReceiptNumberVisibility::stock($row))<br><small>Stock: {{ $row->Invoice_Number }}</small>@endif
-                                @if(\App\Services\ReceiptNumberVisibility::ticket($row))<br><small>Ticket: {{ $row->Ticket_Number }}</small>@endif
-                            @endunless
-                        </td>
+                        <td class="ps-3 text-muted">{{ $row->Receipt_Number }}</td>
+                        <td>{{ $row->Invoice_Number ?: '—' }}</td>
                         @if(auth()->user()?->isAdmin())
-                        <td>Stock: {{ $row->Invoice_Number }}<br>Ticket: {{ $row->Ticket_Number ?? '—' }}</td>
+                        <td>{{ $row->Ticket_Number ?: '—' }}</td>
                         @endif
                         <td>
                             @if($row->Pawn_Date)
@@ -249,7 +246,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ auth()->user()?->isAdmin() ? '9' : '5' }}" class="text-center py-5">
+                        <td colspan="{{ auth()->user()?->isAdmin() ? '10' : '6' }}" class="text-center py-5">
                             <div class="text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
                                 <h5 class="mb-2">No Records Found</h5>
@@ -266,7 +263,7 @@
                 @if(count($repawnings) > 0)
                 <tfoot>
                     <tr class="table-dark fw-bold">
-                        <td colspan="{{ auth()->user()->isAdmin() ? '7' : '3' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '8' : '4' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
                         <td class="text-end">Rs. {{ number_format($repawnings->sum('Original_Pawn_Amount'), 2) }}</td>
                         <td class="text-end text-warning">Rs. {{ number_format($repawnings->sum('Payable_Total'), 2) }}</td>
                     </tr>

@@ -26,7 +26,10 @@ public function index(Request $request)
 
     // Build query with join and GROUP BY
     $query = DB::table('t_repawning_sums as rs')
-        ->join('t_pawn_sums as ps', 'rs.Receipt_Number', '=', 'ps.Receipt_Number')
+        ->join('t_pawn_sums as ps', function ($join) {
+            $join->on('rs.Receipt_Number', '=', 'ps.Receipt_Number')
+                ->on('rs.BC', '=', 'ps.BC');
+        })
         ->where('rs.BC', $branch_code)
         ->select([
             'rs.Receipt_Number',
