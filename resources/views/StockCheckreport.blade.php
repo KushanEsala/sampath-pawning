@@ -336,9 +336,9 @@
             <table class="table" id="t_pawn_sums">
                 <thead>
                     <tr>
-                        <th>Receipt Number</th>
                         <th>Stock Number</th>
                         @if(auth()->user()->isAdmin())
+                        <th>Receipt Number</th>
                         <th>Ticket Number</th>
                         @endif
                         <th>Check</th>
@@ -356,19 +356,23 @@
                 <tbody>
                     @foreach ($recipts as $key => $receipt)
                         <tr class="{{ $receipt->checkbox_stock == 1 ? 'checked-row' : '' }}">
-                            <td>{{ $receipt->Receipt_Number }}</td>
                             <td>{{ $receipt->Invoice_Number ?: '—' }}</td>
                             @if(auth()->user()->isAdmin())
+                            <td>{{ $receipt->Receipt_Number }}</td>
                             <td>{{ $receipt->Ticket_Number ?: '—' }}</td>
                             @endif
                             <td class="checkbox-cell">
+                                @if($receipt instanceof \App\Models\TPawnSum)
                                 <input
                                     class="custom-checkbox save-checkbox"
                                     type="checkbox"
-                                    data-receipt_number="{{ $receipt->Receipt_Number }}"
-                                    id="flexCheckDefault{{ $receipt->Receipt_Number }}"
+                                    data-record-id="{{ $receipt->id }}"
+                                    id="flexCheckDefault{{ $key }}"
                                     {{ $receipt->checkbox_stock == 1 ? 'checked' : '' }}
                                 >
+                                @else
+                                <span title="Opening stock cannot be checked here">—</span>
+                                @endif
                             </td>
                             @if(auth()->user()->isAdmin())
                             <td>{{ $receipt->Customer_NIC }}</td>
@@ -385,7 +389,7 @@
 
                 <tfoot>
                     <tr>
-                        <td colspan="{{ auth()->user()->isAdmin() ? '4' : '3' }}"><strong>📋 Total Count: {{ $pawnCount }}</strong></td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '4' : '2' }}"><strong>📋 Total Count: {{ $pawnCount }}</strong></td>
                         <td colspan="{{ auth()->user()->isAdmin() ? '6' : '2' }}" style="text-align: right;"><strong>Grand Total:</strong></td>
                         <td><strong>{{ $amount }}</strong></td>
                     </tr>
@@ -421,7 +425,7 @@
             $('.save-checkbox').on('change', function() {
                 var checkbox = $(this);
                 var isChecked = checkbox.is(':checked') ? 1 : 0;
-                var recordId = checkbox.data('receipt_number');
+                var recordId = checkbox.data('record-id');
 
                 // Toggle row class
                 if (isChecked) {
@@ -436,7 +440,7 @@
                     type: 'POST',
                     data: {
                         _token: '{{ csrf_token() }}',
-                        Receipt_Number: recordId,
+                        record_id: recordId,
                         checked: isChecked
                     },
                 });

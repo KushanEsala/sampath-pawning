@@ -200,9 +200,9 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th class="ps-3">Receipt No</th>
-                        <th>Stock No</th>
+                        <th class="ps-3">Stock No</th>
                         @if(auth()->user()?->isAdmin())
+                        <th>Receipt No</th>
                         <th>Ticket No</th>
                         @endif
                         <th>Pawn Date</th>
@@ -219,9 +219,9 @@
                 <tbody>
                     @forelse($repawnings as $index => $row)
                     <tr>
-                        <td class="ps-3 text-muted">{{ $row->Receipt_Number }}</td>
-                        <td>{{ $row->Invoice_Number ?: '—' }}</td>
+                        <td class="ps-3 text-muted">{{ $row->Invoice_Number ?: '—' }}</td>
                         @if(auth()->user()?->isAdmin())
+                        <td>{{ $row->Receipt_Number }}</td>
                         <td>{{ $row->Ticket_Number ?: '—' }}</td>
                         @endif
                         <td>
@@ -246,7 +246,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ auth()->user()?->isAdmin() ? '10' : '6' }}" class="text-center py-5">
+                        <td colspan="{{ auth()->user()?->isAdmin() ? '10' : '5' }}" class="text-center py-5">
                             <div class="text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
                                 <h5 class="mb-2">No Records Found</h5>
@@ -263,7 +263,7 @@
                 @if(count($repawnings) > 0)
                 <tfoot>
                     <tr class="table-dark fw-bold">
-                        <td colspan="{{ auth()->user()->isAdmin() ? '8' : '4' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
+                        <td colspan="{{ auth()->user()->isAdmin() ? '8' : '3' }}" class="text-end ps-3 text-uppercase">Grand Total:</td>
                         <td class="text-end">Rs. {{ number_format($repawnings->sum('Original_Pawn_Amount'), 2) }}</td>
                         <td class="text-end text-warning">Rs. {{ number_format($repawnings->sum('Payable_Total'), 2) }}</td>
                     </tr>

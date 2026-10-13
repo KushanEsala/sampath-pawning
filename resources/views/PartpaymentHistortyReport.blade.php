@@ -65,9 +65,9 @@
                 <table id="paymentReport" class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th class="text-center">Receipt No</th>
                             <th class="text-center">Stock No</th>
                             @if(auth()->check() && auth()->user()->isAdmin())
+                                <th class="text-center">Receipt No</th>
                                 <th class="text-center">Ticket No</th>
                                 <th class="text-center">Customer NIC</th>
                                 <th>Customer Name</th>
@@ -83,9 +83,9 @@
                     <tbody>
                         @forelse($partPayments as $row)
                             <tr>
-                                <td class="text-center">{{ $row->Receipt_Number }}</td>
                                 <td class="text-center">{{ $row->Invoice_Number ?: '—' }}</td>
                                 @if(auth()->check() && auth()->user()->isAdmin())
+                                    <td class="text-center">{{ $row->Receipt_Number }}</td>
                                     <td class="text-center">{{ $row->Ticket_Number ?: '—' }}</td>
                                     <td class="text-center">{{ $row->Customer_NIC }}</td>
                                     <td>{{ $row->Customer_Name }}</td>
@@ -102,7 +102,7 @@
                                 @if(auth()->check() && auth()->user()->isAdmin())
                                     <td colspan="11" class="text-center py-5 text-muted">
                                 @else
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="7" class="text-center py-5 text-muted">
                                 @endif
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     <p class="mb-0">No payment records found</p>
@@ -116,7 +116,7 @@
                                 @if(auth()->check() && auth()->user()->isAdmin())
                                     <th colspan="6" class="text-end fw-bold">TOTAL:</th>
                                 @else
-                                    <th colspan="3" class="text-end fw-bold">TOTAL:</th>
+                                    <th colspan="2" class="text-end fw-bold">TOTAL:</th>
                                 @endif
                                 <th class="text-end fw-bold">{{ number_format($partPayments->sum('Payable_Pawn_Amount'), 2) }}</th>
                                 <th class="text-end fw-bold">{{ number_format($partPayments->sum('Paid_Interest'), 2) }}</th>
@@ -146,7 +146,7 @@
 <script>
     $(document).ready(function() {
         const isAdmin = @json(auth()->check() && auth()->user()->isAdmin());
-        const sortColumnIndex = isAdmin ? 5 : 2;
+        const sortColumnIndex = isAdmin ? 5 : 1;
 
         $('#paymentReport').DataTable({
             dom: '<"row mb-3"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 text-end"B>>rtip',

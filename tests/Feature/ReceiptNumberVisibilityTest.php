@@ -248,7 +248,7 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringContainsString('TK444', $adminHtml);
     }
 
-    public function test_part_payment_report_shows_stock_to_cashier_and_ticket_only_to_admin(): void
+    public function test_part_payment_report_shows_only_stock_number_to_cashier(): void
     {
         $row = (object) [
             'Invoice_Number' => 'INV333',
@@ -270,6 +270,8 @@ class ReceiptNumberVisibilityTest extends TestCase
         $cashierHtml = view('PartpaymentHistortyReport', compact('partPayments'))->render();
         $this->assertStringContainsString('<th class="text-center">Stock No</th>', $cashierHtml);
         $this->assertStringContainsString('INV333', $cashierHtml);
+        $this->assertStringNotContainsString('<th class="text-center">Receipt No</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<td class="text-center">100</td>', $cashierHtml);
         $this->assertStringNotContainsString('TK333', $cashierHtml);
 
         // Even a ticket search must not reveal ticket numbers in cashier report rows.
@@ -282,10 +284,11 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('PartpaymentHistortyReport', compact('partPayments'))->render();
         $this->assertStringContainsString('INV333', $adminHtml);
+        $this->assertStringContainsString('<td class="text-center">100</td>', $adminHtml);
         $this->assertStringContainsString('<td class="text-center">TK333</td>', $adminHtml);
     }
 
-    public function test_repawning_report_shows_stock_to_cashier_and_ticket_only_to_admin(): void
+    public function test_repawning_report_shows_only_stock_number_to_cashier(): void
     {
         $row = (object) [
             'Invoice_Number' => 'INV222',
@@ -304,8 +307,10 @@ class ReceiptNumberVisibilityTest extends TestCase
         // Cashier view
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('repawningHistortyReport', compact('repawnings'))->render();
-        $this->assertStringContainsString('<th>Stock No</th>', $cashierHtml);
+        $this->assertStringContainsString('<th class="ps-3">Stock No</th>', $cashierHtml);
         $this->assertStringContainsString('INV222', $cashierHtml);
+        $this->assertStringNotContainsString('<th>Receipt No</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<td>100</td>', $cashierHtml);
         $this->assertStringNotContainsString('TK222', $cashierHtml);
 
         app()->instance('request', Request::create('/repawning-history', 'GET', ['search_type' => 'ticket', 'search_query' => 'TK222']));
@@ -317,10 +322,11 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('repawningHistortyReport', compact('repawnings'))->render();
         $this->assertStringContainsString('INV222', $adminHtml);
+        $this->assertStringContainsString('<td>100</td>', $adminHtml);
         $this->assertStringContainsString('<td>TK222</td>', $adminHtml);
     }
 
-    public function test_redeem_report_shows_stock_to_cashier_and_ticket_only_to_admin(): void
+    public function test_redeem_report_shows_only_stock_number_to_cashier(): void
     {
         $row = (object) [
             'Invoice_Number' => 'STK777',
@@ -357,20 +363,28 @@ class ReceiptNumberVisibilityTest extends TestCase
         $cashierHtml = view('redeem_report', $data)->render();
         $this->assertStringContainsString('<th>Stock No</th>', $cashierHtml);
         $this->assertStringContainsString('STK777', $cashierHtml);
+        $this->assertStringNotContainsString('<th>Receipt No</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<th>Redeem No</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<td>500</td>', $cashierHtml);
         $this->assertStringNotContainsString('TKT777', $cashierHtml);
 
         // Admin view
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('redeem_report', $data)->render();
         $this->assertStringContainsString('<th>Stock No</th>', $adminHtml);
+        $this->assertStringContainsString('<th>Receipt No</th>', $adminHtml);
+        $this->assertStringContainsString('<th>Redeem No</th>', $adminHtml);
         $this->assertStringContainsString('<th>Ticket No</th>', $adminHtml);
         $this->assertStringContainsString('STK777', $adminHtml);
+        $this->assertStringContainsString('<td>500</td>', $adminHtml);
         $this->assertStringContainsString('TKT777', $adminHtml);
     }
 
-    public function test_stock_check_report_shows_stock_to_cashier_and_ticket_only_to_admin(): void
+    public function test_stock_check_report_shows_only_stock_number_to_cashier(): void
     {
-        $recipts = collect([(object) [
+        $receipt = new TPawnSum();
+        $receipt->forceFill([
+            'id' => 42,
             'Receipt_Number' => 500,
             'Invoice_Number' => 'STK500',
             'Ticket_Number' => 'TKT500',
@@ -382,17 +396,24 @@ class ReceiptNumberVisibilityTest extends TestCase
             'Receipt_Type' => 'A',
             'Receipt_Date' => '2026-10-11',
             'Amount' => 5000,
-        ]]);
+        ]);
+        $recipts = collect([$receipt]);
         $data = ['recipts' => $recipts, 'pawnCount' => 1, 'amount' => '5,000.00'];
 
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('StockCheckreport', $data)->render();
         $this->assertStringContainsString('STK500', $cashierHtml);
+        $this->assertStringNotContainsString('<th>Receipt Number</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<td>500</td>', $cashierHtml);
+        $this->assertStringNotContainsString('data-receipt_number=', $cashierHtml);
+        $this->assertStringContainsString('data-record-id="42"', $cashierHtml);
         $this->assertStringNotContainsString('TKT500', $cashierHtml);
 
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('StockCheckreport', $data)->render();
         $this->assertStringContainsString('STK500', $adminHtml);
+        $this->assertStringContainsString('<th>Receipt Number</th>', $adminHtml);
+        $this->assertStringContainsString('<td>500</td>', $adminHtml);
         $this->assertStringContainsString('TKT500', $adminHtml);
     }
 }

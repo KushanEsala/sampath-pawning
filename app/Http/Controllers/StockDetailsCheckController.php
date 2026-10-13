@@ -87,12 +87,13 @@ class StockDetailsCheckController extends Controller
     {
         // Validate input
         $request->validate([
-            'Receipt_Number' => 'required|integer',
+            'record_id' => 'required|integer',
             'checked' => 'required|boolean',
         ]);
     
         // Find the record and update the checkbox state
-        $record = TPawnSum::find($request->Receipt_Number);
+        $record = TPawnSum::whereKey($request->record_id)
+            ->where('BC', auth()->user()->BC)->first();
         if ($record) {
             $record->checkbox_stock = $request->checked;  // Update with correct column name
             $record->save();

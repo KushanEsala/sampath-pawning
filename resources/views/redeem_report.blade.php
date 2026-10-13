@@ -50,11 +50,13 @@
                 <tr>
                     <th>Stock No</th>
                     @if(auth()->check() && auth()->user()->isAdmin())
+                    <th>Receipt No</th>
                     <th>Ticket No</th>
                     @endif
-                    <th>Receipt No</th>
                     <th>Redeem Date</th>
+                    @if(auth()->check() && auth()->user()->isAdmin())
                     <th>Redeem No</th>
+                    @endif
                     <th>Total Weight</th>
                     <th>Pawn Weight</th>
                     <th>Original Pawn Amount</th>
@@ -75,11 +77,13 @@
                 <tr>
                     <td>{{ $row->Invoice_Number ?: '—' }}</td>
                     @if(auth()->check() && auth()->user()->isAdmin())
+                    <td>{{ $row->Receipt_Number }}</td>
                     <td>{{ $row->Ticket_Number ?: '—' }}</td>
                     @endif
-                    <td>{{ $row->Receipt_Number }}</td>
                     <td>{{ $row->Redeem_Date }}</td>
+                    @if(auth()->check() && auth()->user()->isAdmin())
                     <td>{{ $row->Redeem_Number }}</td>
+                    @endif
                     <td>{{ $row->Total_Weight }}</td>
                     <td>{{ $row->Pawn_Weight }}</td>
                     <td>{{ $row->Original_Pawn_Amount }}</td>
@@ -98,7 +102,7 @@
             </tbody>
             <tfoot>
              <tr class="table-secondary text-center">
-                    <th colspan="{{ auth()->check() && auth()->user()->isAdmin() ? 5 : 4 }}">Total</th>
+                    <th colspan="{{ auth()->check() && auth()->user()->isAdmin() ? 5 : 2 }}">Total</th>
                     <th>{{ $totalWeight }}</th>
                     <th>{{ $pawnWeight }}</th>
                     <th colspan="2"></th>
