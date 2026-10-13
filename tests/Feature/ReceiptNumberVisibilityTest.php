@@ -121,11 +121,12 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringContainsString('INV888', $adminHtml);
     }
 
-    public function test_date_range_receipt_report_uses_receipt_number_without_exposing_stock(): void
+    public function test_date_range_pawning_report_shows_only_stock_number_to_cashier(): void
     {
         $receipt = new TPawnSum([
             'Receipt_Number' => 100,
             'Invoice_Number' => 'INV100',
+            'Ticket_Number' => 'TKT100',
             'Receipt_Type' => 'A',
             'Receipt_Date' => '2026-10-11',
             'Pawn_Weight' => 1,
@@ -141,12 +142,16 @@ class ReceiptNumberVisibilityTest extends TestCase
 
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('search_results', $data)->render();
-        $this->assertStringContainsString('<td>100</td>', $cashierHtml);
-        $this->assertStringNotContainsString('INV100', $cashierHtml);
+        $this->assertStringContainsString('INV100', $cashierHtml);
+        $this->assertStringNotContainsString('<th>Receipt Number</th>', $cashierHtml);
+        $this->assertStringNotContainsString('<td>100</td>', $cashierHtml);
+        $this->assertStringNotContainsString('TKT100', $cashierHtml);
 
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('search_results', $data)->render();
         $this->assertStringContainsString('INV100', $adminHtml);
+        $this->assertStringContainsString('<td>100</td>', $adminHtml);
+        $this->assertStringContainsString('TKT100', $adminHtml);
     }
 
     public function test_stock_number_search_reveals_only_the_exact_supplied_stock_number(): void

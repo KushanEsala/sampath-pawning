@@ -373,7 +373,7 @@
     <div class="container">
         <div class="header">
             <span class="role-badge">
-                @if(auth()->user()->role == 'Admin')
+                @if(auth()->user()->isAdmin())
                     👑 Admin
                 @else
                     👤 Cashier
@@ -404,15 +404,18 @@
             <table class="display nowrap" id="receiptTable" style="width:100%">
                 <thead>
                     <tr>
-                        @if(auth()->user()->role == 'Admin')
+                        @if(auth()->user()->isAdmin())
                             <th>NIC</th>
                             <th>NAME</th>
                             <th>ADDRESS</th>
                             <th>PHONE</th>
                         @endif
+                        <th>STOCK #</th>
+                        @if(auth()->user()->isAdmin())
                         <th>Receipt Number</th>
+                        <th>Ticket Number</th>
+                        @endif
                         <th>TYPE</th>
-                        @if(auth()->user()->isAdmin())<th>STOCK #</th>@endif
                         <th>DATE</th>
                         <th>PAWN WT.</th>
                         <th>TOTAL WT.</th>
@@ -425,15 +428,18 @@
                 <tbody>
                     @foreach ($recipts as $receipts)
                     <tr>
-                        @if(auth()->user()->role == 'Admin')
+                        @if(auth()->user()->isAdmin())
                             <td>{{ $receipts->Customer_NIC }}</td>
                             <td>{{ $receipts->Customer_Name }}</td>
                             <td>{{ $receipts->Customer_Address }}</td>
                             <td>{{ $receipts->Customer_Phone }}</td>
                         @endif
+                        <td class="ticket-cell">{{ $receipts->Invoice_Number ?: '—' }}</td>
+                        @if(auth()->user()->isAdmin())
                         <td>{{ $receipts->Receipt_Number }}</td>
+                        <td>{{ $receipts->Ticket_Number ?: '—' }}</td>
+                        @endif
                         <td>{{ $receipts->Receipt_Type }}</td>
-                        @if(auth()->user()->isAdmin())<td class="ticket-cell">{{ $receipts->Invoice_Number }}</td>@endif
                         <td>{{ $receipts->Receipt_Date }}</td>
                         <td class="weight-cell">{{ $receipts->Pawn_Weight }}</td>
                         <td class="weight-cell">{{ $receipts->Total_Weight }}</td>
@@ -446,8 +452,8 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        @if(auth()->user()->role == 'Admin')
-                            <td colspan="8" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
+                        @if(auth()->user()->isAdmin())
+                            <td colspan="9" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
                         @else
                             <td colspan="3" style="text-align: right;"><strong>📊 TOTALS:</strong></td>
                         @endif
@@ -464,7 +470,7 @@
     <div class="container">
         <div class="header">
             <span class="role-badge">
-                @if(auth()->user()->role == 'Admin')
+                @if(auth()->user()->isAdmin())
                     👑 Admin
                 @else
                     👤 Cashier
@@ -517,7 +523,7 @@
                 scrollX: true,
                 pageLength: 1000,
                 lengthMenu: [[25, 50, 100, 500, 1000, -1], [25, 50, 100, 500, 1000, "All"]],
-                order: [[{{ auth()->user()->role == 'Admin' ? '5' : '1' }}, 'desc']], // Sort by Ticket # descending
+                order: [[{{ auth()->user()->isAdmin() ? '8' : '2' }}, 'desc']], // Receipt date
                 language: {
                     search: "🔍 Search:",
                     lengthMenu: "Show _MENU_ entries",
