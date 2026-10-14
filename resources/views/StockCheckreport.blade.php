@@ -54,10 +54,11 @@
         tbody tr[hidden] { display:none; }
         .check-col { width:62px; text-align:center; }
         .stock-col { width:18%; }
-        .customer-col { width:21%; }
-        .contact-col { width:31%; }
-        .receipt-col { width:14%; }
-        .amount-col { width:15%; text-align:right; }
+        .customer-col { width:19%; }
+        .contact-col { width:30%; }
+        .type-col { width:8%; }
+        .receipt-col { width:13%; }
+        .amount-col { width:12%; text-align:right; }
         .primary-value { display:block; font-weight:700; }
         .secondary-value { display:block; margin-top:3px; color:var(--muted); font-size:12px; }
         .field-name { color:#657486; margin-right:4px; }
@@ -113,7 +114,8 @@
                     <th class="check-col" scope="col">Check</th>
                     <th class="stock-col sortable" scope="col" data-sort="stock" tabindex="0" aria-sort="none">Stock / receipt</th>
                     @if($isAdmin)<th class="customer-col sortable" scope="col" data-sort="customer" tabindex="0" aria-sort="none">Customer</th><th class="contact-col" scope="col">Contact</th>@endif
-                    <th class="receipt-col sortable" scope="col" data-sort="date" tabindex="0" aria-sort="none">Receipt</th>
+                    <th class="type-col sortable" scope="col" data-sort="type" tabindex="0" aria-sort="none">Receipt type</th>
+                    <th class="receipt-col sortable" scope="col" data-sort="date" tabindex="0" aria-sort="none">Receipt date</th>
                     <th class="amount-col sortable" scope="col" data-sort="amount" tabindex="0" aria-sort="none">Amount</th>
                 </tr></thead>
                 <tbody>
@@ -125,7 +127,8 @@
                         <td class="check-col">@if($receipt instanceof \App\Models\TPawnSum)<input class="check-input save-checkbox" type="checkbox" data-record-id="{{ $receipt->id }}" aria-label="{{ $receipt->checkbox_stock == 1 ? 'Mark stock ' . $receipt->Invoice_Number . ' unchecked' : 'Mark stock ' . $receipt->Invoice_Number . ' checked' }}" {{ $receipt->checkbox_stock == 1 ? 'checked' : '' }}>@else<span title="Opening stock cannot be checked here">—</span>@endif</td>
                         <td><span class="primary-value number">{{ $receipt->Invoice_Number ?: '—' }}</span>@if($isAdmin)<span class="secondary-value"><span class="field-name">Receipt</span><span class="number">{{ $receipt->Receipt_Number ?? '—' }}</span> <span class="field-name">· Ticket</span><span class="number">{{ $receipt->Ticket_Number ?? '—' }}</span></span>@endif</td>
                         @if($isAdmin)<td><span class="primary-value">{{ $receipt->Customer_Name ?: '—' }}</span><span class="secondary-value"><span class="field-name">NIC</span>{{ $receipt->Customer_NIC ?: '—' }}</span></td><td><span class="primary-value">{{ $receipt->Customer_Address ?: '—' }}</span><span class="secondary-value"><span class="field-name">Phone</span><span class="number">{{ $receipt->Customer_Phone ?: '—' }}</span></span></td>@endif
-                        <td><span class="primary-value number">{{ $receiptDate ?: '—' }}</span>@if($receiptTime !== '')<span class="secondary-value"><span class="field-name">Time</span><span class="number">{{ $receiptTime }}</span></span>@endif<span class="secondary-value"><span class="field-name">Type</span>{{ $receipt->Receipt_Type ?? '—' }}</span></td>
+                        <td><span class="primary-value">{{ $receipt->Receipt_Type ?? '—' }}</span></td>
+                        <td><span class="primary-value number">{{ $receiptDate ?: '—' }}</span>@if($receiptTime !== '')<span class="secondary-value"><span class="field-name">Time</span><span class="number">{{ $receiptTime }}</span></span>@endif</td>
                         <td class="amount-col"><span class="primary-value amount-value number">{{ number_format((float) $receipt->Amount, 2) }}</span></td>
                     </tr>
                 @endforeach

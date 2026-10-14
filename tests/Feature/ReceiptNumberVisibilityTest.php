@@ -419,6 +419,8 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->assertStringContainsString('data-receipt="500"', $adminHtml);
         $this->assertStringContainsString('Receipt</span><span class="number">500', $adminHtml);
         $this->assertStringContainsString('TKT500', $adminHtml);
+        $this->assertStringContainsString('>Receipt type</th>', $adminHtml);
+        $this->assertStringContainsString('<td><span class="primary-value">A</span></td>', $adminHtml);
         $this->assertStringContainsString('data-date="2026-10-11 00:00:00"', $adminHtml);
         $this->assertStringContainsString('Time</span><span class="number">00:00:00', $adminHtml);
     }
