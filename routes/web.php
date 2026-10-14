@@ -386,12 +386,11 @@ Route::get('/search_repawning_receipt_ajax', [App\Http\Controllers\RepawningCont
 Route::get('/search_repawning_ticket_ajax', [App\Http\Controllers\RepawningController::class, 'searchTicket'])->name('search_repawning_ticket_ajax');
 Route::get('/search_repawning_invoice_ajax', [App\Http\Controllers\RepawningController::class, 'searchInvoice'])->name('search_repawning_invoice_ajax');
 
-Route::get('/StockCheckreport', [App\Http\Controllers\StockDetailsCheckController::class, 'StockCheck'])->name('StockCheckreport');
-
-
-Route::post('/update-checkbox', [App\Http\Controllers\StockDetailsCheckController::class, 'updateCheckbox']);
-
-Route::post('/reset-checkbox-stock', [App\Http\Controllers\StockDetailsCheckController::class, 'resetCheckboxStock']);
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/StockCheckreport', [App\Http\Controllers\StockDetailsCheckController::class, 'StockCheck'])->name('StockCheckreport');
+    Route::post('/update-checkbox', [App\Http\Controllers\StockDetailsCheckController::class, 'updateCheckbox']);
+    Route::post('/reset-checkbox-stock', [App\Http\Controllers\StockDetailsCheckController::class, 'resetCheckboxStock']);
+});
 
 
 // pawning_late_letters

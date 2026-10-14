@@ -453,7 +453,9 @@
                         <li><a href="{{route("daily_report")}}" target ="_ blank"><i class="fa fa-angle-right"></i>Daily Summary</a></li>
                         <!--<li><a href="{{route("Stockreport")}}" target ="_ blank"><i class="fa fa-angle-right"></i>Stock report</a></li>-->
                         
+                         @if(auth()->check() && auth()->user()->isAdmin())
                          <li><a href="{{route("StockCheckreport")}}" target ="_ blank"><i class="fa fa-angle-right"></i>Stock  Check Report</a></li>
+                         @endif
                          
                         <li><a href="{{route("deleted_pawn_report")}}" target ="_ blank" ><i class="fa fa-angle-right"></i>Deleted Pawning</a></li>
 
