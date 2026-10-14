@@ -80,14 +80,23 @@ class ReceiptPenaltySchedule
     public function reminderIsDue(TPawnSum $receipt, ?Carbon $date = null): bool
     {
         $due = $this->reminderDueDate($receipt);
+        $asOf = ($date ?? today())->copy()->startOfDay();
+        $cycleStart = $receipt->RePawning_date ?: $receipt->Pawn_Date ?: $receipt->Receipt_Date;
+
         return !$receipt->IsRedeemed && !$receipt->isForfeit && $due
-            && $due->lte(($date ?? today())->copy()->startOfDay());
+            && (!$cycleStart || Carbon::parse($receipt->letter_3_date)->startOfDay()
+                ->gte(Carbon::parse($cycleStart)->startOfDay()))
+            && $this->expiryDate($receipt)->lte($asOf)
+            && $due->lte($asOf);
     }
 
     public function dueReminders(Builder $query): Builder
     {
         return $query->where('is_letter_3', 1)->whereNotNull('letter_3_date')
-            ->whereRaw($this->reminderDueSql().' <= ?', [today()->toDateString()]);
+            ->whereRaw($this->reminderDueSql().' <= ?', [today()->toDateString()])
+            ->whereRaw($this->expirySql().' <= ?', [today()->toDateString()])
+            ->whereRaw('(COALESCE(RePawning_date, Pawn_Date, Receipt_Date) IS NULL '
+                .'OR DATE(letter_3_date) >= DATE(COALESCE(RePawning_date, Pawn_Date, Receipt_Date)))');
     }
 
     public function letterDueSql(int $letter, ?string $latestCycleDateSql = null): string

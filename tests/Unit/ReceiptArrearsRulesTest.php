@@ -49,6 +49,18 @@ class ReceiptArrearsRulesTest extends TestCase
         $this->assertTrue($service->isEligible($receipt, 1, Carbon::parse('2026-10-01')));
     }
 
+    public function test_old_letter_cannot_advance_a_new_expiry_cycle(): void
+    {
+        $receipt = new TPawnSum([
+            'Final_date' => '2026-10-01', 'Pawn_Date' => '2026-09-01',
+            'is_letter_1' => 1, 'letter_1_date' => '2026-08-01',
+            'letter_2_days' => 14,
+        ]);
+        $service = new ArrearsLetterService(new ReceiptFinancialCalculator(), new ReceiptLifecycleService());
+
+        $this->assertFalse($service->isEligible($receipt, 2, Carbon::parse('2026-10-14')));
+    }
+
     public function test_service_and_letter_charges_are_included_in_arrears(): void
     {
         Carbon::setTestNow('2026-01-10');

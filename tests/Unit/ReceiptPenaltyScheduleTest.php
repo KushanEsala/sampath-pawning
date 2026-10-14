@@ -41,6 +41,23 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertTrue($schedule->reminderIsDue($receipt, Carbon::parse('2026-03-15')));
     }
 
+    public function test_old_third_letter_cannot_make_renewed_receipt_forfeitable(): void
+    {
+        $receipt = new TPawnSum([
+            'Receipt_Type' => 'A', 'Final_date' => '2027-01-11',
+            'Pawn_Date' => '2026-08-12', 'RePawning_date' => '2026-08-12',
+            'is_letter_3' => 1, 'letter_3_date' => '2026-07-25',
+            'forfeit_reminder_days' => 14,
+        ]);
+
+        $this->assertFalse((new ReceiptPenaltySchedule())->reminderIsDue(
+            $receipt, Carbon::parse('2026-10-14')
+        ));
+        $this->assertFalse((new ReceiptPenaltySchedule())->reminderIsDue(
+            $receipt, Carbon::parse('2027-01-11')
+        ));
+    }
+
     public function test_late_printing_starts_each_following_interval(): void
     {
         $receipt = new TPawnSum([

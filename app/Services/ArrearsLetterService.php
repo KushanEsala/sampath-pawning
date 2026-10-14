@@ -30,9 +30,19 @@ class ArrearsLetterService
             return false;
         }
 
+        if ($letterNo > 1) {
+            $previousPrint = $receipt->{'letter_'.($letterNo - 1).'_date'};
+            if (!$previousPrint || Carbon::parse($previousPrint)->startOfDay()
+                ->lt((new ReceiptPenaltySchedule())->expiryDate($receipt))) {
+                return false;
+            }
+        }
+
         return match ($letterNo) {
-            1 => !(bool) $receipt->is_letter_1,
-            2 => (bool) $receipt->is_letter_1 && !(bool) $receipt->is_letter_2,
+            1 => !(bool) $receipt->is_letter_1 && !(bool) $receipt->is_letter_2
+                && !(bool) $receipt->is_letter_3,
+            2 => (bool) $receipt->is_letter_1 && !(bool) $receipt->is_letter_2
+                && !(bool) $receipt->is_letter_3,
             3 => (bool) $receipt->is_letter_2 && !(bool) $receipt->is_letter_3,
             default => false,
         };
