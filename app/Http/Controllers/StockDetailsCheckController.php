@@ -5,10 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-use App\Models\TPawnSum; // Replace with your actual model
+use App\Models\TPawnSum;
 use App\Models\TOpeningPawnSum;
-
-use App\Models\Datatables;
 
 class StockDetailsCheckController extends Controller
 {
@@ -19,44 +17,48 @@ class StockDetailsCheckController extends Controller
      */
     public function StockCheck(Request $request)
     {
-    
-        // Get search criteria from the form input
-        $fromDate  = $request->input('from_date');
+        $fromDate = $request->input('from_date');
         $toDate = $request->input('to_date');
-        
-        $branch_code = auth()->user()->BC;
-    
-        $query1 = TPawnSum::whereBetween('Receipt_Date', [$fromDate, $toDate])
-                            ->where('IsRedeemed', 0)
-                            ->where('isForfeit', 0)
-                            ->where(function ($query) {
-                                $query->where('checkbox_stock', 0)->orWhereNull('checkbox_stock');
-                            })
-                            ->where('BC',$branch_code)
-                            ->get();
-                            
-        $query2 = TOpeningPawnSum::whereBetween('Receipt_Date', [$fromDate, $toDate])
-                            ->where('IsRedeemed', 0)
-                            ->where('isForfeit', 0)
-                            ->where('BC',$branch_code)
-                            ->get();
-        
-        $query = $query1->concat($query2);
-    
+        $view = $request->query('view') === 'checked' ? 'checked' : 'pending';
+        $branchCode = auth()->user()->BC;
+
+        $pawnQuery = TPawnSum::where('IsRedeemed', 0)
+            ->where('isForfeit', 0)
+            ->where('BC', $branchCode);
+        if ($view === 'checked') {
+            $pawnQuery->where('checkbox_stock', 1);
+        } else {
+            $pawnQuery->where(function ($query) {
+                $query->where('checkbox_stock', 0)->orWhereNull('checkbox_stock');
+            });
+        }
+        if ($fromDate) $pawnQuery->where('Receipt_Date', '>=', $fromDate);
+        if ($toDate) $pawnQuery->where('Receipt_Date', '<=', $toDate);
+        if ($view === 'pending' && !$fromDate && !$toDate) $pawnQuery->whereRaw('1 = 0');
+        $query = $pawnQuery->get();
+
+        if ($view === 'pending') {
+            $openingQuery = TOpeningPawnSum::where('IsRedeemed', 0)
+                ->where('isForfeit', 0)
+                ->where('BC', $branchCode);
+            if ($fromDate) $openingQuery->where('Receipt_Date', '>=', $fromDate);
+            if ($toDate) $openingQuery->where('Receipt_Date', '<=', $toDate);
+            if (!$fromDate && !$toDate) $openingQuery->whereRaw('1 = 0');
+            $query = $query->concat($openingQuery->get());
+        }
+
         $total = $query->sum('Amount');
         $totalAmount = number_format($total, 2);
         $int =  $query->sum('Interest');
         $interest = number_format($int, 2);
         $pawnCount = $query->count();
-        $TotalPawn = TPawnSum::count();
-    
-    
-    
+
         return view('StockCheckreport')
         -> with("recipts", $query)
         -> with("amount", $totalAmount)
         -> with("Interest", $interest)
-        -> with("pawnCount",$pawnCount);
+        -> with("pawnCount",$pawnCount)
+        -> with('view', $view);
     }
     
 
@@ -99,8 +101,9 @@ class StockDetailsCheckController extends Controller
 
 public function resetCheckboxStock(Request $request)
 {
-    // Update the checkbox_stock field for all receipts to 0
-    DB::table('t_pawn_sums')->update(['checkbox_stock' => 0]);
+    DB::table('t_pawn_sums')->where('BC', auth()->user()->BC)
+        ->where('IsRedeemed', 0)->where('isForfeit', 0)
+        ->where('checkbox_stock', 1)->update(['checkbox_stock' => 0]);
 
     return response()->json(['success' => true]);
 }

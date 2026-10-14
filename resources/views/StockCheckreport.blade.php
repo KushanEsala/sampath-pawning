@@ -1,3 +1,4 @@
+@php($view = $view ?? 'pending')
 <!DOCTYPE html>
 <html lang="en">
 
@@ -60,6 +61,36 @@
             background: #f8f9fa;
             padding: 25px 40px;
             border-bottom: 2px solid #e9ecef;
+        }
+
+        .status-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 22px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .status-tab {
+            display: inline-block;
+            padding: 10px 18px;
+            color: #495057;
+            font-weight: 600;
+            text-decoration: none;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .status-tab:hover,
+        .status-tab.active {
+            color: #4659c9;
+            border-bottom-color: #667eea;
+        }
+
+        .filter-hint {
+            margin: 0 0 18px;
+            color: #6c757d;
+            font-size: 14px;
         }
 
         .filter-form {
@@ -314,21 +345,43 @@
         @endif
 
         <div class="controls-section">
+            <nav class="status-tabs" aria-label="Stock check status">
+                <a class="status-tab {{ $view === 'pending' ? 'active' : '' }}"
+                    href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'pending'])) }}"
+                    @if($view === 'pending') aria-current="page" @endif>To Check</a>
+                <a class="status-tab {{ $view === 'checked' ? 'active' : '' }}"
+                    href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'checked'])) }}"
+                    @if($view === 'checked') aria-current="page" @endif>Checked</a>
+            </nav>
+            <p class="filter-hint">
+                @if($view === 'checked')
+                    {{ request()->filled('from_date') || request()->filled('to_date')
+                        ? 'Showing checked records for the selected dates.'
+                        : 'Showing all checked records. Use dates to narrow this list.' }}
+                @else
+                    {{ request()->filled('from_date') || request()->filled('to_date')
+                        ? 'Showing records awaiting a check for the selected dates.'
+                        : 'Choose a date range to see records awaiting a check.' }}
+                @endif
+            </p>
             <form action="" method="get" class="filter-form">
+                <input type="hidden" name="view" value="{{ $view }}">
                 <div class="form-group">
                     <label for="from_date">From Date</label>
-                    <input type="date" name="from_date" id="from_date">
+                    <input type="date" name="from_date" id="from_date" value="{{ request('from_date') }}">
                 </div>
 
                 <div class="form-group">
                     <label for="to_date">To Date</label>
-                    <input type="date" name="to_date" id="to_date">
+                    <input type="date" name="to_date" id="to_date" value="{{ request('to_date') }}">
                 </div>
 
                 <button type="submit" class="btn btn-primary">🔍 Search</button>
                 <button type="button" onclick="printTablefun()" class="btn btn-secondary">🖨️ Print</button>
                 <button type="button" class="btn btn-success"><a href="{{ route('home') }}" style="color: white; text-decoration: none;">🏠 Back</a></button>
-                <button type="button" id="resetCheckboxStock" class="btn btn-danger">🔄 Reset All</button>
+                @if($view === 'checked')
+                <button type="button" id="resetCheckboxStock" class="btn btn-danger">🔄 Reset All Checked in Branch</button>
+                @endif
             </form>
         </div>
 
@@ -454,7 +507,7 @@
 
             // Reset all checkboxes
             $('#resetCheckboxStock').on('click', function() {
-                if (confirm('Are you sure you want to reset all checkboxes?')) {
+                if (confirm('Reset all checked stock records in your branch?')) {
                     $.ajax({
                         url: '/reset-checkbox-stock',
                         type: 'POST',
@@ -462,7 +515,7 @@
                             _token: '{{ csrf_token() }}',
                         },
                         success: function(response) {
-                            alert('All checkbox stocks have been reset successfully!');
+                            alert('Checked stock records have been reset.');
                             location.reload();
                         },
                         error: function(xhr, status, error) {
@@ -472,9 +525,6 @@
                 }
             });
 
-            // Set default to_date to today
-            var dateObj = new Date();
-            document.getElementById('to_date').value = dateObj.toISOString().slice(0, 10);
         });
     </script>
 </body>
