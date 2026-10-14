@@ -35,9 +35,11 @@ $snapshotMatches = static function (TPawnSum $receipt) use ($resolver, $fields):
     if (!$version) return false;
     foreach ($fields as $field) {
         if (abs((float) $receipt->{$field} - (float) $version->{$field}) >= 0.011) {
-            // Imported Silver valid-period snapshots can be zero while the
+            // Imported Silver period snapshots can all be zero while the
             // three six-percent rates still identify the Silver contract.
-            if ($type === 'SILVER' && $field === 'validPeriod'
+            if ($type === 'SILVER'
+                && in_array($field, ['period1', 'period2', 'period3', 'validPeriod'], true)
+                && abs((float) $receipt->{$field}) < 0.011
                 && abs((float) $receipt->rate1 - 6) < 0.011
                 && abs((float) $receipt->rate2 - 6) < 0.011
                 && abs((float) $receipt->rate3 - 6) < 0.011) {
