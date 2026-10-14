@@ -1,532 +1,216 @@
 @php($view = $view ?? 'pending')
+@php($isAdmin = auth()->check() && auth()->user()->isAdmin())
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Stock Report - Professional Dashboard</title>
-
+    <title>Stock check report</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #9eabe6 0%, #e3e3e4 100%);
-            color: white;
-            padding: 30px 40px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 32px;
-            font-weight: 600;
-            margin-bottom: 5px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .header p {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        .admin-notice {
-            background: #fff3cd;
-            padding: 10px 40px;
-            border-bottom: 2px solid #ffc107;
-            text-align: center;
-            color: #856404;
-        }
-
-        .controls-section {
-            background: #f8f9fa;
-            padding: 25px 40px;
-            border-bottom: 2px solid #e9ecef;
-        }
-
-        .status-tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 22px;
-            border-bottom: 2px solid #dee2e6;
-        }
-
-        .status-tab {
-            display: inline-block;
-            padding: 10px 18px;
-            color: #495057;
-            font-weight: 600;
-            text-decoration: none;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-        }
-
-        .status-tab:hover,
-        .status-tab.active {
-            color: #4659c9;
-            border-bottom-color: #667eea;
-        }
-
-        .filter-hint {
-            margin: 0 0 18px;
-            color: #6c757d;
-            font-size: 14px;
-        }
-
-        .filter-form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: flex-end;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #495057;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .form-group input[type="date"] {
-            padding: 10px 15px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .form-group input[type="date"]:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
-        }
-
-        .table-section {
-            padding: 40px;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
-        }
-
-        thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        th {
-            padding: 15px;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 1px;
-            border: none;
-        }
-
-        td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e9ecef;
-            font-size: 14px;
-            color: #495057;
-        }
-
-        tbody tr {
-            transition: all 0.2s ease;
-        }
-
-        tbody tr:hover {
-            background: #f8f9fa;
-            transform: scale(1.01);
-        }
-
-        tbody tr.checked-row {
-            background: #d1ecf1 !important;
-            border-left: 4px solid #17a2b8;
-        }
-
-        tfoot {
-            background: #f8f9fa;
-            font-weight: 600;
-        }
-
-        tfoot td {
-            padding: 15px;
-            border-top: 2px solid #dee2e6;
-            font-size: 15px;
-        }
-
-        .checkbox-cell {
-            text-align: center;
-        }
-
-        .custom-checkbox {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            accent-color: #667eea;
-        }
-
-        .dataTables_wrapper {
-            padding: 20px 0;
-        }
-
-        .dataTables_filter input {
-            padding: 8px 15px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            margin-left: 10px;
-        }
-
-        .dataTables_filter input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .dt-buttons {
-            margin-bottom: 15px;
-        }
-
-        .dt-button {
-            padding: 8px 15px !important;
-            border: none !important;
-            border-radius: 6px !important;
-            background: #667eea !important;
-            color: white !important;
-            margin-right: 8px !important;
-            font-weight: 500 !important;
-            transition: all 0.3s ease !important;
-        }
-
-        .dt-button:hover {
-            background: #5568d3 !important;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3) !important;
-        }
-
+        :root { --ink:#17243b; --muted:#59677a; --line:#dce3eb; --accent:#0b7169; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:#f5f7fa; color:var(--ink); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+        button,input,a { font:inherit; }
+        .report { width:min(100% - 32px,1800px); margin:20px auto 40px; }
+        .topline { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; }
+        h1 { margin:0 0 3px; font-size:23px; line-height:1.2; letter-spacing:-.025em; }
+        .subtitle,.hint,.note { color:var(--muted); margin:0; }
+        .back-link { color:var(--accent); text-decoration:none; font-weight:650; white-space:nowrap; }
+        .back-link:hover { text-decoration:underline; }
+        .panel { background:white; border:1px solid var(--line); border-radius:10px; overflow:hidden; box-shadow:0 2px 12px rgba(19,37,60,.035); }
+        .status-tabs { display:flex; gap:3px; padding:0 18px; border-bottom:1px solid var(--line); }
+        .status-tab { padding:13px 15px 11px; color:var(--muted); text-decoration:none; font-weight:650; border-bottom:3px solid transparent; }
+        .status-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .status-tab:hover { color:var(--ink); }
+        .filter-area { padding:14px 18px; border-bottom:1px solid var(--line); }
+        .hint { font-size:13px; margin-bottom:12px; }
+        .filter-form,.tools,.summary { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+        .date-field,.search-field { display:grid; gap:4px; }
+        .date-field label,.search-field label { font-size:12px; font-weight:700; color:var(--muted); }
+        input[type=date],input[type=search] { min-height:36px; padding:6px 10px; background:white; color:var(--ink); border:1px solid #bfcbd8; border-radius:6px; }
+        input[type=date] { width:158px; }
+        input[type=search] { width:260px; max-width:100%; }
+        input:focus-visible,button:focus-visible,a:focus-visible,th:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+        .button { min-height:36px; border:1px solid #bdc9d5; border-radius:6px; background:white; color:var(--ink); padding:6px 12px; font-weight:600; cursor:pointer; }
+        .button:hover { background:#f1f5f8; }
+        .button-primary { background:var(--accent); border-color:var(--accent); color:white; }
+        .button-primary:hover { background:#095e57; }
+        .button-danger { color:#a02b35; border-color:#e5bdc0; margin-left:auto; }
+        .button-danger:hover { background:#fff3f3; }
+        .tools { padding:12px 18px; border-bottom:1px solid var(--line); }
+        .search-field { margin-right:auto; }
+        .summary { gap:18px; align-items:center; padding:10px 18px; background:#f8fafb; border-bottom:1px solid var(--line); font-size:13px; }
+        .summary strong { font-variant-numeric:tabular-nums; }
+        .table-wrap { width:100%; overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; table-layout:fixed; }
+        th { background:#edf2f5; color:#344458; text-align:left; text-transform:uppercase; letter-spacing:.045em; font-size:11px; font-weight:750; padding:10px 12px; border-bottom:1px solid #ccd7e0; }
+        th.sortable { cursor:pointer; user-select:none; }
+        th.sortable:hover { background:#e4ecf0; }
+        th[aria-sort=ascending]::after { content:" ↑"; color:var(--accent); }
+        th[aria-sort=descending]::after { content:" ↓"; color:var(--accent); }
+        td { padding:11px 12px; vertical-align:top; border-bottom:1px solid #e6ebf0; overflow-wrap:anywhere; }
+        tbody tr:last-child td { border-bottom:0; }
+        tbody tr:hover { background:#f7fbfa; }
+        tbody tr[hidden] { display:none; }
+        .check-col { width:62px; text-align:center; }
+        .stock-col { width:18%; }
+        .customer-col { width:21%; }
+        .contact-col { width:31%; }
+        .receipt-col { width:14%; }
+        .amount-col { width:15%; text-align:right; }
+        .primary-value { display:block; font-weight:700; }
+        .secondary-value { display:block; margin-top:3px; color:var(--muted); font-size:12px; }
+        .field-name { color:#657486; margin-right:4px; }
+        .number { font-variant-numeric:tabular-nums; }
+        .amount-value { white-space:nowrap; }
+        .check-input { width:18px; height:18px; margin:2px 0 0; accent-color:var(--accent); cursor:pointer; }
+        .empty { padding:34px 18px; color:var(--muted); text-align:center; border-top:1px solid var(--line); }
+        .empty[hidden] { display:none; }
+        .footer-note { padding:10px 18px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+        @media(max-width:850px) { .report { width:min(100% - 20px,1800px); margin-top:12px; } .button-danger { margin-left:0; } table { min-width:780px; } }
         @media print {
-            body {
-                background: white;
-            }
-
-            .controls-section, .dt-buttons, .dataTables_filter, .dataTables_length, .dataTables_info, .dataTables_paginate {
-                display: none !important;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .filter-form {
-                flex-direction: column;
-            }
-
-            .form-group {
-                width: 100%;
-            }
-
-            .table-section {
-                padding: 20px;
-                overflow-x: auto;
-            }
+            @page { size:A4 landscape; margin:9mm; }
+            body { background:white; font-size:9px; }
+            .report { width:100%; margin:0; }
+            .panel { border:0; box-shadow:none; }
+            .back-link,.status-tabs,.filter-area,.tools,.footer-note,.check-col { display:none !important; }
+            .topline { margin-bottom:7px; } h1 { font-size:17px; }
+            .summary { padding:5px 0; background:white; }
+            .table-wrap { overflow:visible; } table { min-width:0; }
+            th,td { padding:5px 6px; } th { background:#e9eef2 !important; print-color-adjust:exact; }
+            tr { break-inside:avoid; }
         }
     </style>
-
-    <!-- Include jQuery and DataTables CSS and JS libraries -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/1.7.1/css/buttons.dataTables.min.css">
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/1.7.1/js/dataTables.buttons.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/1.7.1/js/buttons.html5.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/buttons/1.7.1/js/buttons.print.min.js"></script>
 </head>
-
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Stock Report Management</h1>
-            <p>Professional Receipt Tracking System</p>
-        </div>
-
-        @if(auth()->check() && auth()->user()->isAdmin())
-        <div class="admin-notice">
-            <strong>🔒 Admin View</strong> - Customer records visible
-        </div>
-        @endif
-
-        <div class="controls-section">
-            <nav class="status-tabs" aria-label="Stock check status">
-                <a class="status-tab {{ $view === 'pending' ? 'active' : '' }}"
-                    href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'pending'])) }}"
-                    @if($view === 'pending') aria-current="page" @endif>To Check</a>
-                <a class="status-tab {{ $view === 'checked' ? 'active' : '' }}"
-                    href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'checked'])) }}"
-                    @if($view === 'checked') aria-current="page" @endif>Checked</a>
-            </nav>
-            <p class="filter-hint">
-                @if($view === 'checked')
-                    {{ request()->filled('from_date') || request()->filled('to_date')
-                        ? 'Showing checked records for the selected dates.'
-                        : 'Showing all checked records. Use dates to narrow this list.' }}
-                @else
-                    {{ request()->filled('from_date') || request()->filled('to_date')
-                        ? 'Showing records awaiting a check for the selected dates.'
-                        : 'Choose a date range to see records awaiting a check.' }}
-                @endif
-            </p>
+<main class="report">
+    <div class="topline"><div><h1>Stock check report</h1><p class="subtitle">{{ $view === 'checked' ? 'Checked stock' : 'Stock awaiting a check' }}</p></div><a class="back-link" href="{{ route('home') }}">Back to dashboard</a></div>
+    <section class="panel" aria-label="Stock check records">
+        <nav class="status-tabs" aria-label="Stock check status">
+            <a class="status-tab {{ $view === 'pending' ? 'active' : '' }}" href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'pending'])) }}" @if($view === 'pending') aria-current="page" @endif>To Check</a>
+            <a class="status-tab {{ $view === 'checked' ? 'active' : '' }}" href="{{ route('StockCheckreport', array_merge(request()->only(['from_date', 'to_date']), ['view' => 'checked'])) }}" @if($view === 'checked') aria-current="page" @endif>Checked</a>
+        </nav>
+        <div class="filter-area">
+            <p class="hint">@if($view === 'checked'){{ request()->filled('from_date') || request()->filled('to_date') ? 'Showing checked records for the selected dates.' : 'Showing all checked records. Use dates to narrow this list.' }}@else{{ request()->filled('from_date') || request()->filled('to_date') ? 'Showing records awaiting a check for the selected dates.' : 'Choose a date range to see records awaiting a check.' }}@endif</p>
             <form action="" method="get" class="filter-form">
                 <input type="hidden" name="view" value="{{ $view }}">
-                <div class="form-group">
-                    <label for="from_date">From Date</label>
-                    <input type="date" name="from_date" id="from_date" value="{{ request('from_date') }}">
-                </div>
-
-                <div class="form-group">
-                    <label for="to_date">To Date</label>
-                    <input type="date" name="to_date" id="to_date" value="{{ request('to_date') }}">
-                </div>
-
-                <button type="submit" class="btn btn-primary">🔍 Search</button>
-                <button type="button" onclick="printTablefun()" class="btn btn-secondary">🖨️ Print</button>
-                <button type="button" class="btn btn-success"><a href="{{ route('home') }}" style="color: white; text-decoration: none;">🏠 Back</a></button>
-                @if($view === 'checked')
-                <button type="button" id="resetCheckboxStock" class="btn btn-danger">🔄 Reset All Checked in Branch</button>
-                @endif
+                <div class="date-field"><label for="from_date">From date</label><input type="date" name="from_date" id="from_date" value="{{ request('from_date') }}"></div>
+                <div class="date-field"><label for="to_date">To date</label><input type="date" name="to_date" id="to_date" value="{{ request('to_date') }}"></div>
+                <button type="submit" class="button button-primary">Apply dates</button>
+                @if($view === 'checked')<button type="button" id="resetCheckboxStock" class="button button-danger">Reset All Checked in Branch</button>@endif
             </form>
         </div>
-
-        <div class="table-section">
-            <table class="table" id="t_pawn_sums">
-                <thead>
-                    <tr>
-                        <th>Stock Number</th>
-                        @if(auth()->user()->isAdmin())
-                        <th>Receipt Number</th>
-                        <th>Ticket Number</th>
-                        @endif
-                        <th>Check</th>
-                        @if(auth()->user()->isAdmin())
-                        <th>Customer NIC</th>
-                        <th>Customer Name</th>
-                        <th>Customer Address</th>
-                        <th>Customer Phone</th>
-                        @endif
-                        <th>Receipt Type</th>
-                        <th>Receipt Date</th>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
+        <div class="tools">
+            <div class="search-field"><label for="report-search">Search these records</label><input id="report-search" type="search" placeholder="Stock, customer, receipt…" autocomplete="off"></div>
+            <button type="button" class="button" id="copy-records">Copy</button>
+            <button type="button" class="button" id="csv-records">Download CSV</button>
+            <button type="button" class="button" id="print-records">Print / PDF</button>
+        </div>
+        <div class="summary" aria-live="polite"><span><strong id="visible-count">{{ $pawnCount }}</strong> records</span><span>Total amount: <strong id="visible-amount">{{ $amount }}</strong></span><span class="note" id="filter-note">All matching records shown on this page</span></div>
+        <div class="table-wrap">
+            <table id="t_pawn_sums">
+                <thead><tr>
+                    <th class="check-col" scope="col">Check</th>
+                    <th class="stock-col sortable" scope="col" data-sort="stock" tabindex="0" aria-sort="none">Stock / receipt</th>
+                    @if($isAdmin)<th class="customer-col sortable" scope="col" data-sort="customer" tabindex="0" aria-sort="none">Customer</th><th class="contact-col" scope="col">Contact</th>@endif
+                    <th class="receipt-col sortable" scope="col" data-sort="date" tabindex="0" aria-sort="none">Receipt</th>
+                    <th class="amount-col sortable" scope="col" data-sort="amount" tabindex="0" aria-sort="none">Amount</th>
+                </tr></thead>
                 <tbody>
-                    @foreach ($recipts as $key => $receipt)
-                        <tr class="{{ $receipt->checkbox_stock == 1 ? 'checked-row' : '' }}">
-                            <td>{{ $receipt->Invoice_Number ?: '—' }}</td>
-                            @if(auth()->user()->isAdmin())
-                            <td>{{ $receipt->Receipt_Number }}</td>
-                            <td>{{ $receipt->Ticket_Number ?: '—' }}</td>
-                            @endif
-                            <td class="checkbox-cell">
-                                @if($receipt instanceof \App\Models\TPawnSum)
-                                <input
-                                    class="custom-checkbox save-checkbox"
-                                    type="checkbox"
-                                    data-record-id="{{ $receipt->id }}"
-                                    id="flexCheckDefault{{ $key }}"
-                                    {{ $receipt->checkbox_stock == 1 ? 'checked' : '' }}
-                                >
-                                @else
-                                <span title="Opening stock cannot be checked here">—</span>
-                                @endif
-                            </td>
-                            @if(auth()->user()->isAdmin())
-                            <td>{{ $receipt->Customer_NIC }}</td>
-                            <td>{{ $receipt->Customer_Name }}</td>
-                            <td>{{ $receipt->Customer_Address }}</td>
-                            <td>{{ $receipt->Customer_Phone }}</td>
-                            @endif
-                            <td>{{ $receipt->Receipt_Type }}</td>
-                            <td>{{ $receipt->Receipt_Date }}</td>
-                            <td><strong>{{ $receipt->Amount }}</strong></td>
-                        </tr>
-                    @endforeach
-                </tbody>
-
-                <tfoot>
-                    <tr>
-                        <td colspan="{{ auth()->user()->isAdmin() ? '4' : '2' }}"><strong>📋 Total Count: {{ $pawnCount }}</strong></td>
-                        <td colspan="{{ auth()->user()->isAdmin() ? '6' : '2' }}" style="text-align: right;"><strong>Grand Total:</strong></td>
-                        <td><strong>{{ $amount }}</strong></td>
+                @foreach($recipts as $receipt)
+                    @php($receiptDate = $receipt->Receipt_Date ? substr((string) $receipt->Receipt_Date, 0, 10) : '')
+                    <tr class="record-row" data-stock="{{ $receipt->Invoice_Number }}" data-date="{{ $receiptDate }}" data-type="{{ $receipt->Receipt_Type }}" data-amount="{{ $receipt->Amount }}" @if($isAdmin) data-receipt="{{ $receipt->Receipt_Number }}" data-ticket="{{ $receipt->Ticket_Number }}" data-customer="{{ $receipt->Customer_Name }}" data-nic="{{ $receipt->Customer_NIC }}" data-address="{{ $receipt->Customer_Address }}" data-phone="{{ $receipt->Customer_Phone }}" @endif>
+                        <td class="check-col">@if($receipt instanceof \App\Models\TPawnSum)<input class="check-input save-checkbox" type="checkbox" data-record-id="{{ $receipt->id }}" aria-label="{{ $receipt->checkbox_stock == 1 ? 'Mark stock ' . $receipt->Invoice_Number . ' unchecked' : 'Mark stock ' . $receipt->Invoice_Number . ' checked' }}" {{ $receipt->checkbox_stock == 1 ? 'checked' : '' }}>@else<span title="Opening stock cannot be checked here">—</span>@endif</td>
+                        <td><span class="primary-value number">{{ $receipt->Invoice_Number ?: '—' }}</span>@if($isAdmin)<span class="secondary-value"><span class="field-name">Receipt</span><span class="number">{{ $receipt->Receipt_Number ?: '—' }}</span> <span class="field-name">· Ticket</span><span class="number">{{ $receipt->Ticket_Number ?: '—' }}</span></span>@endif</td>
+                        @if($isAdmin)<td><span class="primary-value">{{ $receipt->Customer_Name ?: '—' }}</span><span class="secondary-value"><span class="field-name">NIC</span>{{ $receipt->Customer_NIC ?: '—' }}</span></td><td><span class="primary-value">{{ $receipt->Customer_Address ?: '—' }}</span><span class="secondary-value"><span class="field-name">Phone</span><span class="number">{{ $receipt->Customer_Phone ?: '—' }}</span></span></td>@endif
+                        <td><span class="primary-value number">{{ $receiptDate ?: '—' }}</span><span class="secondary-value"><span class="field-name">Type</span>{{ $receipt->Receipt_Type ?: '—' }}</span></td>
+                        <td class="amount-col"><span class="primary-value amount-value number">{{ number_format((float) $receipt->Amount, 2) }}</span></td>
                     </tr>
-                </tfoot>
+                @endforeach
+                </tbody>
             </table>
         </div>
-    </div>
-
-    <script>
-        function printTablefun() {
-            var divToPrint = document.getElementById("t_pawn_sums");
-            var newWin = window.open("");
-            newWin.document.write('<html><head><title>Stock Report</title>');
-            newWin.document.write('<style>table{border-collapse:collapse;width:100%;}th,td{border:1px solid #000;padding:8px;}th{background:#667eea;color:white;}</style>');
-            newWin.document.write('</head><body>');
-            newWin.document.write(divToPrint.outerHTML);
-            newWin.document.write('</body></html>');
-            newWin.document.close();
-            newWin.print();
-        }
-
-        $(document).ready(function() {
-            $('#t_pawn_sums').DataTable({
-                dom: 'Bfrtip',
-                buttons: [
-                    'copy', 'excel', 'csv', 'pdf', 'print'
-                ],
-                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
-                pageLength: -1
-            });
-
-            // Checkbox change handler
-            $('.save-checkbox').on('change', function() {
-                var checkbox = $(this);
-                var isChecked = checkbox.is(':checked') ? 1 : 0;
-                var recordId = checkbox.data('record-id');
-                checkbox.prop('disabled', true);
-
-                // Send the data via AJAX
-                $.ajax({
-                    url: '/update-checkbox',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}',
-                        record_id: recordId,
-                        checked: isChecked
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            location.reload();
-                            return;
-                        }
-                        checkbox.prop('checked', !isChecked).prop('disabled', false);
-                        alert('Could not update this stock record. Please try again.');
-                    },
-                    error: function() {
-                        checkbox.prop('checked', !isChecked).prop('disabled', false);
-                        alert('Could not update this stock record. Please try again.');
-                    }
-                });
-            });
-
-            // Reset all checkboxes
-            $('#resetCheckboxStock').on('click', function() {
-                if (confirm('Reset all checked stock records in your branch?')) {
-                    $.ajax({
-                        url: '/reset-checkbox-stock',
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                        },
-                        success: function(response) {
-                            alert('Checked stock records have been reset.');
-                            location.reload();
-                        },
-                        error: function(xhr, status, error) {
-                            alert('Error resetting checkbox stock. Please try again.');
-                        }
-                    });
-                }
-            });
-
+        <div class="empty" id="empty-message" @if($pawnCount > 0) hidden @endif>{{ $view === 'pending' && !request()->filled('from_date') && !request()->filled('to_date') ? 'Select a date range to load stock awaiting a check.' : 'No records match this view or search.' }}</div>
+        <div class="footer-note">{{ $view === 'checked' ? 'Uncheck a record to move it back to To Check.' : 'Checking a record moves it to the Checked tab.' }} Opening stock entries cannot be checked here.</div>
+    </section>
+</main>
+<script>
+(function () {
+    const body = document.querySelector('#t_pawn_sums tbody');
+    const rows = Array.from(body.querySelectorAll('.record-row'));
+    const search = document.getElementById('report-search');
+    const admin = @json($isAdmin);
+    const token = @json(csrf_token());
+    const headers = admin ? ['Stock Number','Receipt Number','Ticket Number','Customer NIC','Customer Name','Customer Address','Customer Phone','Receipt Type','Receipt Date','Amount'] : ['Stock Number','Receipt Type','Receipt Date','Amount'];
+    const visibleRows = () => rows.filter(row => !row.hidden);
+    function updateSummary() {
+        const visible = visibleRows();
+        const total = visible.reduce((sum, row) => sum + (Number(row.dataset.amount) || 0), 0);
+        document.getElementById('visible-count').textContent = visible.length.toLocaleString('en-US');
+        document.getElementById('visible-amount').textContent = total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+        document.getElementById('filter-note').textContent = search.value.trim() ? 'Filtered from ' + rows.length.toLocaleString('en-US') + ' records' : 'All matching records shown on this page';
+        document.getElementById('empty-message').hidden = visible.length !== 0;
+    }
+    search.addEventListener('input', () => {
+        const term = search.value.trim().toLocaleLowerCase();
+        rows.forEach(row => { row.hidden = !!term && !row.textContent.toLocaleLowerCase().includes(term); });
+        updateSummary();
+    });
+    function sortBy(th) {
+        const key = th.dataset.sort;
+        const direction = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+        document.querySelectorAll('th.sortable').forEach(header => header.setAttribute('aria-sort','none'));
+        th.setAttribute('aria-sort', direction);
+        const sign = direction === 'ascending' ? 1 : -1;
+        rows.sort((a,b) => key === 'amount' ? (Number(a.dataset.amount) - Number(b.dataset.amount)) * sign : String(a.dataset[key] || '').localeCompare(String(b.dataset[key] || ''),undefined,{numeric:true,sensitivity:'base'}) * sign);
+        rows.forEach(row => body.appendChild(row));
+    }
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => sortBy(th));
+        th.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); sortBy(th); } });
+    });
+    function exportRows() {
+        return visibleRows().map(row => {
+            const d = row.dataset;
+            return admin ? [d.stock,d.receipt,d.ticket,d.nic,d.customer,d.address,d.phone,d.type,d.date,d.amount] : [d.stock,d.type,d.date,d.amount];
         });
-    </script>
+    }
+    const safeCell = value => /^[=+\-@\t\r]/.test(String(value || '')) ? "'" + value : String(value || '');
+    const csvCell = value => '"' + safeCell(value).replace(/"/g,'""') + '"';
+    document.getElementById('csv-records').addEventListener('click', () => {
+        const csv = [headers,...exportRows()].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\ufeff',csv],{type:'text/csv;charset=utf-8'}));
+        const link = document.createElement('a');
+        link.href = url; link.download = 'stock-check-{{ $view }}-{{ now()->format('Y-m-d') }}.csv';
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url),1000);
+    });
+    document.getElementById('copy-records').addEventListener('click', async function () {
+        const value = [headers,...exportRows()].map(row => row.map(safeCell).join('\t')).join('\n');
+        try { await navigator.clipboard.writeText(value); this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy',1500); }
+        catch (_) { alert('Copy is unavailable in this browser. Use Download CSV instead.'); }
+    });
+    document.getElementById('print-records').addEventListener('click', () => window.print());
+    document.querySelectorAll('.save-checkbox').forEach(checkbox => checkbox.addEventListener('change', async function () {
+        const checked = this.checked ? 1 : 0;
+        this.disabled = true;
+        try {
+            const response = await fetch('/update-checkbox',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':token,'Accept':'application/json'},body:JSON.stringify({record_id:this.dataset.recordId,checked})});
+            if (!response.ok || !(await response.json()).success) throw new Error('Update failed');
+            location.reload();
+        } catch (_) { this.checked = !checked; this.disabled = false; alert('Could not update this stock record. Please try again.'); }
+    }));
+    const reset = document.getElementById('resetCheckboxStock');
+    if (reset) reset.addEventListener('click', async function () {
+        if (!confirm('Reset all checked stock records in your branch?')) return;
+        this.disabled = true;
+        try {
+            const response = await fetch('/reset-checkbox-stock',{method:'POST',headers:{'X-CSRF-TOKEN':token,'Accept':'application/json'}});
+            if (!response.ok || !(await response.json()).success) throw new Error('Reset failed');
+            location.reload();
+        } catch (_) { this.disabled = false; alert('Could not reset checked records. Please try again.'); }
+    });
+})();
+</script>
 </body>
-
 </html>

@@ -408,17 +408,16 @@ class ReceiptNumberVisibilityTest extends TestCase
         $this->actingAs($this->makeUser('Cashier'));
         $cashierHtml = view('StockCheckreport', $data)->render();
         $this->assertStringContainsString('STK500', $cashierHtml);
-        $this->assertStringNotContainsString('<th>Receipt Number</th>', $cashierHtml);
-        $this->assertStringNotContainsString('<td>500</td>', $cashierHtml);
-        $this->assertStringNotContainsString('data-receipt_number=', $cashierHtml);
+        $this->assertStringNotContainsString('data-receipt=', $cashierHtml);
+        $this->assertStringNotContainsString('data-customer=', $cashierHtml);
         $this->assertStringContainsString('data-record-id="42"', $cashierHtml);
         $this->assertStringNotContainsString('TKT500', $cashierHtml);
 
         $this->actingAs($this->makeUser('Admin'));
         $adminHtml = view('StockCheckreport', $data)->render();
         $this->assertStringContainsString('STK500', $adminHtml);
-        $this->assertStringContainsString('<th>Receipt Number</th>', $adminHtml);
-        $this->assertStringContainsString('<td>500</td>', $adminHtml);
+        $this->assertStringContainsString('data-receipt="500"', $adminHtml);
+        $this->assertStringContainsString('Receipt</span><span class="number">500', $adminHtml);
         $this->assertStringContainsString('TKT500', $adminHtml);
     }
 }
