@@ -58,6 +58,17 @@ class ReceiptPenaltyScheduleTest extends TestCase
         ));
     }
 
+    public function test_reminder_list_excludes_third_letters_before_later_payments(): void
+    {
+        \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
+        $query = (new ReceiptPenaltySchedule())->dueReminders(TPawnSum::query());
+        $sql = $query->toSql();
+
+        $this->assertStringContainsString('NOT EXISTS', $sql);
+        $this->assertStringContainsString("t.trans_type IN ('PART_PAYMENT', 'REPAWNING')", $sql);
+        $this->assertStringContainsString('DATE(t.dDate) > DATE(t_pawn_sums.letter_3_date)', $sql);
+    }
+
     public function test_late_printing_starts_each_following_interval(): void
     {
         $receipt = new TPawnSum([

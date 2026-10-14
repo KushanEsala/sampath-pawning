@@ -83,11 +83,20 @@ class ReceiptPenaltySchedule
         $asOf = ($date ?? today())->copy()->startOfDay();
         $cycleStart = $receipt->RePawning_date ?: $receipt->Pawn_Date ?: $receipt->Receipt_Date;
 
-        return !$receipt->IsRedeemed && !$receipt->isForfeit && $due
-            && (!$cycleStart || Carbon::parse($receipt->letter_3_date)->startOfDay()
-                ->gte(Carbon::parse($cycleStart)->startOfDay()))
-            && $this->expiryDate($receipt)->lte($asOf)
-            && $due->lte($asOf);
+        if ($receipt->IsRedeemed || $receipt->isForfeit || !$due
+            || ($cycleStart && Carbon::parse($receipt->letter_3_date)->startOfDay()
+                ->lt(Carbon::parse($cycleStart)->startOfDay()))
+            || $this->expiryDate($receipt)->gt($asOf)
+            || $due->gt($asOf)) {
+            return false;
+        }
+
+        return !$receipt->exists || !DB::table('t_pawn_trans')
+            ->whereRaw('BINARY BC = BINARY ?', [$receipt->BC])
+            ->whereRaw('BINARY code = BINARY ?', [$receipt->Receipt_Number])
+            ->whereIn('trans_type', ['PART_PAYMENT', 'REPAWNING'])
+            ->whereDate('dDate', '>', Carbon::parse($receipt->letter_3_date)->toDateString())
+            ->exists();
     }
 
     public function dueReminders(Builder $query): Builder
@@ -96,7 +105,11 @@ class ReceiptPenaltySchedule
             ->whereRaw($this->reminderDueSql().' <= ?', [today()->toDateString()])
             ->whereRaw($this->expirySql().' <= ?', [today()->toDateString()])
             ->whereRaw('(COALESCE(RePawning_date, Pawn_Date, Receipt_Date) IS NULL '
-                .'OR DATE(letter_3_date) >= DATE(COALESCE(RePawning_date, Pawn_Date, Receipt_Date)))');
+                .'OR DATE(letter_3_date) >= DATE(COALESCE(RePawning_date, Pawn_Date, Receipt_Date)))')
+            ->whereRaw('NOT EXISTS (SELECT 1 FROM t_pawn_trans t WHERE BINARY t.BC = BINARY t_pawn_sums.BC '
+                .'AND BINARY t.code = BINARY t_pawn_sums.Receipt_Number '
+                ."AND t.trans_type IN ('PART_PAYMENT', 'REPAWNING') "
+                .'AND DATE(t.dDate) > DATE(t_pawn_sums.letter_3_date))');
     }
 
     public function letterDueSql(int $letter, ?string $latestCycleDateSql = null): string
