@@ -233,6 +233,28 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertSame(3, $resolve->invoke($controller, $receipt, $schedule));
     }
 
+    public function test_letter_list_marks_letters_before_latest_payment_for_cycle_review(): void
+    {
+        $receipt = new TPawnSum([
+            'Pawn_Date' => '2026-01-01',
+            'is_letter_1' => 1,
+            'is_letter_2' => 1,
+            'letter_1_date' => '2026-03-01',
+            'letter_2_date' => '2026-03-22',
+        ]);
+        $receipt->forceFill(['latest_letter_cycle_date' => '2026-04-01']);
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $check = new \ReflectionMethod($controller, 'hasPriorCycleLetters');
+        $check->setAccessible(true);
+
+        $this->assertTrue($check->invoke($controller, $receipt));
+        $receipt->letter_3_date = '2026-04-02';
+        $this->assertTrue($check->invoke($controller, $receipt));
+        $receipt->is_letter_1 = false;
+        $receipt->is_letter_2 = false;
+        $this->assertFalse($check->invoke($controller, $receipt));
+    }
+
     public function test_expired_receipt_can_print_even_with_an_old_saved_first_interval(): void
     {
         Carbon::setTestNow('2026-10-07');

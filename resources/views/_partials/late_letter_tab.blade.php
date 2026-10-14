@@ -92,7 +92,10 @@
 
                 {{-- Action --}}
                 <td class="text-center">
-                    @if($r->{'is_letter_'.$letter_no})
+                    @if($r->letter_needs_review)
+                        <span class="badge bg-danger">Cycle review</span>
+                        <small class="d-block text-muted">Old letter dates precede the current payment cycle</small>
+                    @elseif($r->{'is_letter_'.$letter_no})
                         <span class="badge bg-secondary">Printed</span>
                         <small class="d-block text-muted">{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</small>
                     @elseif(!$r->letter_is_due)

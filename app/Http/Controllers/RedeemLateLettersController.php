@@ -115,6 +115,9 @@ class RedeemLateLettersController extends Controller
             } elseif ($schedule->expiryDate($searched)->gt(today())) {
                 $searchNotice = 'This receipt has not expired; its current expiry date is '
                     .$schedule->expiryDate($searched)->toDateString().'.';
+            } elseif ($this->hasPriorCycleLetters($searched)) {
+                $searchNotice = 'This receipt still has letters from a previous payment cycle. '
+                    .'Review its payment and postage history before issuing another letter.';
             } elseif ($searched->is_letter_3 && $schedule->reminderIsDue($searched)) {
                 $searchNotice = 'The third letter is complete. This receipt is now in the Forfeit Reminder stage.';
                 $searchNoticeLink = route('forfeit.reminders.index', ['receipt_number' => $searched->Receipt_Number]);
@@ -330,7 +333,8 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         $this->applyStageFilter($baseQuery, $schedule, $tabLetter, self::LATEST_CYCLE_DATE_SQL);
         $this->applyPrintedVisibility($baseQuery, $tabLetter, $showPrinted);
 
-        $baseQuery->selectRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' AS letter_effective_expiry_date');
+        $baseQuery->selectRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' AS letter_effective_expiry_date')
+            ->addSelect('latest_letter_cycle.dDate AS latest_letter_cycle_date');
         $paginated = $baseQuery
             ->orderByRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' ASC')
             ->orderBy('t_pawn_sums.id')
@@ -342,13 +346,17 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         $nics = $receipts->pluck('Customer_NIC')->filter()->unique();
         $customers = Customer::where('BC', $branchCode)->whereIn('NIC', $nics)->get()->keyBy('NIC');
 
-        $receipts->each(function (TPawnSum $receipt) use ($calculator, $schedule, $customers, $tabLetter) {
+        $letterService = app(ArrearsLetterService::class);
+        $receipts->each(function (TPawnSum $receipt) use ($calculator, $schedule, $letterService, $customers, $tabLetter) {
             $this->applyCurrentCustomerContact($receipt, $customers->get($receipt->Customer_NIC));
             $receipt->setAttribute('financial_breakdown', $calculator->calculate($receipt));
             $receipt->setAttribute('next_letter_no', $tabLetter);
             $dueDate = $schedule->letterDueDate($receipt, $tabLetter);
             $receipt->setAttribute('next_letter_due_date', $dueDate?->toDateString());
-            $receipt->setAttribute('letter_is_due', $dueDate?->lte(today()) ?? false);
+            $needsReview = $this->hasPriorCycleLetters($receipt);
+            $receipt->setAttribute('letter_needs_review', $needsReview);
+            $receipt->setAttribute('letter_is_due', !$needsReview
+                && $letterService->isEligible($receipt, $tabLetter));
             $receipt->setAttribute('next_stage_due_date', $tabLetter < 3
                 ? $schedule->letterDueDate($receipt, $tabLetter + 1)?->toDateString()
                 : optional($schedule->reminderDueDate($receipt))->toDateString());
@@ -357,6 +365,30 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
 
         $paginated->setCollection($receipts);
         return $paginated;
+    }
+
+    private function hasPriorCycleLetters(TPawnSum $receipt): bool
+    {
+        if (!$receipt->is_letter_1 && !$receipt->is_letter_2 && !$receipt->is_letter_3) return false;
+
+        $attributes = $receipt->getAttributes();
+        $latestCycleDate = array_key_exists('latest_letter_cycle_date', $attributes)
+            ? $receipt->latest_letter_cycle_date
+            : DB::table('t_pawn_trans')
+                ->whereRaw('BINARY BC = BINARY ?', [$receipt->BC])
+                ->whereRaw('BINARY code = BINARY ?', [$receipt->Receipt_Number])
+                ->whereIn('trans_type', ['PART_PAYMENT', 'REPAWNING'])
+                ->orderByDesc('dDate')->orderByDesc('id')->value('dDate');
+        $cycleStart = collect([$latestCycleDate, $receipt->RePawning_date, $receipt->Pawn_Date, $receipt->Receipt_Date])
+            ->filter()->map(fn ($date) => Carbon::parse($date)->startOfDay())->sort()->last();
+        if (!$cycleStart) return false;
+
+        foreach ([1, 2, 3] as $number) {
+            $printedAt = $receipt->{'letter_'.$number.'_date'};
+            if ($receipt->{'is_letter_'.$number} && $printedAt && $printedAt->lt($cycleStart)) return true;
+        }
+
+        return false;
     }
 
     private function lateLettersBaseQuery(string $branchCode)
