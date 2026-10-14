@@ -29,6 +29,9 @@ class StockDetailsCheckController extends Controller
         $query1 = TPawnSum::whereBetween('Receipt_Date', [$fromDate, $toDate])
                             ->where('IsRedeemed', 0)
                             ->where('isForfeit', 0)
+                            ->where(function ($query) {
+                                $query->where('checkbox_stock', 0)->orWhereNull('checkbox_stock');
+                            })
                             ->where('BC',$branch_code)
                             ->get();
                             
@@ -39,27 +42,6 @@ class StockDetailsCheckController extends Controller
                             ->get();
         
         $query = $query1->concat($query2);
-                            
-    
-        if ($fromDate && $toDate) {
-            
-        $query1 = TPawnSum::whereBetween('Receipt_Date', [$fromDate, $toDate])
-                            ->where('IsRedeemed', 0)
-                            ->where('isForfeit', 0)
-                            ->where('BC',$branch_code)
-                            ->get();
-                            
-        $query2 = TOpeningPawnSum::whereBetween('Receipt_Date', [$fromDate, $toDate])
-                            ->where('IsRedeemed', 0)
-                            ->where('isForfeit', 0)
-                            ->where('BC',$branch_code)
-                            ->get();
-        
-        $query = $query1->concat($query2);
-       
-    
-    
-        }
     
         $total = $query->sum('Amount');
         $totalAmount = number_format($total, 2);

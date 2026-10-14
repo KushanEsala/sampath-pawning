@@ -426,13 +426,7 @@
                 var checkbox = $(this);
                 var isChecked = checkbox.is(':checked') ? 1 : 0;
                 var recordId = checkbox.data('record-id');
-
-                // Toggle row class
-                if (isChecked) {
-                    checkbox.closest('tr').addClass('checked-row');
-                } else {
-                    checkbox.closest('tr').removeClass('checked-row');
-                }
+                checkbox.prop('disabled', true);
 
                 // Send the data via AJAX
                 $.ajax({
@@ -443,6 +437,18 @@
                         record_id: recordId,
                         checked: isChecked
                     },
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                            return;
+                        }
+                        checkbox.prop('checked', !isChecked).prop('disabled', false);
+                        alert('Could not update this stock record. Please try again.');
+                    },
+                    error: function() {
+                        checkbox.prop('checked', !isChecked).prop('disabled', false);
+                        alert('Could not update this stock record. Please try again.');
+                    }
                 });
             });
 
