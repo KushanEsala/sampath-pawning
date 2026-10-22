@@ -116,8 +116,10 @@ class RedeemLateLettersController extends Controller
                 $searchNotice = 'This receipt has not expired; its current expiry date is '
                     .$schedule->expiryDate($searched)->toDateString().'.';
             } elseif ($this->hasPriorCycleLetters($searched)) {
-                $searchNotice = 'This receipt still has letters from a previous payment cycle. '
-                    .'Review its payment and postage history before issuing another letter.';
+                $activeTab = 1;
+                $showPrinted = true;
+                $searchNotice = 'This receipt has expired again and is listed in the first-letter tab. '
+                    .'Its old letter and postage history needs review before a new letter can be issued.';
             } elseif ($searched->is_letter_3 && $schedule->reminderIsDue($searched)) {
                 $searchNotice = 'The third letter is complete. This receipt is now in the Forfeit Reminder stage.';
                 $searchNoticeLink = route('forfeit.reminders.index', ['receipt_number' => $searched->Receipt_Number]);
@@ -141,9 +143,9 @@ class RedeemLateLettersController extends Controller
         $baseCount = $this->lateLettersBaseQuery($branch_code);
         if ($request->filled('receipt_type') && !$request->filled('receipt_number')) { $this->applyTypeFilter($baseCount, $request->receipt_type); }
         if ($request->filled('receipt_number')) { $baseCount->where('Receipt_Number', $request->receipt_number); }
-        $count_1st = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 1, self::LATEST_CYCLE_DATE_SQL), 1, $showPrinted)->count();
-        $count_2nd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 2, self::LATEST_CYCLE_DATE_SQL), 2, $showPrinted)->count();
-        $count_3rd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 3, self::LATEST_CYCLE_DATE_SQL), 3, $showPrinted)->count();
+        $count_1st = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 1, self::LATEST_CYCLE_DATE_SQL), 1, $showPrinted, self::LATEST_CYCLE_DATE_SQL)->count();
+        $count_2nd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 2, self::LATEST_CYCLE_DATE_SQL), 2, $showPrinted, self::LATEST_CYCLE_DATE_SQL)->count();
+        $count_3rd = $this->applyPrintedVisibility($this->applyStageFilter(clone $baseCount, $schedule, 3, self::LATEST_CYCLE_DATE_SQL), 3, $showPrinted, self::LATEST_CYCLE_DATE_SQL)->count();
 
         $companyData = Company::latest()->paginate(1);
         $receiptType = $resolver->getActiveTypes();
@@ -331,7 +333,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         }
 
         $this->applyStageFilter($baseQuery, $schedule, $tabLetter, self::LATEST_CYCLE_DATE_SQL);
-        $this->applyPrintedVisibility($baseQuery, $tabLetter, $showPrinted);
+        $this->applyPrintedVisibility($baseQuery, $tabLetter, $showPrinted, self::LATEST_CYCLE_DATE_SQL);
 
         $baseQuery->selectRaw($schedule->expirySql(self::LATEST_CYCLE_DATE_SQL).' AS letter_effective_expiry_date')
             ->addSelect('latest_letter_cycle.dDate AS latest_letter_cycle_date');
@@ -374,11 +376,11 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         $attributes = $receipt->getAttributes();
         $latestCycleDate = array_key_exists('latest_letter_cycle_date', $attributes)
             ? $receipt->latest_letter_cycle_date
-            : DB::table('t_pawn_trans')
+            : ($receipt->BC && $receipt->Receipt_Number ? DB::table('t_pawn_trans')
                 ->whereRaw('BINARY BC = BINARY ?', [$receipt->BC])
                 ->whereRaw('BINARY code = BINARY ?', [$receipt->Receipt_Number])
                 ->whereIn('trans_type', ['PART_PAYMENT', 'REPAWNING'])
-                ->orderByDesc('dDate')->orderByDesc('id')->value('dDate');
+                ->orderByDesc('dDate')->orderByDesc('id')->value('dDate') : null);
         $cycleStart = collect([$latestCycleDate, $receipt->RePawning_date, $receipt->Pawn_Date, $receipt->Receipt_Date])
             ->filter()->map(fn ($date) => Carbon::parse($date)->startOfDay())->sort()->last();
         if (!$cycleStart) return false;
@@ -418,6 +420,7 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
 
     private function currentLetterTab(TPawnSum $receipt, \App\Services\ReceiptPenaltySchedule $schedule): int
     {
+        if ($this->hasPriorCycleLetters($receipt)) return 1;
         if ($receipt->is_letter_3) return 3;
         if ($receipt->is_letter_2 && ($schedule->letterDueDate($receipt, 3)?->lte(today()) ?? false)) return 3;
         if ($receipt->is_letter_1 && ($schedule->letterDueDate($receipt, 2)?->lte(today()) ?? false)) return 2;
@@ -427,12 +430,29 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
     private function applyStageFilter($query, \App\Services\ReceiptPenaltySchedule $schedule, int $letter, ?string $latestCycleDateSql = null)
     {
         $today = today()->toDateString();
+        $priorCycleLetters = $this->priorCycleLettersSql($latestCycleDateSql);
         // Expired receipts enter the first tab and become printable on expiry.
         // Later stages remain due-date gated and require the previous letter.
-        $stageDate = $letter === 1
-            ? $schedule->expirySql($latestCycleDateSql)
-            : $schedule->letterDueSql($letter, $latestCycleDateSql);
-        $query->whereRaw($stageDate.' <= ?', [$today]);
+        // An old letter's due date must never keep a renewed receipt in tab 2/3.
+        $query->whereRaw($schedule->expirySql($latestCycleDateSql).' <= ?', [$today]);
+        if ($letter === 1) {
+            $nextDue = $schedule->letterDueSql(2, $latestCycleDateSql);
+            return $query->where(function ($stage) use ($priorCycleLetters, $nextDue, $today) {
+                $stage->whereRaw($priorCycleLetters)
+                    ->orWhere(function ($current) use ($nextDue, $today) {
+                        $current->where(fn ($next) => $next->whereNull('is_letter_2')
+                            ->orWhere('is_letter_2', 0))
+                            ->where(function ($printed) use ($nextDue, $today) {
+                                $printed->whereNull('is_letter_1')->orWhere('is_letter_1', 0)
+                                    ->orWhereRaw($nextDue.' > ?', [$today])
+                                    ->orWhereRaw($nextDue.' IS NULL');
+                            });
+                    });
+            });
+        }
+
+        $query->whereRaw('NOT '.$priorCycleLetters)
+            ->whereRaw($schedule->letterDueSql($letter, $latestCycleDateSql).' <= ?', [$today]);
         if ($letter > 1) $query->where('is_letter_'.($letter - 1), 1);
         if ($letter < 3) {
             $query->where(fn ($next) => $next->whereNull('is_letter_'.($letter + 1))
@@ -451,14 +471,37 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         });
     }
 
-    private function applyPrintedVisibility($query, int $letter, bool $showPrinted)
+    private function applyPrintedVisibility($query, int $letter, bool $showPrinted, ?string $latestCycleDateSql = null)
     {
         if (!$showPrinted) {
             $query->where(fn ($pending) => $pending->whereNull('is_letter_'.$letter)
-                ->orWhere('is_letter_'.$letter, 0));
+                ->orWhere('is_letter_'.$letter, 0)
+                ->when($letter === 1, fn ($pending) => $pending->orWhereRaw(
+                    $this->priorCycleLettersSql($latestCycleDateSql)
+                )));
         }
 
         return $query;
+    }
+
+    private function priorCycleLettersSql(?string $latestCycleDateSql): string
+    {
+        $dates = array_filter([
+            $latestCycleDateSql,
+            't_pawn_sums.RePawning_date',
+            't_pawn_sums.Pawn_Date',
+            't_pawn_sums.Receipt_Date',
+        ]);
+        $cycleStart = 'GREATEST('.implode(', ', array_map(
+            fn ($date) => "COALESCE(DATE({$date}), '1000-01-01')",
+            $dates
+        )).')';
+
+        return '('.implode(' OR ', array_map(
+            fn ($number) => "(t_pawn_sums.is_letter_{$number} = 1 "
+                ."AND DATE(t_pawn_sums.letter_{$number}_date) < {$cycleStart})",
+            [1, 2, 3]
+        )).')';
     }
 
     private function applyTypeFilter($query, string $type): void

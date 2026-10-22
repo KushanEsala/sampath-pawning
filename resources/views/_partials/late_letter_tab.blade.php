@@ -83,8 +83,8 @@
                 <td class="text-nowrap">{{ $r->arrears_expiry_date ?? '—' }}</td>
 
                 {{-- Letter Due Date --}}
-                <td class="text-nowrap">{{ $r->{'is_letter_'.$letter_no} ? ($r->next_stage_due_date ?? '—') : ($r->next_letter_due_date ?? '—') }}
-                    @if($r->{'is_letter_'.$letter_no})<small class="d-block text-muted">Next stage</small>@endif
+                <td class="text-nowrap">{{ ($r->{'is_letter_'.$letter_no} && !$r->letter_needs_review) ? ($r->next_stage_due_date ?? '—') : ($r->next_letter_due_date ?? '—') }}
+                    @if($r->{'is_letter_'.$letter_no} && !$r->letter_needs_review)<small class="d-block text-muted">Next stage</small>@endif
                 </td>
 
                 {{-- Amount --}}
@@ -125,8 +125,10 @@
                             <div class="detail-item"><small>Expiry Date</small><strong>{{ $r->arrears_expiry_date ?? '—' }}</strong></div>
                             <div class="detail-item"><small>Letter Due</small><strong>{{ $r->next_letter_due_date ?? '—' }}</strong></div>
                             @if($r->{'is_letter_'.$letter_no})
-                            <div class="detail-item"><small>Printed</small><strong>{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</strong></div>
+                            <div class="detail-item"><small>{{ $r->letter_needs_review ? 'Prior Cycle Letter' : 'Printed' }}</small><strong>{{ optional($r->{'letter_'.$letter_no.'_date'})->format('Y-m-d') }}</strong></div>
+                            @if(!$r->letter_needs_review)
                             <div class="detail-item"><small>Next Stage Due</small><strong>{{ $r->next_stage_due_date ?? '—' }}</strong></div>
+                            @endif
                             @endif
                             <div class="detail-item"><small>Capital</small><strong>{{ number_format($r->Amount, 2) }}</strong></div>
                             <div class="detail-item"><small>Interest</small><strong>{{ number_format($r->financial_breakdown['interest'], 2) }}</strong></div>

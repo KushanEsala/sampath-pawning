@@ -266,6 +266,41 @@ class ReceiptPenaltyScheduleTest extends TestCase
         $this->assertFalse($check->invoke($controller, $receipt));
     }
 
+    public function test_renewed_receipt_returns_to_first_letter_tab_after_new_expiry(): void
+    {
+        Carbon::setTestNow('2026-12-01');
+        $receipt = new TPawnSum([
+            'Pawn_Date' => '2026-01-01', 'Final_date' => '2026-11-27',
+            'is_letter_1' => 1, 'letter_1_date' => '2026-07-23',
+            'is_letter_2' => 1, 'letter_2_date' => '2026-08-06',
+        ]);
+        $receipt->forceFill(['latest_letter_cycle_date' => '2026-09-01']);
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $resolve = new \ReflectionMethod($controller, 'currentLetterTab');
+        $resolve->setAccessible(true);
+
+        $this->assertSame(1, $resolve->invoke($controller, $receipt, new ReceiptPenaltySchedule()));
+    }
+
+    public function test_old_letter_dates_cannot_keep_renewed_receipt_in_later_letter_tabs(): void
+    {
+        Carbon::setTestNow('2026-10-22');
+        \Illuminate\Support\Facades\Schema::shouldReceive('hasColumn')->andReturn(true);
+        $controller = new \App\Http\Controllers\RedeemLateLettersController();
+        $stage = new \ReflectionMethod($controller, 'applyStageFilter');
+        $stage->setAccessible(true);
+        $schedule = new ReceiptPenaltySchedule();
+
+        foreach ([1, 2, 3] as $letter) {
+            $query = $stage->invoke($controller, TPawnSum::query(), $schedule, $letter, 'latest_letter_cycle.dDate');
+            $sql = $query->toSql();
+            $this->assertStringContainsString($schedule->expirySql('latest_letter_cycle.dDate').' <= ?', $sql);
+            $this->assertStringContainsString('DATE(t_pawn_sums.letter_2_date)', $sql);
+            $this->assertStringContainsString('latest_letter_cycle.dDate', $sql);
+            $this->assertStringContainsString($letter === 1 ? ' or ' : 'not ', strtolower($sql));
+        }
+    }
+
     public function test_expired_receipt_can_print_even_with_an_old_saved_first_interval(): void
     {
         Carbon::setTestNow('2026-10-07');
