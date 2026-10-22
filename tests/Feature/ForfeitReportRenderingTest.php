@@ -33,6 +33,33 @@ class ForfeitReportRenderingTest extends TestCase
         }
     }
 
+    public function test_redeem_receipts_print_stock_number_for_admin_and_cashier(): void
+    {
+        $pawn = [
+            'Invoice_Number' => 'STK-300', 'Receipt_Date' => '2026-09-01',
+            'Customer_Name' => 'Example', 'Customer_Address' => 'Main Road',
+            'Customer_NIC' => '123V', 'Customer_Phone' => '0771234567',
+        ];
+        $payment = array_merge(array_fill_keys([
+            'Original_Pawn_Amount', 'Payable_Pawn_Amount', 'Paid_Interest',
+            'Stamp_Fee', 'Postage_Charges', 'Document_Charges', 'Payable_Total',
+            'Discount', 'old_Interest',
+        ], 0), ['Receipt_Number' => 100, 'Redeem_Date' => '2026-09-13']);
+        $data = [
+            'pawnSumData' => collect([$pawn]), 'pawnDetailsData' => collect(),
+            'redeemdata' => collect([$payment]), 'companyData' => collect(),
+            'branchDetails' => collect(), 'interestDays' => 12,
+        ];
+
+        foreach (['Admin', 'Cashier'] as $role) {
+            $this->actingAs((new User())->forceFill(['id' => 1, 'role' => $role, 'BC' => '001']));
+            foreach (['redeemReceiptPrint', 'oldredeemReceiptPrint'] as $template) {
+                $html = view($template, $data)->render();
+                $this->assertStringContainsString('<strong>Stock No:</strong> STK-300', $html);
+            }
+        }
+    }
+
     public function test_part_payment_print_shows_capitalized_interest_and_recorded_new_capital(): void
     {
         $pawn = ['Customer_Name'=>'Example','Customer_Address'=>'Main Road','Customer_Phone'=>'0771234567',

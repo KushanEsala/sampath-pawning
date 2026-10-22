@@ -164,9 +164,7 @@
         {{-- PAWN INFO --}}
         @foreach($pawnSumData as $sumData)
         <div class="row-flex">
-            @if(auth()->user()?->isAdmin())
-                <div><strong>Stock No:</strong> {{ $sumData['Invoice_Number'] }}</div>
-            @endif
+            <div><strong>Stock No:</strong> {{ $sumData['Invoice_Number'] }}</div>
             <div><strong>Pawning Date:</strong> {{ $sumData['Receipt_Date'] }}</div>
         </div>
 
