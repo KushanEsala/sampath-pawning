@@ -498,7 +498,8 @@ public function printBulkLettersView(Request $request, ?ReceiptFinancialCalculat
         )).')';
 
         return '('.implode(' OR ', array_map(
-            fn ($number) => "(t_pawn_sums.is_letter_{$number} = 1 "
+            fn ($number) => "(COALESCE(t_pawn_sums.is_letter_{$number}, 0) = 1 "
+                ."AND t_pawn_sums.letter_{$number}_date IS NOT NULL "
                 ."AND DATE(t_pawn_sums.letter_{$number}_date) < {$cycleStart})",
             [1, 2, 3]
         )).')';
