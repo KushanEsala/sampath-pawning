@@ -187,31 +187,26 @@
                                     </div>
 
 
-                                        <div class="row" style="display: none">
-                                            <div class="col-md-2"></div>
-                                            <div class="col-md-2">
-                                                <input class="form-control" type="text" placeholder="Difference" id="interest_Paid_check" readonly>
-                                            </div>
-
-                                            <div class="col-md-2">
-                                             <input type="text" class="form-control" id="validyed_type" readonly>
-                                            </div>
-                                            <div class="col-md-2"></div>
-                                            <div class="col-md-2">
-                                                <input type="text" class="form-control" id="matched_interest_index" name="validyed_type" readonly>
-                                            </div>
-                                        <div class="col-md-2"></div>
-                                        </div>
-                                        <br>
-                                        <br>
-
                                     <div class="row ml-6 mb-4">
                                         <table>
                                             <tbody>
                                                 <tr>
+                                                    <td></td>
+                                                    <th><label for="loan_extension_months">NEW LOAN PERIOD:</label></th>
+                                                    <td>
+                                                        <select class="form-select" id="loan_extension_months" name="validyed_type" required>
+                                                            <option value="">Choose months</option>
+                                                            @for($months = 1; $months <= 12; $months++)
+                                                                <option value="{{ $months }}">{{ $months }} {{ $months === 1 ? 'month' : 'months' }}</option>
+                                                            @endfor
+                                                        </select>
+                                                        <small class="text-muted">The new expiry is counted from the part-payment date.</small>
+                                                    </td>
+                                                </tr>
+                                                <tr>
                                                     <td style="width: 15%"></td>
                                                     <th style="width: 25%">
-                                                        <label for="amount">TOTAL:</label>
+                                                        <label for="redeem_total">FULL PAYOFF BEFORE REDEMPTION FEE:</label>
                                                     </th>
                                                     <td>
                                                         <input class="form-control" type="text" placeholder="TOTAL:" id="redeem_total" name="redeem_total" readonly>
@@ -241,7 +236,7 @@
                                                 <tr>
                                                     <td style="width: 15%"></td>
                                                     <th style="width: 25%">
-                                                        <label for="advance_payment">PAY TOTAL AMOUNT:</label>
+                                                        <label for="interest_Paid">PAYMENT AMOUNT BEFORE DISCOUNT:</label>
                                                     </th>
                                                     <td>
 
@@ -282,7 +277,7 @@
                                                 <tr>
                                                     <td></td>
                                                     <th>
-                                                        <label for="payable_total">PAYABLE TOTAL:</label>
+                                                        <label for="payable_total">CASH RECEIVED:</label>
                                                     </th>
                                                     <td>
                                                         <input class="form-control" type="text" placeholder="PAYABLE TOTAL:" id="payable_total" name="payable_total" readonly>
@@ -676,47 +671,6 @@
         });
     });
 </script>
-
-
-<script>
-document.getElementById('interest_Paid').addEventListener('input', function () {
-    const redeemTotal = parseFloat(document.getElementById('redeem_total').value);
-    const interestPaid = parseFloat(this.value);
-
-    if (isNaN(redeemTotal) || isNaN(interestPaid)) {
-        document.getElementById('interest_Paid_check').value = '';
-        return;
-    }
-
-    const diff = redeemTotal - interestPaid;
-    document.getElementById('interest_Paid_check').value = diff;
-
-    let closestValue = null;
-    let closestIndex = null;
-    let smallestDiff = Infinity;
-
-    for (let i = 1; i <= 12; i++) {
-        const el = document.getElementById('Interest' + i);
-        if (!el) continue;
-
-        const value = parseFloat(el.value);
-        if (isNaN(value)) continue;
-
-        const currentDiff = Math.abs(value - diff);
-        if (currentDiff < smallestDiff) {
-            smallestDiff = currentDiff;
-            closestValue = value;
-            closestIndex = i;
-        }
-    }
-
-    // Set the closest value and index to the respective fields
-    document.getElementById('validyed_type').value = closestValue ?? '';
-    document.getElementById('matched_interest_index').value = closestIndex ?? '';
-});
-</script>
-
-
 
 
 {{-- FORM VALIDATION SCRIPT --}}

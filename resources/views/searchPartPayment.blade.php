@@ -528,45 +528,6 @@
 
 <br>
 <br>
-<div class="container">
-    <div class="table-responsive">
-    <table  class="rwd-table">
-        <tbody>
-            <tr style="background-color: #428bca">
-                <th width = >01 Months</th>
-                <th>02 Months</th>
-                <th>03 Months</th>
-                <th>04 Months</th>
-                <th>05 Months</th>
-                <th>06 Months</th>
-                <th>07 Months</th>
-                <th>08 Months</th>
-                <th>09 Months</th>
-                <th>10 Months</th>
-                <th>11 Months</th>
-                <th>12 Months</th>
-              </tr>
-              <tr>
-                <td id="output1"><input type="text" value="1" id="Interest1" style="outline: #ebf3f9" readonly></td>
-                <td id="output2"><input type="text" value="2" id="Interest2" style="outline: #ebf3f9" readonly></td>
-                <td id="output3"><input type="text" value="3" id="Interest3" style="outline: #ebf3f9" readonly></td>
-                <td id="output4"><input type="text" value="4" id="Interest4" style="outline: #ebf3f9" readonly></td>
-                <td id="output5"><input type="text" value="5" id="Interest5" style="outline: #ebf3f9" readonly></td>
-                <td id="output6"><input type="text" value="6" id="Interest6" style="outline: #ebf3f9" readonly></td>
-                <td id="output7"><input type="text" value="7" id="Interest7" style="outline: #ebf3f9" readonly></td>
-                <td id="output8"><input type="text" value="8" id="Interest8" style="outline: #ebf3f9" readonly></td>
-                <td id="output9"><input type="text" value="9" id="Interest9" style="outline: #ebf3f9" readonly></td>
-                <td id="output10"><input type="text"  value="10" id="Interest10" style="outline: #ebf3f9" readonly></td>
-                <td id="output11"><input type="text" value="11" id="Interest11" style="outline: #ebf3f9" readonly></td>
-                <td id="output12"><input type="text" value="12" id="Interest12" style="outline: #ebf3f9" readonly></td>
-              </tr>
-            </tbody>
-    </table>
-    </div>
-</div>
-<br>
-
-
 {{-- Functions for date and time  calculation --}}
 <script>
     $(document).ready(function () {
@@ -743,44 +704,9 @@
 
     $('#PayTotalAmount').val(paidCharges > 0 ? paidCharges.toFixed(2) : '0.00');
 
-    // Interest Calculation Section
-    let totalvalueinterestTotal = parseFloat('{{ $receiptData[0]['Total_Amount'] }}') || 0;
-    let silverPayment = @json(strtoupper((string) ($receiptData[0]['receiptname'] ?: $receiptData[0]['Receipt_Type'])) === 'SILVER');
-    let interestRatetwo;
-
-    if (silverPayment) {
-        interestRatetwo = {{ (float) ($receiptTypeData->first()->rate1 ?? 0) }};
-    } else if (totalvalueinterestTotal >= 100000) {
-        interestRatetwo = 1.68;
-    } else if (totalvalueinterestTotal >= 50000) {
-        interestRatetwo = 2;
-    } else {
-        interestRatetwo = 2.5;
-    }
-
-    let months_interest = totalvalueinterestTotal / 100 * interestRatetwo;
-    let Valid_Period = silverPayment ? 1 : 12;
-
-    let Interests = [];
-    for (let i = 0; i < 12; i++) {
-        Interests[i] = (Valid_Period >= i + 1) ? totalvalueinterestTotal - (months_interest * i) : null;
-        setInterestField(`Interest${i + 1}`, Interests[i]);
-    }
-
     $('#redeem_total').val(totalPay.toFixed(2));
     $('#redeem_ammount').val(totalPay.toFixed(2));
-    $('#ammount').val(totalvalueinterestTotal.toFixed(2));
     $('#Postage_Charges').val(Postage_Charges.toFixed(2));
-}
-
-function setInterestField(id, value) {
-    let field = $('#' + id);
-    field.val(value !== null ? value.toFixed(2) : '');
-    if (value === null) {
-        field.closest('td').hide();
-    } else {
-        field.closest('td').show();
-    }
 }
 
 // Event listener to trigger the calculation

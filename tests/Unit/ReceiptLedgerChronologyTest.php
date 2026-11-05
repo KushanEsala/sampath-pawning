@@ -53,6 +53,30 @@ class ReceiptLedgerChronologyTest extends TestCase
         $this->assertSame('BLOCKED', $ledger->last()['type']);
     }
 
+    public function test_same_day_part_payments_use_their_own_summary_number_for_interest(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $receipt = new TPawnSum(['Receipt_Number' => '2147', 'BC' => '001']);
+        $rows = collect([
+            (object) ['trans_type' => 'PART_PAYMENT', 'trans_no' => '4075',
+                'dDate' => '2026-09-01', 'Paided_Interest' => 0],
+            (object) ['trans_type' => 'PART_PAYMENT', 'trans_no' => '4076',
+                'dDate' => '2026-09-01', 'Paided_Interest' => 0],
+            (object) ['trans_type' => 'PART_PAYMENT', 'trans_no' => '9999',
+                'dDate' => '2026-09-01', 'Paided_Interest' => 0],
+        ]);
+        $summaries = collect([
+            (object) ['Redeem_Number' => '4075', 'Redeem_Date' => '2026-09-01', 'Paid_Interest' => 5446.94],
+            (object) ['Redeem_Number' => '4076', 'Redeem_Date' => '2026-09-01', 'Paid_Interest' => 0],
+        ]);
+
+        $service->attachPaymentAndRepawnInterest($rows, $receipt, $summaries, collect());
+
+        $this->assertSame(5446.94, $rows[0]->Paided_Interest);
+        $this->assertSame(0.0, $rows[1]->Paided_Interest);
+        $this->assertSame(0, $rows[2]->Paided_Interest);
+    }
+
     public function test_capitalized_part_payment_reconciles_ledger_and_explains_new_capital(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());

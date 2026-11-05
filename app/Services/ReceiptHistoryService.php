@@ -213,26 +213,29 @@ class ReceiptHistoryService
     }
 
     /** Attach interest for historical part payments and repawnings if missing on trans row. */
-    public function attachPaymentAndRepawnInterest(Collection $rows, TPawnSum $receipt): Collection
+    public function attachPaymentAndRepawnInterest(
+        Collection $rows,
+        TPawnSum $receipt,
+        ?Collection $paymentSummaries = null,
+        ?Collection $repawnSummaries = null
+    ): Collection
     {
-        $payments = null;
-        $repawns = null;
+        $payments = $paymentSummaries;
+        $repawns = $repawnSummaries;
 
         foreach ($rows as $row) {
             $type = strtoupper(trim((string) ($row->trans_type ?? '')));
             if ($type === 'PART_PAYMENT' && ($row->Paided_Interest === null || (float) $row->Paided_Interest <= 0)) {
                 $payments ??= TPawnPayment::where('Receipt_Number', $receipt->Receipt_Number)
                     ->where('BC', $receipt->BC)->get();
-                $matched = $payments->first(fn ($p) => (string) ($p->Redeem_Number ?? '') === (string) ($row->trans_no ?? '')
-                    || substr((string) ($p->Redeem_Date ?? ''), 0, 10) === substr((string) ($row->dDate ?? ''), 0, 10));
+                $matched = $this->matchingPaymentSummary($payments, $row, 'Redeem_Number');
                 if ($matched && $matched->Paid_Interest !== null) {
                     $row->Paided_Interest = (float) $matched->Paid_Interest;
                 }
             } elseif ($type === 'REPAWNING' && ($row->Paided_Interest === null || (float) $row->Paided_Interest <= 0)) {
                 $repawns ??= TRepawningSum::where('Receipt_Number', $receipt->Receipt_Number)
                     ->where('BC', $receipt->BC)->get();
-                $matched = $repawns->first(fn ($r) => (string) ($r->Repawn_Number ?? '') === (string) ($row->trans_no ?? '')
-                    || substr((string) ($r->Redeem_Date ?? ''), 0, 10) === substr((string) ($row->dDate ?? ''), 0, 10));
+                $matched = $this->matchingPaymentSummary($repawns, $row, 'Repawn_Number');
                 if ($matched && $matched->Paid_Interest !== null) {
                     $row->Paided_Interest = (float) $matched->Paid_Interest;
                 }
@@ -240,6 +243,27 @@ class ReceiptHistoryService
         }
 
         return $rows;
+    }
+
+    private function matchingPaymentSummary(Collection $summaries, object $transaction, string $numberField): ?object
+    {
+        $number = trim((string) ($transaction->trans_no ?? ''));
+        if ($number !== '') {
+            $normalised = ctype_digit($number) ? (ltrim($number, '0') ?: '0') : $number;
+            $matches = $summaries->filter(function ($summary) use ($numberField, $normalised) {
+                $candidate = trim((string) ($summary->{$numberField} ?? ''));
+                return (ctype_digit($candidate) ? (ltrim($candidate, '0') ?: '0') : $candidate) === $normalised;
+            });
+            if ($matches->count() === 1) return $matches->first();
+            if ($matches->isNotEmpty()) return null;
+        }
+
+        // A date identifies a payment only if no other summary shares it.
+        $date = substr((string) ($transaction->dDate ?? ''), 0, 10);
+        if ($date === '') return null;
+        $matches = $summaries->filter(fn ($summary) =>
+            substr((string) ($summary->Redeem_Date ?? ''), 0, 10) === $date);
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function redemptionKey(mixed $number, mixed $date): string
