@@ -22,3 +22,9 @@ The same receipt number also exists in Branch 002. That record is redeemed and i
 - A nonfinancial reconciliation event preserves the reason and original capital.
 
 The code also matches historical payment summaries by transaction number before considering a date. A date fallback is used only if one summary exists for that date. The part-payment page now asks the cashier to select the new loan period rather than guessing it from unrelated amounts.
+
+## Live execution and verification
+
+Code commit `892c844a` was deployed to Kreethya. The script passed dry run and was then applied to Branch 001 receipt 2147 on 5 November. It made no cash-account changes and ran no migrations.
+
+The read-only live check after correction showed current capital Rs. 96,217.60, accrued interest Rs. 962.18, and redemption service charge Rs. 30.00. Receipt Search redemption total was **Rs. 97,209.78**; ledger balance was **Rs. 97,179.78**. Their Rs. 30.00 difference is the current redemption service charge, which is added to the quote and is not yet a posted ledger movement. Cash entries remained Rs. 2,000.00, Rs. 1,000.00, and Rs. 2,000.00 for payments 4075, 4076, and 5962. The live login page responded HTTP 200 and production Blade compilation succeeded.
