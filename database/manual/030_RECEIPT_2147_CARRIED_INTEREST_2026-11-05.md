@@ -21,7 +21,7 @@ The same receipt number also exists in Branch 002. That record is redeemed and i
 - The November event keeps Rs. 3,771.28 as the **new interest charge**. Adding carried interest to that field would charge it twice in the ledger. Separate event fields record the Rs. 3,446.94 carry and Rs. 7,218.22 total interest due at payment.
 - A nonfinancial reconciliation event preserves the reason and original capital.
 
-The code also matches historical payment summaries by transaction number before considering a date. A date fallback is used only if one summary exists for that date. The part-payment page now asks the cashier to select the new loan period rather than guessing it from unrelated amounts.
+The code also matches historical payment summaries by transaction number before considering a date. A date fallback is used only if one summary exists for that date. The part-payment page retains its automatic loan-period selection. Its month figures now use current loan capital and the saved receipt rate, and its selected period updates with the payment calculation.
 
 ## Live execution and verification
 

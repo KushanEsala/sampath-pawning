@@ -528,6 +528,26 @@
 
 <br>
 <br>
+<div class="container">
+    <div class="table-responsive">
+        <table class="rwd-table">
+            <tbody>
+                <tr style="background-color: #428bca">
+                    @for($months = 1; $months <= 12; $months++)
+                        <th id="interest_month_heading_{{ $months }}">{{ str_pad($months, 2, '0', STR_PAD_LEFT) }} Months</th>
+                    @endfor
+                </tr>
+                <tr>
+                    @for($months = 1; $months <= 12; $months++)
+                        <td id="output{{ $months }}"><input type="text" id="Interest{{ $months }}" style="outline: #ebf3f9" readonly></td>
+                    @endfor
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<br>
+
 {{-- Functions for date and time  calculation --}}
 <script>
     $(document).ready(function () {
@@ -704,14 +724,53 @@
 
     $('#PayTotalAmount').val(paidCharges > 0 ? paidCharges.toFixed(2) : '0.00');
 
-    $('#redeem_total').val(totalPay.toFixed(2));
+    updateMonthOptionsAndTerm(amount, pawningPayment, paymentReceived);
     $('#redeem_ammount').val(totalPay.toFixed(2));
     $('#Postage_Charges').val(Postage_Charges.toFixed(2));
+}
+
+function updateMonthOptionsAndTerm(currentCapital, newCapital, paymentReceived) {
+    const receiptType = @json(strtoupper((string) ($receiptData[0]['receiptname'] ?: $receiptData[0]['Receipt_Type'])));
+    const monthlyRate = receiptType === 'SILVER'
+        ? {{ (float) ($receiptTypeData->first()->rate1 ?? 0) }}
+        : receiptType === 'D'
+            ? {{ (float) ($receiptTypeData->first()->rate2 ?? 0) }}
+            : {{ (float) ($receiptTypeData->first()->rate3 ?? 0) }};
+    const availableMonths = receiptType === 'SILVER' ? 1 : 12;
+    const monthlyInterest = currentCapital * monthlyRate / 100;
+    let closestValue = null;
+    let closestIndex = null;
+    let smallestDifference = Infinity;
+
+    for (let month = 1; month <= 12; month++) {
+        const field = $('#Interest' + month);
+        const option = month <= availableMonths
+            ? Math.max(0, currentCapital - monthlyInterest * (month - 1))
+            : null;
+        field.val(option === null ? '' : option.toFixed(2));
+        field.closest('td').toggle(option !== null);
+        $('#interest_month_heading_' + month).toggle(option !== null);
+        if (option === null || paymentReceived <= 0) continue;
+        const difference = Math.abs(option - newCapital);
+        if (difference < smallestDifference) {
+            smallestDifference = difference;
+            closestValue = option;
+            closestIndex = month;
+        }
+    }
+
+    $('#interest_Paid_check').val(paymentReceived > 0 ? newCapital.toFixed(2) : '');
+    $('#validyed_type').val(closestValue === null ? '' : closestValue.toFixed(2));
+    $('#matched_interest_index').val(closestIndex ?? '');
 }
 
 // Event listener to trigger the calculation
 $(document).on('input', '#redeem_discount,#total,#BalanceInterest,#Postage_interest,#PayTotalAmount,#advance_payment,#interest_Paid,#interest,#document_charges,#stampduty,#pawning_payment,#Postage_Charges', function () {
     redeemTotalCalculation();
+});
+
+$('#partPaymentForm').on('reset', function () {
+    setTimeout(redeemTotalCalculation, 0);
 });
 
 $('#redeem_discount').on('keyup', function (e) {

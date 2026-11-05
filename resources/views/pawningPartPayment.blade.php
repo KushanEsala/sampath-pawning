@@ -187,22 +187,21 @@
                                     </div>
 
 
+                                        <div class="row" style="display: none">
+                                            <div class="col-md-2">
+                                                <input class="form-control" type="text" id="interest_Paid_check" readonly>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <input class="form-control" type="text" id="validyed_type" readonly>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <input class="form-control" type="text" id="matched_interest_index" name="validyed_type" readonly>
+                                            </div>
+                                        </div>
+
                                     <div class="row ml-6 mb-4">
                                         <table>
                                             <tbody>
-                                                <tr>
-                                                    <td></td>
-                                                    <th><label for="loan_extension_months">NEW LOAN PERIOD:</label></th>
-                                                    <td>
-                                                        <select class="form-select" id="loan_extension_months" name="validyed_type" required>
-                                                            <option value="">Choose months</option>
-                                                            @for($months = 1; $months <= 12; $months++)
-                                                                <option value="{{ $months }}">{{ $months }} {{ $months === 1 ? 'month' : 'months' }}</option>
-                                                            @endfor
-                                                        </select>
-                                                        <small class="text-muted">The new expiry is counted from the part-payment date.</small>
-                                                    </td>
-                                                </tr>
                                                 <tr>
                                                     <td style="width: 15%"></td>
                                                     <th style="width: 25%">
