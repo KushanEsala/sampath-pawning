@@ -348,9 +348,7 @@
                 <p>
                     <input class="form-control text-center" id="document_charges" type="text" placeholder="Document Charges"
                     name="document_charges" value="" readonly/>
-                    <label for="addServiceCharges" style="margin-left: 10px;">
-                        <input type="checkbox" name="addServiceCharges" id="addServiceCharges" required> Add to Total
-                    </label>
+                    <small class="text-muted">Included in total</small>
                 </p>
             </td>
         </tr>
@@ -394,11 +392,6 @@ $(document).ready(function () {
         e.preventDefault();
         calculateFinalDate();
         interestCalculations();
-    });
-
-    // --- Service Charges Checkbox Handler ---
-    $('#addServiceCharges').on('change', function() {
-        redeemTotalCalculation();
     });
 
     // --- Calculate the final date ---
@@ -562,7 +555,7 @@ $(document).ready(function () {
         let pawningPayment = amount + interestpay - interest_Paid;
         $('#pawning_payment').val(pawningPayment > 0 ? pawningPayment.toFixed(2) : '0.00');
 
-        $('#payable_total').val((interest_Paid - discount).toFixed(2));
+        $('#payable_total').val(Math.max(0, totalPay - discount).toFixed(2));
 
         let payTotalAmount = totalPay - advancePayment - (includeServiceCharges ? 0 : document_charges) - (pawningPayment > 0 ? pawningPayment : 0);
         $('#PayTotalAmount').val(payTotalAmount > 0 ? payTotalAmount.toFixed(2) : '0.00');

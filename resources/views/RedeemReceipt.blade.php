@@ -651,9 +651,11 @@ $(document).ready(function () {
         let redeemTotal  = parseFloat($('#redeem_total').val()) || 0;
         let payableTotal = parseFloat($('#payable_total').val()) || 0;
 
-        if (payableTotal < redeemTotal) {
-            e.preventDefault(); // stop form submit
-            showAlert('Payable Total cannot be less than Redeem Total!');
+        let discount = parseFloat($('#redeem_discount').val()) || 0;
+
+        if (discount < 0 || discount > redeemTotal || payableTotal + discount + 0.005 < redeemTotal) {
+            e.preventDefault();
+            showAlert('Payable Total must cover the Redeem Total after Discount.');
             return false;
         }
     });

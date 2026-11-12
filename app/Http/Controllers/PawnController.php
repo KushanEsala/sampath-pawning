@@ -850,7 +850,8 @@ public function get(Request $request, CustomerPawnPolicy $customerPolicy)
             return response()->json(['status' => 'not_found', 'data' => []]);
         }
 
-        $data = $historyService->paymentLedger($receipt);
+        // Use the same complete, chronological ledger shown in Receipt Search.
+        $data = $historyService->build($receipt)['ledger'];
 
         if ($data->isEmpty()) {
             return response()->json([

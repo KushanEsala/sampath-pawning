@@ -156,6 +156,31 @@ class ReceiptPaymentStatusTest extends TestCase
         $this->assertSame('success', $response->getData(true)['status']);
     }
 
+    public function test_redemption_history_uses_the_same_complete_ledger_as_receipt_search(): void
+    {
+        $connection = $this->connection();
+        $connection->shouldReceive('select')->once()->andReturnUsing(function ($sql, $bindings) {
+            $this->assertStringContainsString('from `t_pawn_sums`', $sql);
+            $this->assertSame(['001', '6763', '6763', '6763'], $bindings);
+            return [(object) ['id' => 11430, 'BC' => '001', 'Receipt_Number' => '6763']];
+        });
+
+        $ledger = collect([
+            ['date' => '2026-11-09', 'type' => 'CUSTOMER REMARK', 'dr' => 0.0, 'cr' => 0.0, 'balance' => 1487931.0],
+        ]);
+        $history = Mockery::mock(ReceiptHistoryService::class);
+        $history->shouldReceive('build')->once()->andReturn(['ledger' => $ledger]);
+        $history->shouldNotReceive('paymentLedger');
+
+        $response = (new PawnController())->getCustomerDetails(
+            Request::create('/', 'GET', ['search_receipt_no' => '6763']),
+            $history
+        );
+
+        $this->assertSame('success', $response->getData(true)['status']);
+        $this->assertSame('CUSTOMER REMARK', $response->getData(true)['data'][0]['type']);
+    }
+
     public function test_opening_receipt_article_status_is_scoped_to_its_own_table_and_branch(): void
     {
         $connection = $this->connection();
