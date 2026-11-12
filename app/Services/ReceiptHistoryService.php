@@ -596,21 +596,23 @@ class ReceiptHistoryService
                 }
             }
 
-            // Only the open period after the latest transaction is calculated
-            // dynamically. All closed historical periods use recorded values.
-            $isLatestLoanRow = $latestLoanIdentity !== null && spl_object_id($row) === $latestLoanIdentity;
-            $currentInterest = $type === 'REDEEM' || !$isLatestLoanRow
-                ? 0.0
-                : max(0, (float) ($row->interest_amount ?? 0));
+        }
+
+        // Accrued interest belongs at the end of the open period. Appending it
+        // beside the last loan transaction placed it before later letter charges
+        // and made the displayed running balance move backwards in time.
+        if ($latestLoanIdentity !== null
+            && strtoupper(trim((string) ($latestLoanRow->trans_type ?? ''))) !== 'REDEEM') {
+            $currentInterest = max(0, (float) ($latestLoanRow->interest_amount ?? 0));
             if ($currentInterest >= 0.01) {
-                $days = (int) ($row->days_count ?? 0);
+                $days = (int) ($latestLoanRow->days_count ?? 0);
                 $append(
-                    substr((string) ($row->interest_to_date ?? $date), 0, 10),
+                    substr((string) ($latestLoanRow->interest_to_date ?? $latestLoanRow->dDate), 0, 10),
                     'Interest accrued',
                     [
                         $days.' day'.($days === 1 ? '' : 's').' in the current open period',
-                        'Capital used: Rs. '.number_format((float) ($row->remaining_capital ?? 0), 2),
-                        ($row->rate_type_name ?? 'Type unknown').' · '.($row->rate_configuration ?? 'Rate source unverified'),
+                        'Capital used: Rs. '.number_format((float) ($latestLoanRow->remaining_capital ?? 0), 2),
+                        ($latestLoanRow->rate_type_name ?? 'Type unknown').' · '.($latestLoanRow->rate_configuration ?? 'Rate source unverified'),
                         $receiptReference,
                     ],
                     $currentInterest,

@@ -53,6 +53,33 @@ class ReceiptLedgerChronologyTest extends TestCase
         $this->assertSame('BLOCKED', $ledger->last()['type']);
     }
 
+    public function test_accrued_interest_follows_later_letter_charges_and_reconciles_the_balance(): void
+    {
+        $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
+        $receipt = new TPawnSum(['Receipt_Number' => '6763', 'BC' => '001']);
+        $rows = collect([
+            (object) [
+                'id' => 1, 'dDate' => '2026-06-04', 'trans_type' => 'PAWN',
+                'OC' => null, 'Cr_amount' => 1350000, 'trans_amount' => 1350000,
+                'remaining_capital' => 1350000, 'interest_amount' => 137781,
+                'interest_to_date' => '2026-11-12', 'days_count' => 162,
+            ],
+            (object) [
+                'id' => 2, 'dDate' => '2026-11-09', 'trans_type' => 'LETTER 1 CHARGE',
+                'OC' => null, 'trans_amount' => 150, 'Postage_charge' => 150,
+            ],
+        ]);
+
+        $ledger = (new \ReflectionMethod($service, 'formatLedgerRows'))->invoke($service, $rows, $receipt);
+
+        $this->assertSame(['PAWN', 'LETTER 1 CHARGE', 'INTEREST_CHARGE'], $ledger->pluck('type')->all());
+        $this->assertSame([1350000.0, 1350150.0, 1487931.0], $ledger->pluck('balance')->all());
+        $this->assertSame(
+            round($ledger->sum('dr') - $ledger->sum('cr'), 2),
+            $ledger->last()['balance']
+        );
+    }
+
     public function test_same_day_part_payments_use_their_own_summary_number_for_interest(): void
     {
         $service = new ReceiptHistoryService(new ReceiptFinancialCalculator());
