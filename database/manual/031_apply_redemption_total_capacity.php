@@ -22,7 +22,8 @@ $column = DB::selectOne(
     [$database, 't_redeem_sums', 'Payable_Total']
 );
 if (!$column || strtolower($column->type) !== 'decimal(8,2)'
-    || $column->nullable !== 'YES' || $column->default_value !== null) {
+    || $column->nullable !== 'YES'
+    || !in_array($column->default_value, [null, 'NULL'], true)) {
     throw new RuntimeException('The redemption total column does not match the reviewed starting state.');
 }
 
