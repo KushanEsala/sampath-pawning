@@ -62,6 +62,9 @@
                                         </ul>
                                     </div>
                                 @endif
+                                @if (session('error') && ! $errors->any())
+                                    <div class="alert alert-danger" role="alert">{{ session('error') }}</div>
+                                @endif
                                 @if (Session::has('done'))
                                     <div class="alert alert-success text-center">
                                         <p>{{ Session::get('done') }}</p>
@@ -86,7 +89,7 @@
                                         <div class="col-md-4 mb-1">
                                             <label for="receipt_no">Receipt Number :
                                                 <input class="form-control" type="text" placeholder="Type Receipt Number:"
-                                                name="receipt_number" id="search_receipt" required>
+                                                name="receipt_number" id="search_receipt" value="{{ old('receipt_number') }}" required>
                                             </label>
                                         </div>
                                         <div class="col-md-4 mb-1">
@@ -599,6 +602,10 @@
                 }
             }, 300)); // Delay for 300ms
         });
+
+        if ($('#search_receipt').val().trim() !== '') {
+            $('#search_receipt').trigger('keyup');
+        }
     });
 </script>
 

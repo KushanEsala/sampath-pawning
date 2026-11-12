@@ -1,0 +1,7 @@
+# Redemption total capacity for receipt 001/6763
+
+Production diagnosis on 2026-11-12 (read-only): receipt 6763 in Branch 001 is active and unblocked. Its redemption quote is Rs. 1,487,961.00. The live `t_redeem_sums.Payable_Total` column is `DECIMAL(8,2)`, which cannot store more than Rs. 999,999.99. MySQL runs in strict mode, so the insert fails and the redemption transaction rolls back. The other values for this receipt fit their live columns; the transaction, customer-account, accounting, and lifecycle payment columns are `DECIMAL(10,2)` or `DECIMAL(15,2)`.
+
+The proposed change is the single column widening in [031_WIDEN_REDEMPTION_TOTAL_2026-11-12.sql](031_WIDEN_REDEMPTION_TOTAL_2026-11-12.sql). It preserves all existing values and the column's nullability and default. It is a manual schema change, **not a Laravel migration**. The project's schema preservation instruction requires explicit approval before applying it. No production database data or schema was changed while preparing this fix.
+
+After approval: back up `t_redeem_sums`, run the SQL, verify `SHOW COLUMNS FROM t_redeem_sums LIKE 'Payable_Total'`, and verify Branch 001 receipt 6763 remains active for staff to redeem. Do not submit a redemption on behalf of staff.

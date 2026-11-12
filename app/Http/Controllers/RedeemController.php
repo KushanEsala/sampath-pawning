@@ -451,12 +451,13 @@ public function store(Request $request, ReceiptLifecycleService $lifecycle, Rece
 
     } catch (\Illuminate\Validation\ValidationException $e) {
         DB::rollBack();
-        return back()->withErrors($e->errors())->with('error', $e->validator->errors()->first());
+        return back()->withErrors($e->errors())->with('error', $e->validator->errors()->first())->withInput();
     } catch (\Exception $e) {
         DB::rollBack();
+        report($e);
 
         return back()
-            ->with('error', 'An error occurred: ' . $e->getMessage())
+            ->with('error', 'Redemption was not saved. Please contact an administrator with the receipt number and time.')
             ->withInput();
     }
 }
